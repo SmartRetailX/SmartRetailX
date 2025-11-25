@@ -1,14 +1,19 @@
 import nx from '@nx/eslint-plugin';
+import prettierConfig from 'eslint-config-prettier';
+import prettierPlugin from 'eslint-plugin-prettier';
 
 export default [
   ...nx.configs['flat/base'],
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: ['**/dist'],
+    ignores: ['**/dist', '**/coverage', '**/.nx'],
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
+    plugins: {
+      prettier: prettierPlugin,
+    },
     rules: {
       '@nx/enforce-module-boundaries': [
         'error',
@@ -21,6 +26,18 @@ export default [
               onlyDependOnLibsWithTags: ['*'],
             },
           ],
+        },
+      ],
+      'prettier/prettier': [
+        'warn',
+        {
+          printWidth: 100,
+          tabWidth: 2,
+          semi: true,
+          singleQuote: true,
+          trailingComma: 'all',
+          arrowParens: 'always',
+          endOfLine: 'lf',
         },
       ],
     },
@@ -39,4 +56,5 @@ export default [
     // Override or add rules here
     rules: {},
   },
+  prettierConfig,
 ];
