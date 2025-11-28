@@ -1,6 +1,7 @@
 import '@/styles/globals.css';
 
-import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { useAuth } from '@/contexts/auth-context';
+import { AuthProvider } from '@/providers/auth-provider';
 import { createAppRouter } from '@/router';
 import { RouterProvider } from '@tanstack/react-router';
 
