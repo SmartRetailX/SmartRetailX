@@ -14,7 +14,7 @@ export class ConfigService {
   }
 
   get port(): number {
-    return this.configService.get<number>('PORT', 3000);
+    return this.configService.get<number>('PORT', 3001);
   }
 
   get host(): string {
