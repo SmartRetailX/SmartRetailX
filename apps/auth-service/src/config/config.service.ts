@@ -61,7 +61,7 @@ export class ConfigService {
 
   // CORS Configuration
   get corsOrigin(): string {
-    return this.configService.get<string>('CORS_ORIGIN', 'http://localhost:4200');
+    return this.configService.get<string>('CORS_ORIGIN', 'http://localhost:5173');
   }
 
   get corsCredentials(): boolean {
