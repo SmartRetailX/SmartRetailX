@@ -3,3 +3,21 @@
 /coverage
 /.nx/cache
 /.nx/workspace-data
+
+# Lockfiles
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated files
+**/routeTree.gen.ts
+**/*.min.js
+**/*.bundle.js
+
+# Build outputs
+**/dist
+**/build
+**/out
+
+# Dependencies
+**/node_modules
