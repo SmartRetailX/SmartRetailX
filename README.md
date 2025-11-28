@@ -1,97 +1,193 @@
-# SmartRetailX
+# 🛒 SmartRetailX
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+AI-powered e-commerce platform with Better Auth authentication system.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+---
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-or run `npx nx graph` to visually explore what was created. Now, let's get you
-up to speed!
+## 🚀 Quick Start
 
-## Finish your CI setup
+```bash
+# 1. Install dependencies
+pnpm install
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/UnQaRhucSD)
+# 2. Configure environment
+cp apps/auth-service/.env.example apps/auth-service/.env
+cp apps/client/.env.example apps/client/.env
+# Edit apps/auth-service/.env and add your hosted database URL
 
-## Run tasks
+# 3. Run migrations
+psql "YOUR_DATABASE_URL" -f apps/auth-service/migrations/001_init_better_auth.sql
 
-To run tasks with Nx use:
-
-```sh
-npx nx <target> <project-name>
+# 4. Start services
+npx nx serve auth-service  # Terminal 1
+npx nx serve client        # Terminal 2
 ```
 
-For example:
+**Open:** http://localhost:5173
 
-```sh
-npx nx build myproject
+**📖 Full Setup Guide:** See [SETUP.md](./SETUP.md)
+
+---
+
+## 📚 Documentation
+
+- **[SETUP.md](./SETUP.md)** - Complete setup & testing guide
+- **[.env.example](./apps/auth-service/.env.example)** - Environment
+  configuration template
+- **[.env.example](./apps/client/.env.example)** - Client configuration template
+
+---
+
+## 🏗️ Project Structure
+
+```
+smart-retail-x/
+├── apps/
+│   ├── auth-service/       # NestJS Backend (Port 3000)
+│   │   ├── src/
+│   │   │   ├── lib/        # Better Auth config
+│   │   │   ├── auth/       # Auth module
+│   │   │   └── config/     # Environment config
+│   │   └── migrations/     # Database migrations
+│   │
+│   ├── client/             # React Frontend (Port 5173)
+│   │   └── src/
+│   │       ├── lib/        # Auth client
+│   │       ├── contexts/   # Auth context
+│   │       ├── components/ # UI components
+│   │       └── routes/     # Pages (login, signup, etc.)
+│   │
+│   └── auth-service-e2e/   # E2E tests
+│
+└── scripts/
+    └── start-services.sh   # Start all services
 ```
 
-These targets are either
-[inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-or defined in the `project.json` or `package.json` files.
+---
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## ✨ Features
 
-## Add new projects
+### Authentication
 
-While you could add new projects to your workspace manually, you might want to
-leverage
-[Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-and their
-[code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-feature.
+- ✅ Email/Password authentication
+- ✅ Secure session management (7-day sessions)
+- ✅ HttpOnly cookies for security
+- ✅ Protected routes
+- ✅ Auto session refresh
 
-To install a new plugin you can use the `nx add` command. Here's an example of
-adding the React plugin:
+### UI/UX
 
-```sh
-npx nx add @nx/react
+- ✅ Modern gradient design
+- ✅ Dark mode support
+- ✅ Fully responsive
+- ✅ Form validation
+- ✅ Loading states
+
+### Tech Stack
+
+- **Backend:** NestJS + Better Auth + PostgreSQL
+- **Frontend:** React 19 + TanStack Router + Tailwind CSS
+- **UI:** shadcn/ui components
+- **Monorepo:** Nx
+- **Package Manager:** pnpm
+
+---
+
+## 🎯 Service URLs
+
+| Service      | URL                            | Description              |
+| ------------ | ------------------------------ | ------------------------ |
+| **Client**   | http://localhost:5173          | React frontend           |
+| **Auth API** | http://localhost:3000/api/auth | Authentication endpoints |
+
+---
+
+## 🧪 Testing
+
+1. Open http://localhost:5173
+2. Click "Create Account"
+3. Sign up with test credentials
+4. Verify redirect and welcome message
+5. Test logout and login
+
+See [SETUP.md](./SETUP.md#testing-authentication) for detailed testing guide.
+
+---
+
+## 🔧 Development Commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start auth service
+npx nx serve auth-service
+
+# Start client
+npx nx serve client
+
+# Start both (automated)
+./scripts/start-services.sh
+
+# Build
+npx nx build auth-service
+npx nx build client
+
+# Lint
+npx nx run-many -t lint
+
+# Format
+pnpm format
+
+# View dependency graph
+npx nx graph
 ```
 
-Use the plugin's generator to create new projects. For example, to create a new
-React app or library:
+---
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
+## 📋 Prerequisites
 
-# Generate a library
-npx nx g @nx/react:lib some-lib
+- Node.js v18+
+- pnpm
+- Hosted PostgreSQL database (Neon, Supabase, Railway, etc.)
+
+---
+
+## 🐛 Troubleshooting
+
+**Port in use:**
+
+```bash
+lsof -ti:3000,5173 | xargs kill -9
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run
-`npx nx list <plugin-name>` to learn about more specific capabilities of a
-particular plugin. Alternatively,
-[install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-to browse plugins and generators in your IDE.
+**Database connection error:**
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-|
-[Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- Verify DATABASE_URL in `apps/auth-service/.env`
+- Ensure `?sslmode=require` is added for hosted databases
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**CORS error:**
 
-## Install Nx Console
+- Check `CORS_ORIGIN=http://localhost:5173` in `apps/auth-service/.env`
+- Restart auth-service
 
-Nx Console is an editor extension that enriches your developer experience. It
-lets you run tasks, generate code, and improves code autocompletion in your IDE.
-It is available for VSCode and IntelliJ.
+See [SETUP.md](./SETUP.md#troubleshooting) for more solutions.
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-## Useful links
+## 📞 Support
 
-Learn more:
+- **Setup Help:** [SETUP.md](./SETUP.md)
+- **Better Auth:** https://www.better-auth.com/docs
+- **NestJS:** https://docs.nestjs.com
+- **React:** https://react.dev
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-And join the Nx community:
+## 📄 License
 
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or
-  [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+MIT License
+
+---
+
+**Built with ❤️ for SmartRetailX**
