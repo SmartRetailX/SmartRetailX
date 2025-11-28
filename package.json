@@ -6,7 +6,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "nx run-many -t lint",
-    "lint:fix": "nx run-many -t lint --fix"
+    "lint:fix": "nx run-many -t lint --fix",
+    "dev:frontend": "nx run-many --target=serve --projects=client --parallel=1",
+    "dev:backend": "nx run-many --target=serve --projects=api-gateway,auth-service,assistant-service --parallel=3",
+    "dev:all": "nx run-many --target=serve --projects=api-gateway,auth-service,assistant-service,client --parallel=4"
   },
   "private": true,
   "devDependencies": {
@@ -63,6 +66,7 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.0",
+    "@nestjs/microservices": "^11.1.9",
     "@nestjs/platform-express": "^11.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -92,6 +96,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-router": "^1.139.6",
     "@tanstack/react-router-devtools": "^1.139.6",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^0.10.9",
     "axios": "^1.6.0",
     "better-auth": "^1.4.3",
     "class-variance-authority": "^0.7.1",
@@ -99,6 +105,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "http-proxy-middleware": "^3.0.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.554.0",
     "next-themes": "^0.4.6",
