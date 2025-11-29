@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AuthContext, AuthContextType } from '@/contexts/auth-context';
 
 import type { User } from '@/lib/auth-client';
@@ -14,23 +14,39 @@ interface AuthProviderProps {
 /**
  * Authentication Provider Component
  * Manages global authentication state and provides auth methods
+ *
+ * Performance optimizations:
+ * - Uses refs to prevent duplicate session checks on mount/refresh
+ * - Marks session as checked after login/signup to avoid redundant fetches
+ * - Implements request deduplication with isCheckingSession flag
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isCheckingSession = useRef(false);
+  const hasCheckedSession = useRef(false);
 
   /**
    * Check for existing session on mount
    */
   useEffect(() => {
-    checkSession();
+    // Only check session once on initial mount
+    if (!hasCheckedSession.current) {
+      checkSession();
+    }
   }, []);
 
   /**
    * Check current session
    */
   const checkSession = async () => {
+    // Prevent duplicate session checks
+    if (isCheckingSession.current) {
+      return;
+    }
+
     try {
+      isCheckingSession.current = true;
       setIsLoading(true);
       const session = await auth.getSession();
 
@@ -39,11 +55,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         setUser(null);
       }
+
+      hasCheckedSession.current = true;
     } catch (error) {
       console.error('Session check failed:', error);
       setUser(null);
     } finally {
       setIsLoading(false);
+      isCheckingSession.current = false;
     }
   };
 
@@ -57,6 +76,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (result.data?.user) {
         setUser(result.data.user);
+        hasCheckedSession.current = true; // Mark as checked to avoid duplicate session fetch
       } else if (result.error) {
         throw new Error(result.error.message || 'Sign up failed');
       }
@@ -78,6 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (result.data?.user) {
         setUser(result.data.user);
+        hasCheckedSession.current = true; // Mark as checked to avoid duplicate session fetch
       } else if (result.error) {
         throw new Error(result.error.message || 'Login failed');
       }

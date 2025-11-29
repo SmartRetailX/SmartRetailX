@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SmartRetailX - Start All Services
-# This script starts both auth-service and client
+# This script starts api-gateway, assistant-service, and client
 
 set -e
 
@@ -30,27 +30,30 @@ if ! command -v psql &> /dev/null; then
     echo "⚠️  Warning: PostgreSQL not found. Please ensure it's installed and running."
 fi
 
-# Check if .env files exist
-if [ ! -f "apps/auth-service/.env" ]; then
-    echo "⚠️  Warning: apps/auth-service/.env not found"
-    echo "   Run: cp apps/auth-service/.env.example apps/auth-service/.env"
+# Check if RabbitMQ is running
+if ! command -v rabbitmq-server &> /dev/null; then
+    echo "⚠️  Warning: RabbitMQ not found. Please ensure it's installed and running."
 fi
 
-if [ ! -f "apps/client/.env" ]; then
-    echo "⚠️  Warning: apps/client/.env not found"  
-    echo "   Run: cp apps/client/.env.example apps/client/.env"
+# Check if .env files exist
+if [ ! -f ".env" ]; then
+    echo "⚠️  Warning: .env not found in project root"
+    echo "   Create .env file with required environment variables"
 fi
 
 echo ""
 echo "🚀 Starting services..."
 echo ""
 echo "┌────────────────────────────────────────────────────┐"
-echo "│  Auth Service: http://localhost:3000/api          │"
-echo "│  Client:       http://localhost:5173              │"
+echo "│  API Gateway:        http://localhost:3000/api    │"
+echo "│    → Auth:           /api/auth/*                  │"
+echo "│    → Assistant:      /api/assistant/*             │"
+echo "│  Client:             http://localhost:5173        │"
+echo "│  Assistant Service:  RabbitMQ (background)        │"
 echo "└────────────────────────────────────────────────────┘"
 echo ""
 echo "Press Ctrl+C to stop all services"
 echo ""
 
-# Run both services
-npx nx run-many -t serve -p auth-service,client
+# Run all services
+npx nx run-many -t serve -p api-gateway,assistant-service,client

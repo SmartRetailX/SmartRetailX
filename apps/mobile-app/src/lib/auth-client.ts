@@ -1,24 +1,26 @@
-import { createAuthClient } from 'better-auth/client';
+import { expoClient } from '@better-auth/expo/client';
+import { createAuthClient } from 'better-auth/react';
+import * as SecureStore from 'expo-secure-store';
+
+import { api } from './env';
 
 /**
- * Better Auth client configuration
- * This is used by the frontend to communicate with the auth service
+ * Better Auth client for mobile app
+ * Configured with Expo plugin for secure cookie management and deep linking support
  */
-export const authClient = createAuthClient({
-  baseURL: import.meta.env.PUBLIC_API_BASE_URL || 'http://localhost:3000/api/auth',
-
-  // Include credentials (cookies) in requests
-  credentials: 'include',
-
-  // Disable automatic session fetching to prevent duplicate requests
-  // We'll handle session management in AuthProvider
-  fetchOptions: {
-    cache: 'no-cache',
-  },
+export const authClient: ReturnType<typeof createAuthClient> = createAuthClient({
+  baseURL: api.getAuthUrl(),
+  plugins: [
+    expoClient({
+      scheme: 'mobile-app', // Must match the scheme in app.json
+      storagePrefix: 'smart-retail-x',
+      storage: SecureStore,
+    }),
+  ],
 });
 
 /**
- * Type-safe auth client methods
+ * Type-safe auth methods for the mobile app
  */
 export const auth = {
   /**
@@ -54,20 +56,6 @@ export const auth = {
    */
   updateUser: async (data: { name?: string; image?: string }) => {
     return authClient.updateUser(data);
-  },
-
-  /**
-   * Request password reset
-   */
-  forgetPassword: async (email: string) => {
-    return authClient.forgetPassword({ email });
-  },
-
-  /**
-   * Reset password with token
-   */
-  resetPassword: async (data: { token: string; password: string }) => {
-    return authClient.resetPassword(data);
   },
 };
 
