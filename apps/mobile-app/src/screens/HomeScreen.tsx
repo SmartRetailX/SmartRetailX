@@ -14,9 +14,10 @@ import { auth, User } from '../lib/auth-client';
 
 interface HomeScreenProps {
   onLogout?: () => void;
+  onNavigateToVoiceAssistant?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout, onNavigateToVoiceAssistant }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -93,6 +94,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout }) => {
           <Text style={styles.cardText}>• Personalized recommendations</Text>
           <Text style={styles.cardText}>• Secure checkout</Text>
         </View>
+
+        {/* Voice Assistant Button */}
+        <TouchableOpacity style={styles.assistantButton} onPress={onNavigateToVoiceAssistant}>
+          <Text style={styles.assistantButtonIcon}>🤖</Text>
+          <View style={styles.assistantButtonContent}>
+            <Text style={styles.assistantButtonTitle}>Voice Assistant</Text>
+            <Text style={styles.assistantButtonSubtitle}>Chat with SinLlama AI</Text>
+          </View>
+          <Text style={styles.assistantButtonArrow}>›</Text>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -178,6 +189,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 22,
+  },
+  assistantButton: {
+    backgroundColor: '#143055',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  assistantButtonIcon: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  assistantButtonContent: {
+    flex: 1,
+  },
+  assistantButtonTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  assistantButtonSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  assistantButtonArrow: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: 'bold',
   },
   logoutButton: {
     backgroundColor: '#fff',

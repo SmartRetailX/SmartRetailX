@@ -50,6 +50,11 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
+# Markdown files
+!README.md
+!SETUP.md
+*.md
+
 # Expo
 node_modules/
 .expo/
