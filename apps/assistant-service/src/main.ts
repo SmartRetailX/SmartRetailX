@@ -6,12 +6,13 @@ import { AppModule } from './app/app.module';
 
 async function bootstrap() {
   const rabbitMqUrl = process.env.RABBITMQ_URI || 'amqp://localhost:5672';
+  const queueName = process.env.ASSISTANT_SERVICE_QUEUE || 'assistant_queue';
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.RMQ,
     options: {
       urls: [rabbitMqUrl],
-      queue: 'assistant_queue',
+      queue: queueName,
       queueOptions: {
         durable: true,
       },
@@ -22,7 +23,7 @@ async function bootstrap() {
 
   Logger.log(`🤖 Assistant Service (RabbitMQ) started`);
   Logger.log(`📡 Connected to: ${rabbitMqUrl}`);
-  Logger.log(`   Queue: assistant_queue`);
+  Logger.log(`   Queue: ${queueName}`);
   Logger.log(`   Listening for voice assistant requests...`);
 }
 
