@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { StatusBar } from 'expo-status-bar';
 
+import { config } from '../../gluestack-ui.config';
 import { HomeScreen } from '../screens/HomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignupScreen';
@@ -15,7 +17,7 @@ export const App = () => {
   // This prevents loading screen issues when backend is slow or unreachable
 
   return (
-    <>
+    <GluestackUIProvider config={config}>
       {currentScreen === 'login' && (
         <LoginScreen
           onLoginSuccess={() => setCurrentScreen('home')}
@@ -39,7 +41,7 @@ export const App = () => {
       )}
       {/* eslint-disable-next-line react/style-prop-object */}
       <StatusBar style="auto" />
-    </>
+    </GluestackUIProvider>
   );
 };
 

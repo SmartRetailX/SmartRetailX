@@ -41,20 +41,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavi
       );
 
       // Race the sign-in request against the timeout
-      const result = (await Promise.race([
-        auth.signIn({ email, password }),
-        timeoutPromise,
-      ])) as any; // Type cast needed for Promise.race with different return types
+      const result = (await Promise.race([auth.signIn({ email, password }), timeoutPromise])) as
+        | { error?: { message?: string } }
+        | { data?: unknown };
 
-      if (result.error) {
+      if ('error' in result && result.error) {
         Alert.alert('Login Failed', result.error.message || 'Invalid credentials');
       } else {
         Alert.alert('Success', 'Logged in successfully!');
         onLoginSuccess?.();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      Alert.alert('Error', error.message || 'An error occurred during login');
+      const errorMessage =
+        error instanceof Error ? error.message : 'An error occurred during login';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
