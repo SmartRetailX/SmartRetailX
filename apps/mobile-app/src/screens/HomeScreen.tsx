@@ -14,9 +14,10 @@ import { auth, User } from '../lib/auth-client';
 
 interface HomeScreenProps {
   onLogout?: () => void;
+  onNavigateToVoiceAssistant?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout, onNavigateToVoiceAssistant }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -97,6 +98,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout }) => {
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Logout</Text>
+      </TouchableOpacity>
+
+      {/* Floating Assistant Button */}
+      <TouchableOpacity
+        style={styles.assistantButton}
+        onPress={onNavigateToVoiceAssistant}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.assistantEmoji}>🤖</Text>
       </TouchableOpacity>
     </View>
   );
@@ -193,5 +203,30 @@ const styles = StyleSheet.create({
     color: '#143055',
     fontSize: 16,
     fontWeight: '600',
+  },
+  assistantButton: {
+    position: 'absolute',
+    bottom: 120,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#143055',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  assistantEmoji: {
+    fontSize: 32,
   },
 });

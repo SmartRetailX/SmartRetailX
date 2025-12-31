@@ -3,6 +3,8 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/assistant-service/src",
   "projectType": "application",
+  "tags": ["type:app", "scope:backend"],
+  "implicitDependencies": ["shared-types"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
@@ -60,6 +62,5 @@
         }
       }
     }
-  },
-  "tags": []
+  }
 }
