@@ -1,0 +1,51 @@
+import { PrismaClient } from '@prisma/client';
+import { execSync } from 'child_process';
+
+const prisma = new PrismaClient();
+
+/**
+ * Reset database: Clean all data and re-seed
+ * Run: npm run prisma:reset
+ */
+async function main() {
+  console.log('🔄 Database Reset Utility');
+  console.log('='.repeat(60));
+  console.log('This will:');
+  console.log('  1. Delete all existing data');
+  console.log('  2. Re-seed with fresh data\n');
+  console.log('⚠️  WARNING: All current data will be lost!');
+  console.log('Starting in 3 seconds...\n');
+  
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  try {
+    // Step 1: Clean database
+    console.log('📍 Step 1/2: Cleaning database...\n');
+    execSync('npm run prisma:clean', { stdio: 'inherit' });
+
+    console.log('\n📍 Step 2/2: Seeding database...\n');
+    execSync('npm run prisma:seed', { stdio: 'inherit' });
+
+    console.log('\n' + '='.repeat(60));
+    console.log('✅ Database reset completed successfully!');
+    console.log('='.repeat(60));
+    console.log('\n💡 Next steps:');
+    console.log('   1. Start the server: npm run dev');
+    console.log('   2. Visit Swagger docs: http://localhost:3000/api/docs');
+    console.log('   3. Login with: admin@smartretailx.com / Admin@123');
+    console.log('='.repeat(60) + '\n');
+
+  } catch (error) {
+    console.error('\n❌ Reset failed:', error);
+    throw error;
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Database reset failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
