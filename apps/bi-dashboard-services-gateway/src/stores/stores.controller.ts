@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { StoresService } from './stores.service';
 
 @ApiTags('Stores')
@@ -11,10 +12,23 @@ export class StoresController {
   @Get()
   @ApiOperation({
     summary: 'Get stores',
-    description: 'Retrieve list of retail stores with location, contact information, and operational status.',
+    description:
+      'Retrieve list of retail stores with location, contact information, and operational status.',
   })
-  @ApiQuery({ name: 'active', required: false, type: Boolean, example: true, description: 'Filter by active status' })
-  @ApiQuery({ name: 'city', required: false, type: String, example: 'Colombo', description: 'Filter by city' })
+  @ApiQuery({
+    name: 'active',
+    required: false,
+    type: Boolean,
+    example: true,
+    description: 'Filter by active status',
+  })
+  @ApiQuery({
+    name: 'city',
+    required: false,
+    type: String,
+    example: 'Colombo',
+    description: 'Filter by city',
+  })
   @ApiResponse({
     status: 200,
     description: 'Stores retrieved successfully',

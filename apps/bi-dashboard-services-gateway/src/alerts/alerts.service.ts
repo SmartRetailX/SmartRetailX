@@ -1,7 +1,8 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AlertsService {
@@ -19,7 +20,7 @@ export class AlertsService {
     const where: any = {
       status: 'PENDING', // Default: only show pending alerts
     };
-    
+
     if (storeId && storeId !== 'undefined') where.storeId = storeId;
     if (type && type !== 'undefined') where.type = type.toUpperCase();
     if (urgency && urgency !== 'undefined') where.urgency = urgency.toUpperCase();
@@ -43,16 +44,13 @@ export class AlertsService {
           },
         },
       },
-      orderBy: [
-        { urgency: 'desc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ urgency: 'desc' }, { createdAt: 'desc' }],
     });
 
     return {
       success: true,
       data: {
-        alerts: alerts.map(a => ({
+        alerts: alerts.map((a) => ({
           id: a.id,
           type: a.type.toLowerCase(),
           urgency: a.urgency.toLowerCase(),
@@ -112,27 +110,25 @@ export class AlertsService {
   async generateAlerts(storeId?: string) {
     try {
       console.log(`🤖 Calling ML service to generate alerts for store: ${storeId || 'all'}`);
-      
+
       // Call ML service to analyze inventory and generate alerts
       const url = `${this.mlServiceUrl}/api/v1/alerts/generate${storeId ? `?store_id=${storeId}` : ''}`;
       const response = await axios.post(url);
-      
+
       const { alerts, alertsGenerated } = response.data.data;
-      
+
       console.log(`📊 ML service generated ${alertsGenerated} alerts`);
-      
+
       // Get all currently active product/store combos from new alerts
-      const activeProductStores = new Set(
-        alerts.map(a => `${a.productId}_${a.storeId}`)
-      );
-      
+      const activeProductStores = new Set(alerts.map((a) => `${a.productId}_${a.storeId}`));
+
       // Auto-dismiss old PENDING alerts that are no longer critical
       const dismissedAlerts = await this.prisma.alert.updateMany({
         where: {
           status: 'PENDING',
           // Dismiss if not in the new alert batch
           NOT: {
-            OR: alerts.map(a => ({
+            OR: alerts.map((a) => ({
               productId: a.productId,
               storeId: a.storeId,
             })),
@@ -143,11 +139,11 @@ export class AlertsService {
           acceptedAt: new Date(),
         },
       });
-      
+
       if (dismissedAlerts.count > 0) {
         console.log(`  🗑️  Auto-dismissed ${dismissedAlerts.count} resolved alerts`);
       }
-      
+
       // Sync alerts to database
       const savedAlerts = [];
       for (const alertData of alerts) {
@@ -202,7 +198,7 @@ export class AlertsService {
         success: true,
         data: {
           alertsGenerated: savedAlerts.length,
-          alerts: savedAlerts.map(a => ({
+          alerts: savedAlerts.map((a) => ({
             id: a.id,
             type: a.type,
             urgency: a.urgency,

@@ -1,10 +1,18 @@
-import { Module } from '@nestjs/common';
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { PrismaService } from '../prisma/prisma.service';
 import { HttpModule, HttpService } from '@nestjs/axios';
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Module,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { firstValueFrom } from 'rxjs';
+
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 class ForecastsService {
@@ -16,10 +24,10 @@ class ForecastsService {
   ) {
     this.mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
   }
-  
+
   async getForecasts(query: any) {
     const { productId, storeId, horizon = 30, lang = 'en' } = query;
-    
+
     try {
       // Call Python ML service for real predictions
       const response = await firstValueFrom(
@@ -28,45 +36,57 @@ class ForecastsService {
           storeId,
           horizon: Number(horizon),
           lang,
-        })
+        }),
       );
-      
+
       const mlData = response.data.data;
-      
+
       // Save forecasts to database
-      await this.saveForecastsToDb(productId, storeId, mlData.forecasts, mlData.modelType, mlData.confidence);
-      
+      await this.saveForecastsToDb(
+        productId,
+        storeId,
+        mlData.forecasts,
+        mlData.modelType,
+        mlData.confidence,
+      );
+
       // Save drivers to database
       await this.saveDriversToDb(productId, storeId, mlData.drivers);
-      
+
       return {
         success: true,
         data: mlData,
       };
     } catch (error) {
       console.error('ML Service error:', error.message);
-      
+
       // Fallback: Try to get cached forecasts from database
       const cachedForecasts = await this.getCachedForecasts(productId, storeId, horizon);
       if (cachedForecasts) {
         return { success: true, data: cachedForecasts };
       }
-      
+
       throw new HttpException(
         'Failed to generate forecast. ML service unavailable.',
-        HttpStatus.SERVICE_UNAVAILABLE
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
   }
-  
-  async saveForecastsToDb(productId: string, storeId: string, forecasts: any[], modelType: string, confidence: number) {
+
+  async saveForecastsToDb(
+    productId: string,
+    storeId: string,
+    forecasts: any[],
+    modelType: string,
+    confidence: number,
+  ) {
     // Delete old forecasts for this product/store
     await this.prisma.forecast.deleteMany({
       where: { productId, storeId },
     });
-    
+
     // Insert new forecasts
-    const forecastRecords = forecasts.map(f => ({
+    const forecastRecords = forecasts.map((f) => ({
       productId,
       storeId,
       date: new Date(f.date),
@@ -77,21 +97,21 @@ class ForecastsService {
       modelType,
       confidence,
     }));
-    
+
     await this.prisma.forecast.createMany({
       data: forecastRecords,
       skipDuplicates: true,
     });
   }
-  
+
   async saveDriversToDb(productId: string, storeId: string, drivers: any[]) {
     // Delete old drivers
     await this.prisma.forecastDriver.deleteMany({
       where: { productId, storeId },
     });
-    
+
     // Insert new drivers
-    const driverRecords = drivers.map(d => ({
+    const driverRecords = drivers.map((d) => ({
       productId,
       storeId,
       name: d.name,
@@ -100,39 +120,39 @@ class ForecastsService {
       description: d.description,
       descriptionSi: d.descriptionSi,
     }));
-    
+
     await this.prisma.forecastDriver.createMany({
       data: driverRecords,
     });
   }
-  
+
   async getCachedForecasts(productId: string, storeId: string, horizon: number) {
     const forecasts = await this.prisma.forecast.findMany({
       where: { productId, storeId },
       take: Number(horizon),
       orderBy: { date: 'asc' },
     });
-    
+
     if (forecasts.length === 0) return null;
-    
+
     const drivers = await this.prisma.forecastDriver.findMany({
       where: { productId, storeId },
     });
-    
+
     return {
       productId,
       storeId,
       modelType: forecasts[0]?.modelType || 'Prophet',
       confidence: forecasts[0]?.confidence || 0.87,
       generatedAt: forecasts[0]?.generatedAt.toISOString(),
-      forecasts: forecasts.map(f => ({
+      forecasts: forecasts.map((f) => ({
         date: f.date.toISOString().split('T')[0],
         predictedSales: f.predictedSales,
         confidenceLower: f.confidenceLower,
         confidenceUpper: f.confidenceUpper,
         revenue: f.revenue,
       })),
-      drivers: drivers.map(d => ({
+      drivers: drivers.map((d) => ({
         name: d.name,
         nameSi: d.nameSi,
         impact: d.impact,
@@ -148,17 +168,36 @@ class ForecastsService {
 @ApiBearerAuth('JWT-auth')
 class ForecastsController {
   constructor(private forecastsService: ForecastsService) {}
-  
+
   @Get()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get AI sales forecasts',
-    description: 'Retrieve 30-day sales forecasts powered by XGBoost ML model with confidence intervals and feature importance drivers. Includes bilingual explanations.',
+    description:
+      'Retrieve 30-day sales forecasts powered by XGBoost ML model with confidence intervals and feature importance drivers. Includes bilingual explanations.',
   })
-  @ApiQuery({ name: 'productId', required: true, type: String, description: 'Product ID', example: 'P0001' })
-  @ApiQuery({ name: 'storeId', required: true, type: String, description: 'Store ID', example: 'S001' })
-  @ApiQuery({ name: 'horizon', required: false, type: Number, description: 'Forecast horizon in days (default: 30)', example: 30 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({
+    name: 'productId',
+    required: true,
+    type: String,
+    description: 'Product ID',
+    example: 'P0001',
+  })
+  @ApiQuery({
+    name: 'storeId',
+    required: true,
+    type: String,
+    description: 'Store ID',
+    example: 'S001',
+  })
+  @ApiQuery({
+    name: 'horizon',
+    required: false,
+    type: Number,
+    description: 'Forecast horizon in days (default: 30)',
+    example: 30,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Forecasts retrieved successfully',
     schema: {
       example: {
@@ -204,3 +243,5 @@ class ForecastsController {
   exports: [ForecastsService],
 })
 export class ForecastsModule {}
+
+export { ForecastsService };

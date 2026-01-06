@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -140,8 +141,12 @@ export class ProductsService {
     const product = await this.prisma.product.create({
       data: {
         ...createProductDto,
-        status: createProductDto.currentStock > createProductDto.reorderLevel ? 'IN_STOCK' : 
-                createProductDto.currentStock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
+        status:
+          createProductDto.currentStock > createProductDto.reorderLevel
+            ? 'IN_STOCK'
+            : createProductDto.currentStock > 0
+              ? 'LOW_STOCK'
+              : 'OUT_OF_STOCK',
       },
     });
 

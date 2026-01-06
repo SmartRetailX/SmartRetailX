@@ -35,14 +35,14 @@ class ModelTrainer:
                 f"Please place your kaggle_sales_data.csv in the {self.data_path}/ folder"
             )
         
-        print(f"📂 Loading Kaggle dataset from: {self.kaggle_file}")
+        print(f"[LOAD] Loading Kaggle dataset from: {self.kaggle_file}")
         df = self.processor.load_kaggle_data(self.kaggle_file)
         df = self.processor.clean_data(df)
         
-        print(f"   ✅ Loaded {len(df)} rows")
-        print(f"   📅 Date range: {df['date'].min()} to {df['date'].max()}")
-        print(f"   🏪 Stores: {df['store_id'].nunique()}")
-        print(f"   📦 Products: {df['product_id'].nunique()}")
+        print(f"   [OK] Loaded {len(df)} rows")
+        print(f"   [EMOJI] Date range: {df['date'].min()} to {df['date'].max()}")
+        print(f"   [EMOJI] Stores: {df['store_id'].nunique()}")
+        print(f"   [EMOJI] Products: {df['product_id'].nunique()}")
         
         self.kaggle_data = df
         return df
@@ -208,7 +208,7 @@ class ModelTrainer:
     
     def train_all_models(self):
         """Train models for all product-store combinations"""
-        print("\n🤖 Starting Model Training...")
+        print("\n[EMOJI] Starting Model Training...")
         print("=" * 60)
         
         # Load Kaggle dataset
@@ -216,7 +216,7 @@ class ModelTrainer:
         
         # Get all product-store combinations
         combinations = self.get_products_and_stores()
-        print(f"\n📊 Found {len(combinations)} product-store combinations")
+        print(f"\n[DATA] Found {len(combinations)} product-store combinations")
         
         trained_count = 0
         skipped_count = 0
@@ -226,29 +226,29 @@ class ModelTrainer:
             store_id = combo['store_id']
             
             try:
-                print(f"\n🔄 Training: {product_id} in {store_id}...")
+                print(f"\n[EMOJI] Training: {product_id} in {store_id}...")
                 
                 # Fetch sales data
                 sales_data = self.fetch_sales_data(product_id, store_id)
                 
                 if len(sales_data) < 30:
-                    print(f"   ⚠️  Skipped: Only {len(sales_data)} days of data (need at least 30 for feature engineering)")
+                    print(f"   [WARN]  Skipped: Only {len(sales_data)} days of data (need at least 30 for feature engineering)")
                     skipped_count += 1
                     continue
                 
-                print(f"   📈 Found {len(sales_data)} days of sales data")
+                print(f"   [EMOJI] Found {len(sales_data)} days of sales data")
                 
                 # 1. Train Prophet model
                 prophet_data = self.prepare_prophet_data(sales_data)
                 prophet_model = self.train_prophet_model(prophet_data)
                 prophet_file = self.save_model(prophet_model, product_id, store_id, 'prophet')
-                print(f"   ✅ Prophet model saved: {prophet_file}")
+                print(f"   [OK] Prophet model saved: {prophet_file}")
                 
                 # 2. Train XGBoost model for XAI (and engineer features)
                 df_engineered = self.processor.engineer_features(sales_data)
                 xgb_model, feature_names = self.train_xgboost_model(sales_data)
                 xgb_file = self.save_model(xgb_model, product_id, store_id, 'xgboost')
-                print(f"   ✅ XGBoost model saved: {xgb_file}")
+                print(f"   [OK] XGBoost model saved: {xgb_file}")
                 
                 # 3. Calculate drivers and average price
                 drivers = self.calculate_drivers(sales_data)
@@ -260,22 +260,22 @@ class ModelTrainer:
                 
                 # 5. Save metadata with drivers, price, and sample data
                 meta_file = self.save_metadata(product_id, store_id, feature_names, drivers, avg_price, sample_data)
-                print(f"   ✅ Metadata saved: {meta_file}")
-                print(f"   📊 Drivers: {len(drivers)}, Avg Price: ${avg_price:.2f}, Sample rows: {len(sample_data)}")
+                print(f"   [OK] Metadata saved: {meta_file}")
+                print(f"   [DATA] Drivers: {len(drivers)}, Avg Price: ${avg_price:.2f}, Sample rows: {len(sample_data)}")
                 
                 trained_count += 1
                 
             except Exception as e:
                 import traceback
-                print(f"   ❌ Error training {product_id}_{store_id}: {e}")
+                print(f"   [ERROR] Error training {product_id}_{store_id}: {e}")
                 print(f"   {traceback.format_exc()}")
                 skipped_count += 1
         
         print("\n" + "=" * 60)
-        print(f"🎉 Training Complete!")
-        print(f"   ✅ Trained: {trained_count} models")
-        print(f"   ⚠️  Skipped: {skipped_count} models")
-        print(f"   📁 Models saved in: {self.model_path}/")
+        print(f"[SUCCESS] Training Complete!")
+        print(f"   [OK] Trained: {trained_count} models")
+        print(f"   [WARN]  Skipped: {skipped_count} models")
+        print(f"   [EMOJI] Models saved in: {self.model_path}/")
         print("=" * 60 + "\n")
 
 

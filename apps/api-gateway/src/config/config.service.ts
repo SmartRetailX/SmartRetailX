@@ -95,4 +95,9 @@ export class ConfigService {
   get assistantServiceQueue(): string {
     return this.configService.get<string>('ASSISTANT_SERVICE_QUEUE', 'assistant_queue');
   }
+
+  // BI Dashboard Service Configuration
+  get biDashboardServiceQueue(): string {
+    return this.configService.get<string>('BI_DASHBOARD_SERVICE_QUEUE', 'bi_dashboard_queue');
+  }
 }

@@ -110,16 +110,20 @@ async def generate_forecast(request: ForecastRequest):
             horizon=request.horizon,
             lang=request.lang
         )
+        print(f"[OK] Forecast generated successfully")
         return ForecastResponse(success=True, data=forecast)
     except ValueError as e:
         # Product/Store not found
+        print(f"[ERROR] ValueError: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except FileNotFoundError as e:
-        # Data file not found
+        # Data file not found - model needs training
+        print(f"[ERROR] FileNotFoundError: {e}")
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         import traceback
         print(f"\n=== ERROR in generate_forecast ===")
+        print(f"Error type: {type(e).__name__}")
         print(f"Error: {e}")
         print(f"Full traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -133,20 +137,29 @@ async def explain_forecast(request: ExplainRequest):
     Get SHAP explanations for forecast predictions
     """
     try:
+        print(f"\n=== XAI SHAP Analysis ===")
+        print(f"Product: {request.productId}, Store: {request.storeId}")
+        
         explanation = await xai_service.explain_forecast(
             product_id=request.productId,
             store_id=request.storeId,
             date=request.date,
             lang=request.lang
         )
+        print(f"[OK] XAI explanation generated successfully")
         return {"success": True, "data": explanation}
     except ValueError as e:
-        # Product/Store not found
+        print(f"[ERROR] ValueError: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except FileNotFoundError as e:
-        # Data file not found
+        print(f"[ERROR] FileNotFoundError: {e}")
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
+        import traceback
+        print(f"\n=== ERROR in explain_forecast ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error: {e}")
+        print(f"Full traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/explain/restock")
@@ -158,6 +171,9 @@ async def explain_restock(alert_id: str, lang: str = "en"):
         explanation = await xai_service.explain_restock(alert_id, lang)
         return {"success": True, "data": explanation}
     except Exception as e:
+        import traceback
+        print(f"ERROR in explain_restock: {str(e)}")
+        print(f"Full traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

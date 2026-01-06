@@ -1,11 +1,18 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AlertsService } from './alerts.service';
 
 @ApiTags('Alerts')
 @Controller('alerts')
-
 @ApiBearerAuth('JWT-auth')
 export class AlertsController {
   constructor(private alertsService: AlertsService) {}
@@ -13,12 +20,34 @@ export class AlertsController {
   @Get()
   @ApiOperation({
     summary: 'Get alerts',
-    description: 'Retrieve AI-generated alerts and recommendations for restocking, expiring products, price optimization, and promotions with bilingual explanations.',
+    description:
+      'Retrieve AI-generated alerts and recommendations for restocking, expiring products, price optimization, and promotions with bilingual explanations.',
   })
-  @ApiQuery({ name: 'storeId', required: false, type: String, example: 'S001', description: 'Filter by store ID' })
-  @ApiQuery({ name: 'type', required: false, enum: ['RESTOCK', 'EXPIRING', 'PRICE_OPTIMIZATION', 'PROMOTION'], description: 'Filter by alert type' })
-  @ApiQuery({ name: 'urgency', required: false, enum: ['HIGH', 'MEDIUM', 'LOW'], description: 'Filter by urgency level' })
-  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'ACCEPTED', 'DISMISSED'], description: 'Filter by status' })
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    example: 'S001',
+    description: 'Filter by store ID',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['RESTOCK', 'EXPIRING', 'PRICE_OPTIMIZATION', 'PROMOTION'],
+    description: 'Filter by alert type',
+  })
+  @ApiQuery({
+    name: 'urgency',
+    required: false,
+    enum: ['HIGH', 'MEDIUM', 'LOW'],
+    description: 'Filter by urgency level',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'ACCEPTED', 'DISMISSED'],
+    description: 'Filter by status',
+  })
   @ApiResponse({
     status: 200,
     description: 'Alerts retrieved successfully',
@@ -58,7 +87,8 @@ export class AlertsController {
   @Post(':alertId/accept')
   @ApiOperation({
     summary: 'Accept alert',
-    description: 'Accept an alert recommendation and optionally generate a purchase order or apply the recommended action.',
+    description:
+      'Accept an alert recommendation and optionally generate a purchase order or apply the recommended action.',
   })
   @ApiParam({ name: 'alertId', description: 'Alert ID', example: 'ALT0001' })
   @ApiBody({
@@ -94,9 +124,16 @@ export class AlertsController {
   @Post('generate')
   @ApiOperation({
     summary: 'Generate alerts',
-    description: 'Trigger ML service to analyze inventory and generate restock alerts. This syncs AI-generated alerts into the database.',
+    description:
+      'Trigger ML service to analyze inventory and generate restock alerts. This syncs AI-generated alerts into the database.',
   })
-  @ApiQuery({ name: 'storeId', required: false, type: String, example: 'S001', description: 'Generate alerts for specific store' })
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    example: 'S001',
+    description: 'Generate alerts for specific store',
+  })
   @ApiResponse({
     status: 201,
     description: 'Alerts generated successfully',
@@ -114,7 +151,8 @@ export class AlertsController {
               storeId: 'S001',
               currentStock: 15,
               recommendedQuantity: 50,
-              reason: 'Stock level at 15 units is below reorder point (35). With current sales velocity of 6.2 units/day, stockout expected in 2.4 days.',
+              reason:
+                'Stock level at 15 units is below reorder point (35). With current sales velocity of 6.2 units/day, stockout expected in 2.4 days.',
             },
           ],
         },
@@ -130,7 +168,8 @@ export class AlertsController {
   @Post('auto-dismiss')
   @ApiOperation({
     summary: 'Auto-dismiss resolved alerts',
-    description: 'Automatically dismiss alerts for products that are back in stock above reorder level.',
+    description:
+      'Automatically dismiss alerts for products that are back in stock above reorder level.',
   })
   @ApiResponse({
     status: 200,

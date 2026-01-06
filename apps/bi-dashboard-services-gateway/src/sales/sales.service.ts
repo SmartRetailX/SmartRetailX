@@ -1,23 +1,24 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Sales Service
- * 
+ *
  * ⚠️ IMPORTANT: ML Training Data Source
- * 
+ *
  * Sales recorded through this API are stored in PostgreSQL for:
  * - Transaction history and record keeping
  * - Revenue reports and analytics
  * - Customer tracking and RFM segmentation
  * - Audit trail and compliance
- * 
+ *
  * ML models (Prophet, XGBoost) use Kaggle dataset for training and forecasting
  * (./ml-service/data/kaggle_sales_data.csv) to ensure reproducible results
  * for research/demo purposes.
- * 
+ *
  * This means: New sales recorded here do NOT automatically retrain ML models.
- * 
+ *
  * For production deployment with adaptive ML that learns from real sales,
  * see: DATA-FLOW-STRATEGY.md "Production Mode"
  */
@@ -26,14 +27,7 @@ export class SalesService {
   constructor(private prisma: PrismaService) {}
 
   async getSales(query: any, user: any) {
-    const {
-      startDate,
-      endDate,
-      storeId,
-      productId,
-      page = 1,
-      limit = 100,
-    } = query;
+    const { startDate, endDate, storeId, productId, page = 1, limit = 100 } = query;
 
     if (!startDate || !endDate) {
       throw new BadRequestException({
@@ -167,8 +161,12 @@ export class SalesService {
         where: { id: item.productId },
         data: {
           currentStock: product.currentStock - item.quantity,
-          status: (product.currentStock - item.quantity) > product.reorderLevel ? 'IN_STOCK' :
-                  (product.currentStock - item.quantity) > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
+          status:
+            product.currentStock - item.quantity > product.reorderLevel
+              ? 'IN_STOCK'
+              : product.currentStock - item.quantity > 0
+                ? 'LOW_STOCK'
+                : 'OUT_OF_STOCK',
         },
       });
     }
@@ -291,7 +289,7 @@ export class SalesService {
           quantity: tp._sum.quantity || 0,
           profit: tp._sum.profit || 0,
         };
-      })
+      }),
     );
 
     return {

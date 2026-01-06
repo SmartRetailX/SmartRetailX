@@ -31,7 +31,7 @@ class XAIService:
             from sqlalchemy import create_engine, text
             
             if not self.db_url:
-                print("⚠️ DATABASE_URL not configured, using sample data")
+                print("[WARN] DATABASE_URL not configured, using sample data")
                 return None
             
             engine = create_engine(
@@ -59,12 +59,12 @@ class XAIService:
                 row = result.fetchone()
                 
                 if not row:
-                    print(f"⚠️ Product {product_id} not found in database")
+                    print(f"[WARN] Product {product_id} not found in database")
                     return None
                 
                 product = dict(row._mapping)
             
-            print(f"📊 Fetched product from DB: {product['name']} @ ${product['price']:.2f}")
+            print(f"[DATA] Fetched product from DB: {product['name']} @ ${product['price']:.2f}")
             
             # Query recent sales activity (last 30 days)
             sales_query = """
@@ -89,7 +89,7 @@ class XAIService:
                     'sale_count': 0, 'total_qty': 0, 'avg_price': 0
                 }
             
-            print(f"📊 Recent sales: {sales_data['total_qty']} units in last 30 days")
+            print(f"[DATA] Recent sales: {sales_data['total_qty']} units in last 30 days")
             
             # Check for active promotions
             promo_query = """
@@ -112,7 +112,7 @@ class XAIService:
                 promo_row = result.fetchone()
                 current_discount = float(promo_row[0]) if promo_row else 0.0
             
-            print(f"📊 Active discount: {current_discount}%")
+            print(f"[DATA] Active discount: {current_discount}%")
             
             # Build feature vector with current context
             now = datetime.now()
@@ -153,15 +153,15 @@ class XAIService:
                 else:
                     # Use 0 for any missing features
                     context_data[feat] = [0]
-                    print(f"⚠️ Feature {feat} not in current context, using 0")
+                    print(f"[WARN] Feature {feat} not in current context, using 0")
             
             df = pd.DataFrame(context_data)
-            print(f"✅ Built feature vector with {len(feature_names)} features from live DB data")
+            print(f"[OK] Built feature vector with {len(feature_names)} features from live DB data")
             
             return df
             
         except Exception as e:
-            print(f"⚠️ Database query error: {str(e)}")
+            print(f"[WARN] Database query error: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
@@ -179,7 +179,7 @@ class XAIService:
             price = float(alert.get('price', metadata.get('avg_price', 10)))
             current_stock = float(alert.get('current_stock', 50))
             
-            print(f"📊 Alert context: price=${price:.2f}, stock={current_stock}")
+            print(f"[DATA] Alert context: price=${price:.2f}, stock={current_stock}")
             
             # Check for active promotions
             promo_query = """
@@ -238,12 +238,12 @@ class XAIService:
                     context_data[feat] = [0]
             
             df = pd.DataFrame(context_data)
-            print(f"✅ Built alert feature vector from live DB context")
+            print(f"[OK] Built alert feature vector from live DB context")
             
             return df
             
         except Exception as e:
-            print(f"⚠️ Alert context error: {str(e)}")
+            print(f"[WARN] Alert context error: {str(e)}")
             return None
     
     async def explain_forecast(self, product_id: str, store_id: str, 
@@ -265,24 +265,24 @@ class XAIService:
                     f"Call /api/v1/forecast first to train the model."
                 )
             
-            print(f"📂 Loading XGBoost model: {model_file}")
+            print(f"[LOAD] Loading XGBoost model: {model_file}")
             with open(model_file, 'rb') as f:
                 xgb_model = pickle.load(f)
             
             # Load feature names
-            print(f"📂 Loading feature metadata: {metadata_file}")
+            print(f"[LOAD] Loading feature metadata: {metadata_file}")
             with open(metadata_file, 'rb') as f:
                 metadata = pickle.load(f)
                 feature_names = metadata['feature_names']
             
-            print(f"✅ Loaded model with {len(feature_names)} features")
+            print(f"[OK] Loaded model with {len(feature_names)} features")
             
             # Build current context from PostgreSQL database
             current_context = await self._fetch_current_context(product_id, store_id, feature_names, metadata)
             
             if current_context is None:
                 # Fallback to sample data from metadata if database query fails
-                print("⚠️ Database query failed, falling back to sample data")
+                print("[WARN] Database query failed, falling back to sample data")
                 sample_data_records = metadata.get('sample_data')
                 if not sample_data_records:
                     raise ValueError(
@@ -291,13 +291,13 @@ class XAIService:
                     )
                 df_features = pd.DataFrame(sample_data_records)
                 X_latest = df_features[feature_names].iloc[-1:]
-                print(f"🎯 Using saved sample data (fallback)")
+                print(f"[TARGET] Using saved sample data (fallback)")
             else:
                 X_latest = current_context
-                print(f"🎯 Using LIVE context from PostgreSQL database")
+                print(f"[TARGET] Using LIVE context from PostgreSQL database")
             
             # Create SHAP explainer
-            print(f"🔍 Computing SHAP values...")
+            print(f"[ANALYZE] Computing SHAP values...")
             explainer = shap.TreeExplainer(xgb_model)
             shap_values = explainer.shap_values(X_latest)
             
@@ -305,8 +305,8 @@ class XAIService:
             base_value = explainer.expected_value
             predicted_value = xgb_model.predict(X_latest)[0]
             
-            print(f"📊 Base value: {base_value:.2f}")
-            print(f"📊 Predicted: {predicted_value:.2f}")
+            print(f"[DATA] Base value: {base_value:.2f}")
+            print(f"[DATA] Predicted: {predicted_value:.2f}")
             
             # Convert SHAP values to feature explanations
             features = []
@@ -322,7 +322,7 @@ class XAIService:
             # Sort by absolute SHAP value (impact)
             feature_impacts.sort(key=lambda x: abs(x[1]), reverse=True)
             
-            print(f"\n🔝 Top SHAP Features:")
+            print(f"\n[TOP] Top SHAP Features:")
             for feat_name, shap_val, feat_val in feature_impacts[:10]:
                 print(f"   {feat_name:25s}: SHAP={shap_val:+7.2f}, Value={feat_val:.2f}")
             
@@ -338,7 +338,7 @@ class XAIService:
                     'descriptionSi': feature_info['descriptionSi']
                 })
             
-            print(f"✅ Returning {len(features)} SHAP-based features\n")
+            print(f"[OK] Returning {len(features)} SHAP-based features\n")
             
             return {
                 'explanation': {
@@ -353,10 +353,10 @@ class XAIService:
             }
             
         except FileNotFoundError as e:
-            print(f"❌ Model not found: {str(e)}")
+            print(f"[ERROR] Model not found: {str(e)}")
             raise ValueError(str(e))
         except Exception as e:
-            print(f"❌ ERROR in explain_forecast: {str(e)}")
+            print(f"[ERROR] ERROR in explain_forecast: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -425,12 +425,12 @@ class XAIService:
                     f"Train models first via /api/v1/forecast endpoint."
                 )
             
-            print(f"📂 Loading XGBoost model: {model_file}")
+            print(f"[LOAD] Loading XGBoost model: {model_file}")
             with open(model_file, 'rb') as f:
                 xgb_model = pickle.load(f)
             
             # Load feature names
-            print(f"📂 Loading feature metadata: {metadata_file}")
+            print(f"[LOAD] Loading feature metadata: {metadata_file}")
             with open(metadata_file, 'rb') as f:
                 metadata = pickle.load(f)
                 feature_names = metadata['feature_names']
@@ -442,7 +442,7 @@ class XAIService:
             
             if current_context is None:
                 # Fallback to sample data from metadata
-                print("⚠️ Using fallback sample data")
+                print("[WARN] Using fallback sample data")
                 sample_data_records = metadata.get('sample_data')
                 if not sample_data_records:
                     raise ValueError(
@@ -457,18 +457,18 @@ class XAIService:
             
             predicted_demand = xgb_model.predict(X_latest)[0]
             
-            print(f"🎯 Using LIVE context from database")
-            print(f"📊 Model predicted demand: {predicted_demand:.2f} units/day")
+            print(f"[TARGET] Using LIVE context from database")
+            print(f"[DATA] Model predicted demand: {predicted_demand:.2f} units/day")
             
             # Create SHAP explainer and compute values
-            print(f"🔍 Computing SHAP values...")
+            print(f"[ANALYZE] Computing SHAP values...")
             explainer = shap.TreeExplainer(xgb_model)
             shap_values = explainer.shap_values(X_latest)
             
             # Get base value (average prediction)
             base_value = explainer.expected_value
             
-            print(f"📊 SHAP base value: {base_value:.2f}")
+            print(f"[DATA] SHAP base value: {base_value:.2f}")
             
             # Extract SHAP values and sort by impact
             shap_vals_flat = shap_values[0] if len(shap_values.shape) > 1 else shap_values
@@ -482,7 +482,7 @@ class XAIService:
             # Sort by absolute SHAP value (impact)
             feature_impacts.sort(key=lambda x: abs(x[1]), reverse=True)
             
-            print(f"\n🔝 Top SHAP Features:")
+            print(f"\n[TOP] Top SHAP Features:")
             for feat_name, shap_val, feat_val in feature_impacts[:10]:
                 print(f"   {feat_name:25s}: SHAP={shap_val:+7.2f}, Value={feat_val:.2f}")
             
@@ -533,7 +533,7 @@ class XAIService:
             }
             
         except Exception as e:
-            print(f"❌ ERROR in explain_restock: {str(e)}")
+            print(f"[ERROR] ERROR in explain_restock: {str(e)}")
             import traceback
             traceback.print_exc()
             raise

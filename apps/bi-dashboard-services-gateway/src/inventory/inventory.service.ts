@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -26,17 +27,17 @@ export class InventoryService {
 
     const summary = {
       totalProducts: products.length,
-      inStock: products.filter(p => p.status === 'IN_STOCK').length,
-      lowStock: products.filter(p => p.status === 'LOW_STOCK').length,
-      outOfStock: products.filter(p => p.status === 'OUT_OF_STOCK').length,
-      totalValue: products.reduce((sum, p) => sum + (p.price * p.currentStock), 0),
+      inStock: products.filter((p) => p.status === 'IN_STOCK').length,
+      lowStock: products.filter((p) => p.status === 'LOW_STOCK').length,
+      outOfStock: products.filter((p) => p.status === 'OUT_OF_STOCK').length,
+      totalValue: products.reduce((sum, p) => sum + p.price * p.currentStock, 0),
     };
 
     return {
       success: true,
       data: {
         summary,
-        items: products.map(p => ({
+        items: products.map((p) => ({
           productId: p.id,
           productName: p.name,
           productNameSi: p.nameSi,
@@ -45,7 +46,7 @@ export class InventoryService {
           currentStock: p.currentStock,
           reorderLevel: p.reorderLevel,
           status: p.status.toLowerCase(),
-          daysUntilStockout: p.currentStock > 0 ? Math.ceil((p.currentStock / 5) || 0) : 0,
+          daysUntilStockout: p.currentStock > 0 ? Math.ceil(p.currentStock / 5 || 0) : 0,
           lastRestocked: p.lastRestocked,
         })),
       },

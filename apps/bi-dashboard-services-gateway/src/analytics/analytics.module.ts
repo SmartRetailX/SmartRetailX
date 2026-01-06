@@ -1,13 +1,12 @@
-import { Module } from '@nestjs/common';
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { Injectable } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Injectable, Module, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 class AnalyticsService {
   constructor(private prisma: PrismaService) {}
-  
+
   async getDashboard(query: any) {
     // Get active alerts count (PENDING status only)
     const activeAlertsCount = await this.prisma.alert.count({
@@ -15,7 +14,7 @@ class AnalyticsService {
         status: 'PENDING',
       },
     });
-    
+
     // Get critical alerts count (HIGH urgency + PENDING)
     const criticalAlertsCount = await this.prisma.alert.count({
       where: {
@@ -23,10 +22,10 @@ class AnalyticsService {
         urgency: 'HIGH',
       },
     });
-    
+
     // Get total products count
     const totalProducts = await this.prisma.product.count();
-    
+
     // Get low stock products count (current_stock < reorder_level)
     const lowStockResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(*)::int as count
@@ -34,7 +33,7 @@ class AnalyticsService {
       WHERE current_stock < reorder_level
     `;
     const lowStockProducts = Number(lowStockResult[0]?.count || 0);
-    
+
     return {
       success: true,
       data: {
@@ -59,16 +58,29 @@ class AnalyticsService {
 @ApiBearerAuth('JWT-auth')
 class AnalyticsController {
   constructor(private analyticsService: AnalyticsService) {}
-  
+
   @Get('dashboard')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get dashboard KPIs and metrics',
-    description: 'Retrieve comprehensive business intelligence metrics including revenue, orders, alerts, forecast accuracy, customer retention, and inventory turnover with trend indicators.',
+    description:
+      'Retrieve comprehensive business intelligence metrics including revenue, orders, alerts, forecast accuracy, customer retention, and inventory turnover with trend indicators.',
   })
-  @ApiQuery({ name: 'storeId', required: false, type: String, description: 'Filter by store ID', example: 'S001' })
-  @ApiQuery({ name: 'period', required: false, enum: ['day', 'week', 'month', 'year'], description: 'Time period for metrics', example: 'month' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    description: 'Filter by store ID',
+    example: 'S001',
+  })
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: ['day', 'week', 'month', 'year'],
+    description: 'Time period for metrics',
+    example: 'month',
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Dashboard metrics retrieved successfully',
     schema: {
       example: {
@@ -86,13 +98,11 @@ class AnalyticsController {
             {
               id: 'P0001',
               name: 'Basmati Rice 5kg',
-              revenue: 125000.00,
+              revenue: 125000.0,
               quantity: 850,
             },
           ],
-          salesTrend: [
-            { date: '2025-11-30', revenue: 45000.00, orders: 125 },
-          ],
+          salesTrend: [{ date: '2025-11-30', revenue: 45000.0, orders: 125 }],
         },
       },
     },
@@ -106,5 +116,8 @@ class AnalyticsController {
 @Module({
   controllers: [AnalyticsController],
   providers: [AnalyticsService, PrismaService],
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}
+
+export { AnalyticsService };

@@ -1,8 +1,6 @@
-import { Module } from '@nestjs/common';
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { Injectable } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { HttpModule, HttpService } from '@nestjs/axios';
+import { Controller, Get, Injectable, Module, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -15,24 +13,27 @@ class XaiService {
 
   async explainForecast(query: any) {
     const { productId, storeId, date, lang = 'en' } = query;
-    
+
     const response = await firstValueFrom(
       this.httpService.post(`${this.mlServiceUrl}/api/v1/explain/forecast`, {
         productId,
         storeId,
         date,
         lang,
-      })
+      }),
     );
-    
+
     return response.data;
   }
-  
+
   async explainRestock(alertId: string, lang = 'en') {
     const response = await firstValueFrom(
-      this.httpService.post(`${this.mlServiceUrl}/api/v1/explain/restock?alert_id=${alertId}&lang=${lang}`, {})
+      this.httpService.post(
+        `${this.mlServiceUrl}/api/v1/explain/restock?alert_id=${alertId}&lang=${lang}`,
+        {},
+      ),
     );
-    
+
     return response.data;
   }
 }
@@ -42,16 +43,17 @@ class XaiService {
 @ApiBearerAuth('JWT-auth')
 class XaiController {
   constructor(private xaiService: XaiService) {}
-  
+
   @Get('explain/forecast')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Explain AI forecast predictions',
-    description: 'Get Explainable AI (XAI) feature importance and SHAP-like explanations for forecast predictions. Shows how each feature (seasonality, day of week, etc.) contributes to the prediction with bilingual descriptions.',
+    description:
+      'Get Explainable AI (XAI) feature importance and SHAP-like explanations for forecast predictions. Shows how each feature (seasonality, day of week, etc.) contributes to the prediction with bilingual descriptions.',
   })
   @ApiQuery({ name: 'productId', required: true, type: String, example: 'P0001' })
   @ApiQuery({ name: 'storeId', required: true, type: String, example: 'S001' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Forecast explanation retrieved',
     schema: {
       example: {
@@ -81,15 +83,22 @@ class XaiController {
   async explainForecast(@Query() query) {
     return this.xaiService.explainForecast(query);
   }
-  
+
   @Get('explain/restock')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Explain AI restock recommendations',
-    description: 'Get Explainable AI explanations for why specific restock quantities are recommended. Shows feature contributions like current stock levels, sales velocity, and lead time.',
+    description:
+      'Get Explainable AI explanations for why specific restock quantities are recommended. Shows feature contributions like current stock levels, sales velocity, and lead time.',
   })
-  @ApiQuery({ name: 'alertId', required: true, type: String, description: 'Alert ID to explain', example: 'ALT0001' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({
+    name: 'alertId',
+    required: true,
+    type: String,
+    description: 'Alert ID to explain',
+    example: 'ALT0001',
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Restock explanation retrieved',
     schema: {
       example: {
@@ -125,5 +134,8 @@ class XaiController {
   imports: [HttpModule],
   controllers: [XaiController],
   providers: [XaiService],
+  exports: [XaiService],
 })
 export class XaiModule {}
+
+export { XaiService };

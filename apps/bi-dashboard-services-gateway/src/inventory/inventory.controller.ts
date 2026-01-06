@@ -1,11 +1,17 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { InventoryService } from './inventory.service';
 
 @ApiTags('Inventory')
 @Controller('inventory')
-
 @ApiBearerAuth('JWT-auth')
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
@@ -13,9 +19,16 @@ export class InventoryController {
   @Get('status')
   @ApiOperation({
     summary: 'Get inventory status',
-    description: 'Retrieve current inventory status with stock levels, reorder alerts, and value metrics for all products.',
+    description:
+      'Retrieve current inventory status with stock levels, reorder alerts, and value metrics for all products.',
   })
-  @ApiQuery({ name: 'storeId', required: false, type: String, example: 'S001', description: 'Filter by store ID' })
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    example: 'S001',
+    description: 'Filter by store ID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Inventory status retrieved successfully',
@@ -28,7 +41,7 @@ export class InventoryController {
             inStock: 16,
             lowStock: 3,
             outOfStock: 1,
-            totalValue: 10985.50,
+            totalValue: 10985.5,
           },
           items: [
             {
@@ -54,7 +67,8 @@ export class InventoryController {
   @Post('restock')
   @ApiOperation({
     summary: 'Record restock transaction',
-    description: 'Add new inventory stock for a product and record the movement with supplier details.',
+    description:
+      'Add new inventory stock for a product and record the movement with supplier details.',
   })
   @ApiBody({
     schema: {
@@ -62,7 +76,7 @@ export class InventoryController {
         productId: 'P0001',
         storeId: 'S001',
         quantity: 100,
-        cost: 4091.00,
+        cost: 4091.0,
         supplier: 'ABC Distributors',
         invoiceNumber: 'INV-2025-12-001',
       },

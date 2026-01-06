@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -24,7 +25,7 @@ export class StoresService {
     return {
       success: true,
       data: {
-        stores: stores.map(s => ({
+        stores: stores.map((s) => ({
           id: s.id,
           name: s.name,
           nameSi: s.nameSi,

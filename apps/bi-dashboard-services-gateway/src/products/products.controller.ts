@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -7,6 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { ProductsService } from './products.service';
 
 @ApiTags('Products')
@@ -16,18 +28,48 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all products',
-    description: 'Retrieve paginated list of products with optional filtering by store, category, status, and search query. Supports bilingual names (English/Sinhala).',
+    description:
+      'Retrieve paginated list of products with optional filtering by store, category, status, and search query. Supports bilingual names (English/Sinhala).',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page', example: 10 })
-  @ApiQuery({ name: 'storeId', required: false, type: String, description: 'Filter by store ID', example: 'S001' })
-  @ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category', example: 'Groceries' })
-  @ApiQuery({ name: 'status', required: false, enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'], description: 'Filter by stock status' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name, SKU, or barcode', example: 'Basmati' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    description: 'Filter by store ID',
+    example: 'S001',
+  })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    type: String,
+    description: 'Filter by category',
+    example: 'Groceries',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'],
+    description: 'Filter by stock status',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, SKU, or barcode',
+    example: 'Basmati',
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Products retrieved successfully',
     schema: {
       example: {
@@ -65,13 +107,14 @@ export class ProductsController {
   }
 
   @Get(':productId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get product by ID',
-    description: 'Retrieve detailed information about a specific product including stock levels and sales history.',
+    description:
+      'Retrieve detailed information about a specific product including stock levels and sales history.',
   })
   @ApiParam({ name: 'productId', description: 'Product ID', example: 'P0001' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Product retrieved successfully',
     schema: {
       example: {
@@ -107,12 +150,12 @@ export class ProductsController {
   }
 
   @Post()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create new product',
     description: 'Add a new product to the inventory with bilingual support.',
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Product created successfully',
     schema: {
       example: {
@@ -123,7 +166,7 @@ export class ProductsController {
           nameSi: 'හරිත තේ 100g',
           sku: 'SKU-TEA-001',
           category: 'Beverages',
-          price: 450.00,
+          price: 450.0,
           stock: 50,
         },
       },
@@ -136,13 +179,13 @@ export class ProductsController {
   }
 
   @Patch(':productId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update product',
     description: 'Update product details including price, stock, and metadata.',
   })
   @ApiParam({ name: 'productId', description: 'Product ID', example: 'P0001' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Product updated successfully',
   })
   @ApiResponse({ status: 404, description: 'Product not found' })
@@ -152,13 +195,14 @@ export class ProductsController {
   }
 
   @Delete(':productId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete product',
-    description: 'Soft delete a product from the inventory. Product data is retained for historical records.',
+    description:
+      'Soft delete a product from the inventory. Product data is retained for historical records.',
   })
   @ApiParam({ name: 'productId', description: 'Product ID', example: 'P0001' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Product deleted successfully',
   })
   @ApiResponse({ status: 404, description: 'Product not found' })

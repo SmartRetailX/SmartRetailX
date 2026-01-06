@@ -1,3 +1,9 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from project root
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -75,32 +81,35 @@ async function main() {
   ];
 
   const products = await Promise.all(
-    productData.map((p, idx) =>
-      prisma.product.create({
-        data: {
-          id: `P${String(idx + 1).padStart(4, '0')}`,
-          sku: p.sku,
-          barcode: `890${String(idx + 1).padStart(10, '0')}`,
-          name: p.name,
-          nameSi: p.nameSi,
-          category: p.category,
-          categorySi: p.categorySi,
-          price: p.price,
-          cost: p.cost,
-          storeId: p.storeId,
-          currentStock: p.stock,
-          reorderLevel: p.reorder,
-          maxStock: p.max,
-          status: p.stock > p.reorder ? 'IN_STOCK' : p.stock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
-          supplier: 'Premium Suppliers Ltd',
-          lastRestocked: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-          expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
-          imageUrl: `https://cdn.smartretailx.com/products/P${String(idx + 1).padStart(4, '0')}.jpg`,
-        },
-      })
-    )
+    productData.map((p, idx) => {
+      const productId = `P${String(idx + 1).padStart(4, '0')}`;
+      const productData = {
+        sku: p.sku,
+        barcode: `890${String(idx + 1).padStart(10, '0')}`,
+        name: p.name,
+        nameSi: p.nameSi,
+        category: p.category,
+        categorySi: p.categorySi,
+        price: p.price,
+        cost: p.cost,
+        storeId: p.storeId,
+        currentStock: p.stock,
+        reorderLevel: p.reorder,
+        maxStock: p.max,
+        status: p.stock > p.reorder ? 'IN_STOCK' : p.stock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
+        supplier: 'Premium Suppliers Ltd',
+        lastRestocked: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+        expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        imageUrl: `https://cdn.smartretailx.com/products/${productId}.jpg`,
+      };
+      return prisma.product.upsert({
+        where: { id: productId },
+        update: productData,
+        create: { id: productId, ...productData },
+      });
+    })
   );
-  console.log(`✅ ${products.length} products created`);
+  console.log(`✅ ${products.length} products created/updated`);
 
   // Create Customers with RFM segments (7 sample customers)
   const customerData = [
@@ -114,101 +123,118 @@ async function main() {
   ];
 
   const customers = await Promise.all(
-    customerData.map((c, idx) =>
-      prisma.customer.create({
-        data: {
-          id: `C${String(idx + 1).padStart(4, '0')}`,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          storeId: idx % 2 === 0 ? 'S001' : 'S002',
-          segment: c.segment,
-          rfmRecency: c.rfm[0],
-          rfmFrequency: c.rfm[1],
-          rfmMonetary: c.rfm[2],
-          totalOrders: c.orders,
-          totalSpent: c.spent,
-          averageOrderValue: c.spent / c.orders,
-          lifetimeValue: c.spent,
-          lastPurchase: new Date(Date.now() - (6 - c.rfm[0]) * 10 * 24 * 60 * 60 * 1000),
-          loyaltyCardNumber: `LYC-2025-${String(idx + 1).padStart(3, '0')}`,
-        },
-      })
-    )
+    customerData.map((c, idx) => {
+      const customerId = `C${String(idx + 1).padStart(4, '0')}`;
+      const customerRecord = {
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        storeId: idx % 2 === 0 ? 'S001' : 'S002',
+        segment: c.segment,
+        rfmRecency: c.rfm[0],
+        rfmFrequency: c.rfm[1],
+        rfmMonetary: c.rfm[2],
+        totalOrders: c.orders,
+        totalSpent: c.spent,
+        averageOrderValue: c.spent / c.orders,
+        lifetimeValue: c.spent,
+        lastPurchase: new Date(Date.now() - (6 - c.rfm[0]) * 10 * 24 * 60 * 60 * 1000),
+        loyaltyCardNumber: `LYC-2025-${String(idx + 1).padStart(3, '0')}`,
+      };
+      return prisma.customer.upsert({
+        where: { id: customerId },
+        update: customerRecord,
+        create: { id: customerId, ...customerRecord },
+      });
+    })
   );
-  console.log(`✅ ${customers.length} customers created`);
+  console.log(`✅ ${customers.length} customers created/updated`);
 
   // Create Sales transactions (90 days history for ML training)
   console.log('📊 Creating sales history...');
-  const salesData = [];
-  for (let day = 0; day < 90; day++) {
-    const txCount = Math.floor(Math.random() * 15) + 10; // 10-25 transactions per day
-    for (let tx = 0; tx < txCount; tx++) {
-      const timestamp = new Date(Date.now() - day * 24 * 60 * 60 * 1000 + Math.random() * 24 * 60 * 60 * 1000);
-      const itemCount = Math.floor(Math.random() * 3) + 1; // 1-3 items per transaction
-      let totalAmount = 0;
-      const items = [];
+  // Check if sales already exist
+  const existingSalesCount = await prisma.sale.count();
+  if (existingSalesCount > 0) {
+    console.log(`⏭️  Skipping sales - ${existingSalesCount} transactions already exist`);
+  } else {
+    const salesData = [];
+    for (let day = 0; day < 90; day++) {
+      const txCount = Math.floor(Math.random() * 15) + 10; // 10-25 transactions per day
+      for (let tx = 0; tx < txCount; tx++) {
+        const timestamp = new Date(Date.now() - day * 24 * 60 * 60 * 1000 + Math.random() * 24 * 60 * 60 * 1000);
+        const itemCount = Math.floor(Math.random() * 3) + 1; // 1-3 items per transaction
+        let totalAmount = 0;
+        const items = [];
 
-      for (let i = 0; i < itemCount; i++) {
-        const product = products[Math.floor(Math.random() * products.length)];
-        const quantity = Math.floor(Math.random() * 3) + 1;
-        const revenue = product.price * quantity;
-        const cost = product.cost * quantity;
-        items.push({
-          productId: product.id,
-          quantity,
-          unitPrice: product.price,
-          revenue,
-          cost,
-          profit: revenue - cost,
+        for (let i = 0; i < itemCount; i++) {
+          const product = products[Math.floor(Math.random() * products.length)];
+          const quantity = Math.floor(Math.random() * 3) + 1;
+          const revenue = product.price * quantity;
+          const cost = product.cost * quantity;
+          items.push({
+            productId: product.id,
+            quantity,
+            unitPrice: product.price,
+            revenue,
+            cost,
+            profit: revenue - cost,
+          });
+          totalAmount += revenue;
+        }
+
+        const discount = Math.random() < 0.3 ? totalAmount * 0.1 : 0;
+        const txnNumber = (89 - day) * 100 + tx;
+        const storeId = Math.random() < 0.5 ? 'S001' : 'S002';
+        const storeCustomers = customers.filter(c => c.storeId === storeId);
+        salesData.push({
+          transactionId: `TXN-${new Date(timestamp).toISOString().split('T')[0]}-${String(txnNumber).padStart(6, '0')}`,
+          storeId,
+          customerId: Math.random() < 0.7 ? storeCustomers[Math.floor(Math.random() * storeCustomers.length)].id : null,
+          totalAmount,
+          discount,
+          finalAmount: totalAmount - discount,
+          paymentMethod: ['CASH', 'CARD', 'MOBILE'][Math.floor(Math.random() * 3)] as any,
+          timestamp,
+          items: { create: items },
         });
-        totalAmount += revenue;
       }
-
-      const discount = Math.random() < 0.3 ? totalAmount * 0.1 : 0;
-      const txnNumber = (89 - day) * 100 + tx;
-      const storeId = Math.random() < 0.5 ? 'S001' : 'S002';
-      const storeCustomers = customers.filter(c => c.storeId === storeId);
-      salesData.push({
-        transactionId: `TXN-${new Date(timestamp).toISOString().split('T')[0]}-${String(txnNumber).padStart(6, '0')}`,
-        storeId,
-        customerId: Math.random() < 0.7 ? storeCustomers[Math.floor(Math.random() * storeCustomers.length)].id : null,
-        totalAmount,
-        discount,
-        finalAmount: totalAmount - discount,
-        paymentMethod: ['CASH', 'CARD', 'MOBILE'][Math.floor(Math.random() * 3)] as any,
-        timestamp,
-        items: { create: items },
-      });
     }
-  }
 
-  for (const saleData of salesData) {
-    await prisma.sale.create({ data: saleData });
+    for (const saleData of salesData) {
+      await prisma.sale.create({ data: saleData });
+    }
+    console.log(`✅ ${salesData.length} sales transactions created`);
   }
-  console.log(`✅ ${salesData.length} sales transactions created`);
 
   // NOTE: Alerts are NOT seeded - they are generated dynamically by the ML service
   // Call POST /v1/alerts/generate to create alerts based on real inventory analysis
   console.log('ℹ️  Alerts are generated dynamically. Run: POST /v1/alerts/generate');
 
   // Create Promotions
-  const promotion = await prisma.promotion.create({
-    data: {
-      id: 'PRM001',
-      name: 'Weekend Special',
-      nameSi: 'සති අන්ත විශේෂය',
-      storeId: 'S001',
-      discount: 15,
-      startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      endDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-      status: 'ACTIVE',
-      targetedRevenue: 50000,
-      actualRevenue: 32000,
-      lift: 22.5,
-    },
+  const promotionData = {
+    name: 'Weekend Special',
+    nameSi: 'සති අන්ත විශේෂය',
+    storeId: 'S001',
+    discount: 15,
+    startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    endDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+    status: 'ACTIVE',
+    targetedRevenue: 50000,
+    actualRevenue: 32000,
+    lift: 22.5,
+  };
+  
+  const promotion = await prisma.promotion.upsert({
+    where: { id: 'PRM001' },
+    update: promotionData,
+    create: { id: 'PRM001', ...promotionData },
   });
 
+  // Delete existing promotion products and recreate
+  await prisma.promotionProduct.deleteMany({
+    where: { promotionId: promotion.id },
+  });
+  
   await prisma.promotionProduct.createMany({
     data: [
       { promotionId: promotion.id, productId: 'P0001' },
@@ -216,12 +242,12 @@ async function main() {
       { promotionId: promotion.id, productId: 'P0005' },
     ],
   });
-  console.log('✅ Promotion created');
+  console.log('✅ Promotion created/updated');
 
   console.log('🎉 Database seeding completed successfully!');
   console.log('\n📝 Login Credentials:');
-  console.log('Admin: admin@smartretailx.com / Admin@123');
-  console.log('Shop Owner: owner@smartretailx.com / Admin@123');
+  // console.log('Admin: admin@smartretailx.com / Admin@123');
+  // console.log('Shop Owner: owner@smartretailx.com / Admin@123');
 }
 
 main()

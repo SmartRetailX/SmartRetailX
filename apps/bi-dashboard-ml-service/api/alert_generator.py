@@ -77,10 +77,10 @@ class AlertGenerator:
                 result = conn.execute(text(query))
                 products = [dict(row._mapping) for row in result]
             
-            print(f"📊 Found {len(products)} products in database")
+            print(f"[DATA] Found {len(products)} products in database")
             
             if len(products) == 0:
-                print("⚠️  No products found. Run: npm run prisma:seed")
+                print("[WARN]  No products found. Run: npm run prisma:seed")
                 return []
             
             # Analyze each product with ML forecast
@@ -92,19 +92,19 @@ class AlertGenerator:
                     
                     if alert:
                         alerts.append(alert)
-                        print(f"  🚨 ALERT GENERATED: {alert['urgency']} urgency")
+                        print(f"  [EMOJI] ALERT GENERATED: {alert['urgency']} urgency")
                     else:
-                        print(f"  ✅ Stock adequate")
+                        print(f"  [OK] Stock adequate")
                         
                 except Exception as e:
-                    print(f"  ❌ Error: {str(e)}")
+                    print(f"  [ERROR] Error: {str(e)}")
                     continue
             
-            print(f"\n✅ Alert generation complete: {len(alerts)} alerts")
+            print(f"\n[OK] Alert generation complete: {len(alerts)} alerts")
             return alerts
             
         except Exception as e:
-            print(f"❌ ERROR in analyze_all_products: {str(e)}")
+            print(f"[ERROR] ERROR in analyze_all_products: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -126,7 +126,7 @@ class AlertGenerator:
         
         try:
             # STEP 1: Run ML forecast (uses trained XGBoost/Prophet models)
-            print(f"  🤖 Running ML forecast for {product_id}...")
+            print(f"  [EMOJI] Running ML forecast for {product_id}...")
             
             forecast_result = await self.forecast_service.predict(
                 product_id=product_id,
@@ -154,8 +154,8 @@ class AlertGenerator:
             
             avg_daily_demand = sum(daily_demands[:7]) / 7 if daily_demands else 0
             
-            print(f"  📈 Forecast: {avg_daily_demand:.1f} units/day avg demand")
-            print(f"  📦 Current stock: {current_stock}, Reorder: {reorder_level}")
+            print(f"  [EMOJI] Forecast: {avg_daily_demand:.1f} units/day avg demand")
+            print(f"  [EMOJI] Current stock: {current_stock}, Reorder: {reorder_level}")
             
             # STEP 3: Determine if alert needed
             needs_alert = False
@@ -166,7 +166,7 @@ class AlertGenerator:
                 stockout_date = datetime.now() + timedelta(days=days_until_stockout)
             else:
                 # No demand predicted, no alert needed
-                print(f"  ✅ No demand predicted, stock adequate")
+                print(f"  [OK] No demand predicted, stock adequate")
                 return None
             
             print(f"  ⏰ Stockout predicted in {days_until_stockout:.1f} days")
@@ -174,13 +174,13 @@ class AlertGenerator:
             # Alert criteria: ONLY if stock below reorder level OR stockout within 3 days (CRITICAL)
             if current_stock < reorder_level:
                 needs_alert = True
-                print(f"  ⚠️  Below reorder level ({current_stock} < {reorder_level})")
+                print(f"  [WARN]  Below reorder level ({current_stock} < {reorder_level})")
             elif days_until_stockout <= 3:
                 needs_alert = True
-                print(f"  ⚠️  CRITICAL stockout imminent ({days_until_stockout:.1f} days)")
+                print(f"  [WARN]  CRITICAL stockout imminent ({days_until_stockout:.1f} days)")
             
             if not needs_alert:
-                print(f"  ✅ Stock adequate ({current_stock} >= {reorder_level}, {days_until_stockout:.1f} days supply)")
+                print(f"  [OK] Stock adequate ({current_stock} >= {reorder_level}, {days_until_stockout:.1f} days supply)")
                 return None
             
             # STEP 4: Calculate alert urgency
@@ -244,10 +244,10 @@ class AlertGenerator:
             
         except FileNotFoundError as e:
             # Model not trained yet
-            print(f"  ⚠️  No trained model found. Train first: POST /api/v1/forecast")
+            print(f"  [WARN]  No trained model found. Train first: POST /api/v1/forecast")
             return None
         except Exception as e:
-            print(f"  ❌ Forecast error: {str(e)}")
+            print(f"  [ERROR] Forecast error: {str(e)}")
             return None
     
     async def analyze_product_alert(self, product_id: str, store_id: str) -> Dict[str, Any]:
@@ -283,7 +283,7 @@ class AlertGenerator:
                 return {"alertNeeded": False, "message": "Stock adequate based on ML forecast"}
                 
         except Exception as e:
-            print(f"❌ ERROR in analyze_product_alert: {str(e)}")
+            print(f"[ERROR] ERROR in analyze_product_alert: {str(e)}")
             raise
 
 

@@ -9,8 +9,8 @@
       "options": {
         "commands": [
           "python -m venv venv",
-          ".\\venv\\Scripts\\Activate.ps1 ; pip install --upgrade pip",
-          ".\\venv\\Scripts\\Activate.ps1 ; pip install -r requirements.txt"
+          "venv/Scripts/python.exe -m pip install --upgrade pip",
+          "venv/Scripts/python.exe -m pip install -r requirements.txt"
         ],
         "cwd": "apps/bi-dashboard-ml-service",
         "parallel": false
@@ -19,21 +19,25 @@
     "install": {
       "executor": "nx:run-commands",
       "options": {
-        "command": ".\\venv\\Scripts\\Activate.ps1 ; pip install -r requirements.txt",
+        "command": "venv/Scripts/python.exe -m pip install -r requirements.txt",
         "cwd": "apps/bi-dashboard-ml-service"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": ".\\venv\\Scripts\\Activate.ps1 ; uvicorn main:app --reload --host 0.0.0.0 --port 8000",
-        "cwd": "apps/bi-dashboard-ml-service"
+        "command": "python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+        "cwd": "apps/bi-dashboard-ml-service",
+        "env": {
+          "VIRTUAL_ENV": "apps/bi-dashboard-ml-service/venv",
+          "PATH": "apps/bi-dashboard-ml-service/venv/Scripts;{env.PATH}"
+        }
       }
     },
     "train": {
       "executor": "nx:run-commands",
       "options": {
-        "command": ".\\venv\\Scripts\\Activate.ps1 ; python train_models.py",
+        "command": "venv/Scripts/python.exe train_models.py",
         "cwd": "apps/bi-dashboard-ml-service"
       }
     }

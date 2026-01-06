@@ -1,5 +1,6 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Post } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { VoiceService } from './voice.service';
 
 @ApiTags('Voice')
@@ -10,7 +11,8 @@ export class VoiceController {
   @Post('text-query')
   @ApiOperation({
     summary: 'Process voice/text query',
-    description: 'Process natural language query for voice assistant with bilingual responses. Supports inventory queries, sales reports, and product search.',
+    description:
+      'Process natural language query for voice assistant with bilingual responses. Supports inventory queries, sales reports, and product search.',
   })
   @ApiBody({
     schema: {

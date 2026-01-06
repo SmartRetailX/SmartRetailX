@@ -25,7 +25,6 @@ async function main() {
       promotionCount,
       auditLogCount,
       notificationCount,
-      refreshTokenCount,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.store.count(),
@@ -40,7 +39,6 @@ async function main() {
       prisma.promotion.count(),
       prisma.auditLog.count(),
       prisma.notification.count(),
-      prisma.refreshToken.count(),
     ]);
 
     console.log('\n👥 Core Data:');
@@ -65,13 +63,11 @@ async function main() {
     console.log('\n📝 System:');
     console.log(`   Audit Logs: ${auditLogCount}`);
     console.log(`   Notifications: ${notificationCount}`);
-    console.log(`   Refresh Tokens: ${refreshTokenCount}`);
 
     const total = userCount + storeCount + productCount + customerCount + 
                   saleCount + saleItemCount + inventoryCount + 
                   forecastCount + forecastDriverCount + alertCount + 
-                  promotionCount + auditLogCount + notificationCount + 
-                  refreshTokenCount;
+                  promotionCount + auditLogCount + notificationCount;
 
     console.log('\n' + '='.repeat(60));
     console.log(`📊 Total Records: ${total.toLocaleString()}`);

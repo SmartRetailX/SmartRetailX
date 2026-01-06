@@ -8,6 +8,7 @@
     "prisma:seed": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/seed.ts",
     "prisma:clean": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/clean.ts",
     "prisma:reset": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/reset.ts",
+    "prisma:studio": "cd apps/bi-dashboard-services-gateway && npx prisma studio",
     "biml:setup": "nx run bi-dashboard-ml-service:setup",
     "biml:install": "nx run bi-dashboard-ml-service:install",
     "biml:serve": "nx run bi-dashboard-ml-service:serve",

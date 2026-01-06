@@ -1,11 +1,28 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { PromotionsService } from './promotions.service';
 
 @ApiTags('Promotions')
 @Controller('promotions')
-
 @ApiBearerAuth('JWT-auth')
 export class PromotionsController {
   constructor(private promotionsService: PromotionsService) {}
@@ -13,10 +30,22 @@ export class PromotionsController {
   @Get()
   @ApiOperation({
     summary: 'Get promotions',
-    description: 'Retrieve list of active and scheduled promotional campaigns with discount rules and performance metrics.',
+    description:
+      'Retrieve list of active and scheduled promotional campaigns with discount rules and performance metrics.',
   })
-  @ApiQuery({ name: 'storeId', required: false, type: String, example: 'S001', description: 'Filter by store ID' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'SCHEDULED', 'EXPIRED'], description: 'Filter by promotion status' })
+  @ApiQuery({
+    name: 'storeId',
+    required: false,
+    type: String,
+    example: 'S001',
+    description: 'Filter by store ID',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ACTIVE', 'SCHEDULED', 'EXPIRED'],
+    description: 'Filter by promotion status',
+  })
   @ApiResponse({
     status: 200,
     description: 'Promotions retrieved successfully',
@@ -38,9 +67,9 @@ export class PromotionsController {
               endDate: '2025-12-31',
               status: 'ACTIVE',
               applicableProducts: ['P0001', 'P0002'],
-              minPurchaseAmount: 5000.00,
+              minPurchaseAmount: 5000.0,
               usageCount: 125,
-              totalRevenue: 450000.00,
+              totalRevenue: 450000.0,
               createdAt: '2025-11-15T10:00:00Z',
             },
           ],
@@ -56,7 +85,8 @@ export class PromotionsController {
   @Get(':promotionId')
   @ApiOperation({
     summary: 'Get promotion',
-    description: 'Retrieve detailed information about a specific promotion including usage analytics.',
+    description:
+      'Retrieve detailed information about a specific promotion including usage analytics.',
   })
   @ApiParam({ name: 'promotionId', description: 'Promotion ID', example: 'PRM0001' })
   @ApiResponse({
@@ -75,8 +105,8 @@ export class PromotionsController {
           status: 'ACTIVE',
           analytics: {
             usageCount: 125,
-            totalRevenue: 450000.00,
-            averageOrderValue: 3600.00,
+            totalRevenue: 450000.0,
+            averageOrderValue: 3600.0,
             conversionRate: 15.5,
           },
         },
@@ -107,7 +137,7 @@ export class PromotionsController {
         startDate: '2026-01-01',
         endDate: '2026-01-15',
         applicableProducts: [],
-        minPurchaseAmount: 2000.00,
+        minPurchaseAmount: 2000.0,
       },
     },
   })

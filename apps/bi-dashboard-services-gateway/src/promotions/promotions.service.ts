@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -25,7 +26,7 @@ export class PromotionsService {
     return {
       success: true,
       data: {
-        promotions: promotions.map(p => ({
+        promotions: promotions.map((p) => ({
           id: p.id,
           name: p.name,
           nameSi: p.nameSi,
@@ -111,8 +112,9 @@ export class PromotionsService {
 
   async updatePromotion(promotionId: string, updatePromotionDto: any) {
     const data: any = {};
-    
-    if (updatePromotionDto.discountValue !== undefined) data.discount = updatePromotionDto.discountValue;
+
+    if (updatePromotionDto.discountValue !== undefined)
+      data.discount = updatePromotionDto.discountValue;
     if (updatePromotionDto.endDate) data.endDate = new Date(updatePromotionDto.endDate);
     if (updatePromotionDto.status) data.status = updatePromotionDto.status.toUpperCase();
 
