@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -57,7 +56,6 @@ class AnalyticsService {
 
 @ApiTags('Analytics')
 @Controller('analytics')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 class AnalyticsController {
   constructor(private analyticsService: AnalyticsService) {}

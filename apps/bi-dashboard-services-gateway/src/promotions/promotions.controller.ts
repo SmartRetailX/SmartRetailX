@@ -1,11 +1,11 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
 import { PromotionsService } from './promotions.service';
 
 @ApiTags('Promotions')
 @Controller('promotions')
-@UseGuards(JwtAuthGuard)
+
 @ApiBearerAuth('JWT-auth')
 export class PromotionsController {
   constructor(private promotionsService: PromotionsService) {}

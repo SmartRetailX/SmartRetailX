@@ -76,19 +76,11 @@ async function main() {
     const stores = await prisma.store.deleteMany({});
     console.log(`   ✅ Deleted ${stores.count} stores`);
 
-    console.log('🗑️  Deleting refresh tokens...');
-    const refreshTokens = await prisma.refreshToken.deleteMany({});
-    console.log(`   ✅ Deleted ${refreshTokens.count} refresh tokens`);
-
-    console.log('🗑️  Deleting users...');
-    const users = await prisma.user.deleteMany({});
-    console.log(`   ✅ Deleted ${users.count} users`);
-
     console.log('\n' + '='.repeat(60));
     console.log('✅ Database cleanup completed successfully!');
+    console.log('⚠️  Note: Better Auth tables (user, session, account, verification) are NOT cleaned');
     console.log('='.repeat(60));
     console.log('\n📊 Total records deleted:');
-    console.log(`   Users: ${users.count}`);
     console.log(`   Stores: ${stores.count}`);
     console.log(`   Products: ${products.count}`);
     console.log(`   Customers: ${customers.count}`);
@@ -102,18 +94,16 @@ async function main() {
     console.log(`   Promotion Products: ${promotionProducts.count}`);
     console.log(`   Audit Logs: ${auditLogs.count}`);
     console.log(`   Notifications: ${notifications.count}`);
-    console.log(`   Refresh Tokens: ${refreshTokens.count}`);
     console.log(`   User-Store Links: ${userStores.count}`);
     
-    const total = users.count + stores.count + products.count + customers.count + 
+    const total = stores.count + products.count + customers.count + 
                   sales.count + saleItems.count + inventoryMovements.count + 
                   forecasts.count + forecastDrivers.count + alerts.count + 
                   promotions.count + promotionProducts.count + auditLogs.count + 
-                  notifications.count + refreshTokens.count + userStores.count;
+                  notifications.count + userStores.count;
     
     console.log(`\n   TOTAL: ${total} records deleted`);
     console.log('\n💡 To add fresh data, run: npm run prisma:seed');
-    console.log('   or for advanced seed: npm run prisma:seed:advanced');
     console.log('='.repeat(60) + '\n');
 
   } catch (error) {

@@ -30,9 +30,10 @@ async function main() {
     console.log('✅ Database reset completed successfully!');
     console.log('='.repeat(60));
     console.log('\n💡 Next steps:');
-    console.log('   1. Start the server: npm run dev');
-    console.log('   2. Visit Swagger docs: http://localhost:3000/api/docs');
-    console.log('   3. Login with: admin@smartretailx.com / Admin@123');
+    console.log('   1. Create user via: POST /api/auth/sign-up/email');
+    console.log('   2. Start the server: nx serve bi-dashboard-services-gateway');
+    console.log('   3. Visit Swagger docs: http://localhost:3001/api/docs');
+    console.log('   4. Better Auth users managed separately via auth endpoints');
     console.log('='.repeat(60) + '\n');
 
   } catch (error) {

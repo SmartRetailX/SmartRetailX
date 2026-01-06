@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -146,7 +145,6 @@ class ForecastsService {
 
 @ApiTags('Forecasts')
 @Controller('forecasts')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 class ForecastsController {
   constructor(private forecastsService: ForecastsService) {}

@@ -1,27 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting database seed...');
-
-  // Create Admin User
-  const hashedPassword = await bcrypt.hash('Admin@123', 10);
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@smartretailx.com' },
-    update: {},
-    create: {
-      email: 'admin@smartretailx.com',
-      password: hashedPassword,
-      name: 'System Admin',
-      role: 'ADMIN',
-      phone: '+94112345678',
-      language: 'en',
-      active: true,
-    },
-  });
-  console.log('✅ Admin user created:', admin.email);
+  console.log('ℹ️  Note: User authentication is handled by Better Auth');
+  console.log('ℹ️  Create users via /api/auth/sign-up/email endpoint\n');
 
   // Create Stores
   const stores = await Promise.all([
@@ -61,31 +45,6 @@ async function main() {
     }),
   ]);
   console.log(`✅ ${stores.length} stores created`);
-
-  // Create Shop Owner
-  const shopOwner = await prisma.user.upsert({
-    where: { email: 'owner@smartretailx.com' },
-    update: {},
-    create: {
-      email: 'owner@smartretailx.com',
-      password: hashedPassword,
-      name: 'Shop Owner',
-      role: 'SHOP_OWNER',
-      phone: '+94771234567',
-      language: 'si',
-      active: true,
-    },
-  });
-
-  // Link owner to stores
-  await prisma.userStore.createMany({
-    data: [
-      { userId: shopOwner.id, storeId: 'S001' },
-      { userId: shopOwner.id, storeId: 'S002' },
-    ],
-    skipDuplicates: true,
-  });
-  console.log('✅ Shop owner created and linked to stores');
 
   // Create Products (20 products matching Kaggle dataset)
   // Stock levels adjusted to trigger alerts:

@@ -1,11 +1,11 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
 import { InventoryService } from './inventory.service';
 
 @ApiTags('Inventory')
 @Controller('inventory')
-@UseGuards(JwtAuthGuard)
+
 @ApiBearerAuth('JWT-auth')
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}

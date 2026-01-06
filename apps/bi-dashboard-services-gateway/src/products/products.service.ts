@@ -21,15 +21,15 @@ export class ProductsService {
     const where: any = {};
 
     // Store access control
-    if (user.role !== 'ADMIN' && storeId && storeId !== 'undefined') {
-      if (!user.storeIds.includes(storeId)) {
-        throw new ForbiddenException({
-          code: 'STORE_ACCESS_DENIED',
-          message: 'User cannot access this store',
-          messageSi: 'පරිශීලකයාට මෙම වෙළඳසැලට ප්‍රවේශ විය නොහැක',
-        });
-      }
-    }
+    // if (user.role !== 'ADMIN' && storeId && storeId !== 'undefined') {
+    //   if (!user.storeIds.includes(storeId)) {
+    //     throw new ForbiddenException({
+    //       code: 'STORE_ACCESS_DENIED',
+    //       message: 'User cannot access this store',
+    //       messageSi: 'පරිශීලකයාට මෙම වෙළඳසැලට ප්‍රවේශ විය නොහැක',
+    //     });
+    //   }
+    // }
 
     // Only add filters if they are actually provided (not undefined or string "undefined")
     if (storeId && storeId !== 'undefined') where.storeId = storeId;

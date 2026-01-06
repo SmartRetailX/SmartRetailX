@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -29,7 +28,7 @@ class XaiService {
     return response.data;
   }
   
-  async explainRestock(alertId: string, lang: string = 'en') {
+  async explainRestock(alertId: string, lang = 'en') {
     const response = await firstValueFrom(
       this.httpService.post(`${this.mlServiceUrl}/api/v1/explain/restock?alert_id=${alertId}&lang=${lang}`, {})
     );
@@ -40,7 +39,6 @@ class XaiService {
 
 @ApiTags('XAI')
 @Controller('xai')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 class XaiController {
   constructor(private xaiService: XaiService) {}

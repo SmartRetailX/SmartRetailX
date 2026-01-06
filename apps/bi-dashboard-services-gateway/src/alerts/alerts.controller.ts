@@ -1,11 +1,11 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
 import { AlertsService } from './alerts.service';
 
 @ApiTags('Alerts')
 @Controller('alerts')
-@UseGuards(JwtAuthGuard)
+
 @ApiBearerAuth('JWT-auth')
 export class AlertsController {
   constructor(private alertsService: AlertsService) {}
