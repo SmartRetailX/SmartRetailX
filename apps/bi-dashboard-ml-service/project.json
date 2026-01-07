@@ -1,0 +1,49 @@
+{
+  "name": "bi-dashboard-ml-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/bi-dashboard-ml-service",
+  "targets": {
+    "setup": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "python -m venv venv",
+          "venv/Scripts/python.exe -m pip install --upgrade pip",
+          "venv/Scripts/python.exe -m pip install -r requirements.txt"
+        ],
+        "cwd": "apps/bi-dashboard-ml-service",
+        "parallel": false
+      }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "venv/Scripts/python.exe -m pip install -r requirements.txt",
+        "cwd": "apps/bi-dashboard-ml-service"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+        "cwd": "apps/bi-dashboard-ml-service",
+        "env": {
+          "VIRTUAL_ENV": "apps/bi-dashboard-ml-service/venv",
+          "PATH": "apps/bi-dashboard-ml-service/venv/Scripts;{env.PATH}"
+        }
+      }
+    },
+    "train": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "python -m pip install -r requirements.txt",
+          "python train_models.py"
+        ],
+        "cwd": "apps/bi-dashboard-ml-service"
+      }
+    }
+  },
+  "tags": ["type:app", "lang:python", "scope:ml"]
+}
