@@ -343,7 +343,7 @@ class XAIService:
             return {
                 'explanation': {
                     'predictedValue': round(float(predicted_value), 2),
-                    'actualValue': None,  # No actual value for future predictions
+                    'actualValue': None,
                     'confidence': 0.87,
                     'baseValue': round(float(base_value), 2),
                     'modelType': 'XGBoost + SHAP',

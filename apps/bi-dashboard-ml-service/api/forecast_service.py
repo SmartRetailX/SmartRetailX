@@ -61,7 +61,7 @@ class ForecastService:
             changepoint_prior_scale=0.05,
             daily_seasonality=True,
             weekly_seasonality=True,
-            yearly_seasonality=False,  # Not enough data
+            yearly_seasonality=False,
         )
         model.fit(df)
         return model
@@ -325,7 +325,7 @@ class ForecastService:
         weekday_avg = df[~df['day_of_week'].isin([5, 6])][sales_col].mean()
         weekend_impact = (weekend_avg - weekday_avg) / weekday_avg if weekday_avg > 0 else 0
         
-        if abs(weekend_impact) > 0.05:  # Only show if significant
+        if abs(weekend_impact) > 0.05:
             drivers.append({
                 'name': 'Day of Week Effect',
                 'nameSi': 'සතියේ දින බලපෑම',

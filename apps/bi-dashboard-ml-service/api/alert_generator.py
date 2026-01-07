@@ -35,8 +35,8 @@ class AlertGenerator:
         if self.db_url:
             self.engine = create_engine(
                 self.db_url,
-                pool_pre_ping=True,  # Verify connections before using them
-                pool_recycle=3600,   # Recycle connections after 1 hour
+                pool_pre_ping=True,
+                pool_recycle=3600,
                 pool_size=5,
                 max_overflow=10
             )
