@@ -40,7 +40,8 @@
       },
       "exclude": [
         "apps/api-gateway-e2e/**/*",
-        "apps/assistant-service-e2e/**/*"
+        "apps/assistant-service-e2e/**/*",
+        "apps/bi-dashboard-services-gateway-e2e/**/*"
       ]
     },
     {

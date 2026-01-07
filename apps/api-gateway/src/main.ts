@@ -73,9 +73,11 @@ async function bootstrap() {
   Logger.log(`📡 Communication:`);
   Logger.log(`   → /api/auth/* → Better Auth (integrated)`);
   Logger.log(`   → /api/assistant/* → Assistant Service (RabbitMQ)`);
+  Logger.log(`   → /api/bi/* → BI Dashboard Service (RabbitMQ)`);
   Logger.log(`🐰 RabbitMQ: ${configService.rabbitmqUri}`);
   Logger.log(`🔐 Authentication Ready`);
   Logger.log(`🤖 Voice Assistant Ready`);
+  Logger.log(`📊 BI Dashboard Ready`);
 }
 
 bootstrap();
