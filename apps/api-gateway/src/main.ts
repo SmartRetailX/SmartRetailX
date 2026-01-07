@@ -1,7 +1,3 @@
-/**
- * API Gateway - Unified HTTP entry point with Authentication and RabbitMQ microservices communication
- */
-
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -69,13 +65,8 @@ async function bootstrap() {
 
   await app.listen(port, host);
 
-  Logger.log(`🚀 API Gateway running on: http://${host}:${port}/${globalPrefix}`);
-  Logger.log(`📡 Communication:`);
-  Logger.log(`   → /api/auth/* → Better Auth (integrated)`);
-  Logger.log(`   → /api/assistant/* → Assistant Service (RabbitMQ)`);
-  Logger.log(`🐰 RabbitMQ: ${configService.rabbitmqUri}`);
-  Logger.log(`🔐 Authentication Ready`);
-  Logger.log(`🤖 Voice Assistant Ready`);
+  Logger.log(`API Gateway running on: http://${host}:${port}/${globalPrefix}`);
+  Logger.log(`RabbitMQ: ${configService.rabbitmqUri}`);
 }
 
 bootstrap();

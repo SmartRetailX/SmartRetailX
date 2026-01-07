@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { firstValueFrom } from 'rxjs';
 
 import { AppService } from './app.service';
@@ -11,19 +12,11 @@ export class AppController {
     @Inject('ASSISTANT_SERVICE') private assistantClient: ClientProxy,
   ) {}
 
-  @Get()
-  getData() {
-    return this.appService.getData();
-  }
-
+  // Health check endpoint
   @Get('health')
   async getHealth() {
     // Check API Gateway health
-    const gatewayHealth = {
-      status: 'healthy',
-      service: 'api-gateway',
-      timestamp: new Date().toISOString(),
-    };
+    const gatewayHealth = this.appService.getHealth();
 
     // Check Assistant Service health
     try {
@@ -47,28 +40,49 @@ export class AppController {
   }
 
   // Voice Assistant Endpoints
-  @Post('assistant/query')
-  async voiceQuery(@Body() body: { query: string; language?: string }) {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'voice_query' }, body));
-  }
-
-  @Get('assistant/capabilities')
-  async getCapabilities() {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'get_capabilities' }, {}));
+  @Post('assistant/text-query')
+  async textQuery(@Body() body: { query: string; language?: string }) {
+    return firstValueFrom(this.assistantClient.send({ cmd: 'text_query' }, body));
   }
 
   @Post('assistant/speech-to-text')
-  async speechToText(@Body() body: { audio: string; language?: string }) {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'speech_to_text' }, body));
-  }
+  @UseInterceptors(FileInterceptor('audio'))
+  async speechToText(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string } | undefined,
+    @Body('language') language?: string,
+  ) {
+    if (!file) {
+      return { error: 'No audio file provided' };
+    }
 
-  @Post('assistant/text-to-speech')
-  async textToSpeech(@Body() body: { text: string; language?: string }) {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'text_to_speech' }, body));
-  }
+    try {
+      console.log('Received audio file:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.buffer.length,
+        language: language || 'si',
+      });
 
-  @Get('assistant/health')
-  async getAssistantHealth() {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'health' }, {}));
+      // Convert Buffer to base64 for RabbitMQ transmission
+      const audioBase64 = file.buffer.toString('base64');
+      console.log('Converted to base64, length:', audioBase64.length);
+
+      const result = await firstValueFrom(
+        this.assistantClient.send(
+          { cmd: 'speech_to_text' },
+          { audioBase64, language: language || 'si' },
+        ),
+      );
+
+      console.log('Speech-to-text result:', result);
+      return result;
+    } catch (error) {
+      console.error('Speech-to-text error:', error);
+      return {
+        error: 'Failed to process audio',
+        details: error.message,
+        stack: error.stack,
+      };
+    }
   }
 }
