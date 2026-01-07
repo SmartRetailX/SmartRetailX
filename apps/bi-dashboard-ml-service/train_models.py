@@ -18,7 +18,7 @@ class ModelTrainer:
     def __init__(self):
         self.model_path = os.getenv("MODEL_PATH", "./models")
         self.data_path = os.getenv("DATA_PATH", "./data")
-        self.kaggle_file = os.path.join(self.data_path, "kaggle_sales_data.csv")
+        self.kaggle_file = os.path.join(self.data_path, "kaggle_sales_data_realistic.csv")
         
         # Create models directory
         os.makedirs(self.model_path, exist_ok=True)
@@ -32,7 +32,7 @@ class ModelTrainer:
         if not os.path.exists(self.kaggle_file):
             raise FileNotFoundError(
                 f"Kaggle dataset not found at {self.kaggle_file}\n"
-                f"Please place your kaggle_sales_data.csv in the {self.data_path}/ folder"
+                f"Please place your kaggle_sales_data_realistic.csv in the {self.data_path}/ folder"
             )
         
         print(f"[LOAD] Loading Kaggle dataset from: {self.kaggle_file}")

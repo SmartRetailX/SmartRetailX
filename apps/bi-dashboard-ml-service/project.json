@@ -37,7 +37,10 @@
     "train": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "venv/Scripts/python.exe train_models.py",
+        "commands": [
+          "python -m pip install -r requirements.txt",
+          "python train_models.py"
+        ],
         "cwd": "apps/bi-dashboard-ml-service"
       }
     }
