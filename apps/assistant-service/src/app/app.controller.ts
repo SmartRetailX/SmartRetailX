@@ -24,36 +24,18 @@ export class AppController {
   /**
    * Voice assistant query
    */
-  @MessagePattern({ cmd: 'voice_query' })
-  async handleVoiceQuery(data: { query: string; language?: string }) {
-    return this.appService.processVoiceQuery(data.query, data.language);
-  }
-
-  /**
-   * Get assistant capabilities
-   */
-  @MessagePattern({ cmd: 'get_capabilities' })
-  getCapabilities() {
-    return {
-      languages: ['en', 'si'], // English, Sinhala
-      features: ['product_search', 'order_tracking', 'recommendations', 'customer_support'],
-      model: 'SinLlama',
-    };
+  @MessagePattern({ cmd: 'text_query' })
+  async handleTextQuery(data: { query: string; language?: string }) {
+    return this.appService.processTextQuery(data.query, data.language);
   }
 
   /**
    * Process speech-to-text
    */
   @MessagePattern({ cmd: 'speech_to_text' })
-  async speechToText(data: { audio: string; language?: string }) {
-    return this.appService.speechToText(data.audio, data.language);
-  }
-
-  /**
-   * Process text-to-speech
-   */
-  @MessagePattern({ cmd: 'text_to_speech' })
-  async textToSpeech(data: { text: string; language?: string }) {
-    return this.appService.textToSpeech(data.text, data.language);
+  async speechToText(data: { audioBase64: string; language?: string }) {
+    // Convert base64 back to Buffer
+    const audioBuffer = Buffer.from(data.audioBase64, 'base64');
+    return this.appService.speechToText(audioBuffer, data.language);
   }
 }

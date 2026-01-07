@@ -4,17 +4,18 @@ import { LogOut, ShoppingBag, User } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { VoiceAssistantChatBubble } from '@/components/voice-assistant/chat-bubble';
 
 export function HomePage() {
   const { isAuthenticated, user, logout } = useAuth();
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         <div className="container mx-auto px-4 py-16">
           {/* Hero Section */}
           <div className="mb-12 text-center">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-purple-600 shadow-lg">
               <ShoppingBag className="h-10 w-10 text-white" />
             </div>
             <h1 className="mb-4 text-5xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -51,37 +52,6 @@ export function HomePage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Features */}
-          <div className="mx-auto mt-16 max-w-4xl">
-            <h2 className="mb-8 text-center text-3xl font-bold text-slate-900 dark:text-white">
-              Why Choose SmartRetailX?
-            </h2>
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-white/50 p-6 backdrop-blur dark:border-slate-800 dark:bg-slate-900/50">
-                <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                  AI-Powered Recommendations
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Get personalized product suggestions based on your preferences
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white/50 p-6 backdrop-blur dark:border-slate-800 dark:bg-slate-900/50">
-                <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                  Secure Checkout
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Your transactions are protected with industry-leading security
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white/50 p-6 backdrop-blur dark:border-slate-800 dark:bg-slate-900/50">
-                <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">Fast Delivery</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Get your products delivered quickly to your doorstep
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -89,12 +59,12 @@ export function HomePage() {
 
   // Authenticated view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-purple-600 shadow-lg">
               <ShoppingBag className="h-6 w-6 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">SmartRetailX</h1>
@@ -163,6 +133,9 @@ export function HomePage() {
           </Card>
         </div>
       </div>
+
+      {/* Voice Assistant Chat Bubble */}
+      <VoiceAssistantChatBubble />
     </div>
   );
 }

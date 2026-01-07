@@ -2,6 +2,7 @@ import '@/styles/globals.css';
 
 import { useAuth } from '@/contexts/auth-context';
 import { AuthProvider } from '@/providers/auth-provider';
+import { QueryProvider } from '@/providers/query-provider';
 import { createAppRouter } from '@/router';
 import { RouterProvider } from '@tanstack/react-router';
 
@@ -23,9 +24,11 @@ function RouterWrapper() {
 const App = () => {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <AuthProvider>
-        <RouterWrapper />
-      </AuthProvider>
+      <QueryProvider>
+        <AuthProvider>
+          <RouterWrapper />
+        </AuthProvider>
+      </QueryProvider>
     </ThemeProvider>
   );
 };
