@@ -430,6 +430,17 @@ smart-retail-x/
 │   │
 │   ├── assistant-service-e2e/    # Assistant Service E2E tests
 │   │
+│   ├── personalized-promotion-engine-ml-service/  # AI Promotion Engine (Python/ML)
+│   │   ├── data/
+│   │   │   ├── raw/              # Generated datasets (CSV)
+│   │   │   └── processed/        # ML-ready features
+│   │   ├── data_generation/      # Dataset creation scripts
+│   │   ├── data_analysis/        # Feature engineering
+│   │   ├── models/               # ML models (Random Forest, CF, etc.)
+│   │   ├── evaluation/           # Model evaluation & metrics
+│   │   ├── campaign_outputs/     # Generated promotion campaigns
+│   │   └── notebooks/            # Jupyter analysis notebooks
+│   │
 │   ├── client/                   # React Web App (Port 5173)
 │   │   └── src/
 │   │       ├── lib/              # Auth client, utilities
