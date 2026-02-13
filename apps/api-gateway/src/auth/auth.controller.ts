@@ -27,7 +27,7 @@ export class AuthController {
    * - POST /auth/verify-email
    * And more...
    */
-  @All('*')
+  @All('*path')
   async handleAuth(@Req() req: Request, @Res() res: Response) {
     // Construct the full URL from the actual request
     // This ensures Better Auth sees the correct host (e.g., 192.168.8.8:3000 for mobile)

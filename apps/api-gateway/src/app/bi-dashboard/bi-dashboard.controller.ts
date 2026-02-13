@@ -1,6 +1,6 @@
 import { All, Controller, HttpStatus, Inject, Logger, Req, Res } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { catchError, firstValueFrom, timeout } from 'rxjs';
+import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
 /**
  * BI Dashboard Proxy Controller
@@ -18,7 +18,7 @@ export class BiDashboardController {
   /**
    * Catch-all route that proxies requests to BI Dashboard microservice
    */
-  @All('*')
+  @All('*path')
   async proxyRequest(@Req() req: any, @Res() res: any) {
     // Extract the path after /bi/
     const path = req.path.replace(/^\/api\/bi\/?/, '') || '';
@@ -47,6 +47,7 @@ export class BiDashboardController {
       const result = await firstValueFrom(
         this.biDashboardClient.send(pattern, payload).pipe(
           timeout(30000), // 30 second timeout
+          defaultIfEmpty({ statusCode: 503, success: false, error: 'No response from BI service' }),
           catchError((error) => {
             this.logger.error(`RabbitMQ error for ${pattern}:`, error.message);
             throw error;
