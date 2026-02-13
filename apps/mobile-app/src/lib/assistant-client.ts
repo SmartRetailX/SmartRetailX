@@ -25,10 +25,13 @@ export interface SpeechToTextRequest {
 }
 
 export interface SpeechToTextResponse {
+  success: boolean;
   text: string;
   language: string;
   confidence: number;
   duration: number;
+  error?: string;
+  detectedLanguage?: string;
 }
 
 export interface TextToSpeechRequest {

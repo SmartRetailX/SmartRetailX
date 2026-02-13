@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Inject, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { firstValueFrom } from 'rxjs';
+import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
 import { AppService } from './app.service';
 
@@ -21,7 +21,13 @@ export class AppController {
     // Check Assistant Service health
     try {
       const assistantHealth = await firstValueFrom(
-        this.assistantClient.send({ cmd: 'health' }, {}),
+        this.assistantClient.send({ cmd: 'health' }, {}).pipe(
+          timeout(5000), // 5 second timeout for health checks
+          defaultIfEmpty({ status: 'unavailable', message: 'No response from service' }),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
       );
       return {
         gateway: gatewayHealth,
@@ -42,7 +48,23 @@ export class AppController {
   // Voice Assistant Endpoints
   @Post('assistant/text-query')
   async textQuery(@Body() body: { query: string; language?: string }) {
-    return firstValueFrom(this.assistantClient.send({ cmd: 'text_query' }, body));
+    try {
+      return await firstValueFrom(
+        this.assistantClient.send({ cmd: 'text_query' }, body).pipe(
+          timeout(30000), // 30 second timeout
+          defaultIfEmpty({ success: false, error: 'No response from assistant service' }),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+      );
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Assistant service unavailable',
+        message: error.message || 'Failed to process text query',
+      };
+    }
   }
 
   @Post('assistant/speech-to-text')
@@ -68,20 +90,58 @@ export class AppController {
       console.log('Converted to base64, length:', audioBase64.length);
 
       const result = await firstValueFrom(
-        this.assistantClient.send(
-          { cmd: 'speech_to_text' },
-          { audioBase64, language: language || 'si' },
-        ),
+        this.assistantClient
+          .send({ cmd: 'speech_to_text' }, { audioBase64, language: language || 'si' })
+          .pipe(
+            timeout(60000), // 60 second timeout for speech processing
+            defaultIfEmpty({ text: '', error: 'No response from assistant service' }),
+            catchError((error) => {
+              throw error;
+            }),
+          ),
       );
 
       console.log('Speech-to-text result:', result);
-      return result;
+
+      // Check if result indicates an error from the service
+      if (!result || result.success === false || result.error) {
+        console.error('Assistant service returned an error:', result?.error || 'No result');
+        return {
+          success: false,
+          error: result?.error || 'Failed to transcribe audio',
+          message: 'Speech-to-text service encountered an error',
+          text: '',
+          details: result,
+        };
+      }
+
+      // Validate transcription text exists
+      if (!result.text || result.text.trim().length === 0) {
+        return {
+          success: false,
+          error: 'No speech detected in audio',
+          message: 'The audio file did not contain any detectable speech',
+          text: '',
+          ...result,
+        };
+      }
+
+      return {
+        success: true,
+        ...result,
+      };
     } catch (error) {
       console.error('Speech-to-text error:', error);
       return {
+        success: false,
         error: 'Failed to process audio',
-        details: error.message,
-        stack: error.stack,
+        message: error.message || 'An unexpected error occurred',
+        details: {
+          type: error.name,
+          message: error.message,
+          // Don't send stack trace to client in production
+          ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+        },
       };
     }
   }

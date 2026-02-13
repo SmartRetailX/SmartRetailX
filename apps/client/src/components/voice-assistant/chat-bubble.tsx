@@ -413,7 +413,7 @@ export function VoiceAssistantChatBubble() {
                 <Languages className="h-3.5 w-3.5" />
                 {languageMode === 'si' ? 'සිංහල' : 'English'}
               </Button>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400" hidden>
                 Mixed language supported (AssemblyAI)
               </span>
             </div>

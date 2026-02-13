@@ -16,9 +16,7 @@ function RootComponent() {
     <React.Fragment>
       <Outlet />
       {/* DevTools are automatically tree-shaken in production */}
-      {env.features.devtools && (
-        <TanStackRouterDevtools position="bottom-right" initialIsOpen={false} />
-      )}
+     
     </React.Fragment>
   );
 }

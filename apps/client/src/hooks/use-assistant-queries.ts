@@ -85,6 +85,28 @@ export function useAssistantQueries() {
         language,
       });
 
+      // Check if speech-to-text failed or returned empty text
+      if (!sttResult.success || !sttResult.text || sttResult.text.trim().length === 0) {
+        const errorMessage = sttResult.error || 'No speech detected in audio';
+        console.error('Speech-to-text failed:', errorMessage);
+        
+        // Log the failed attempt
+        const errorLog: QueryLog = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          query: '[No speech detected]',
+          response: `Error: ${errorMessage}`,
+          language,
+          method: 'voice',
+          confidence: 0,
+          detectedLanguage: sttResult.detectedLanguage,
+          duration: sttResult.duration,
+        };
+        
+        setLogs((prev) => [errorLog, ...prev]);
+        throw new Error(errorMessage);
+      }
+
       // Send recognized text to assistant
       const assistantResult = await assistantQueryMutation.mutateAsync({
         query: sttResult.text,
