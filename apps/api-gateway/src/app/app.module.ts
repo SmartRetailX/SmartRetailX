@@ -6,7 +6,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
-import { CoreModule } from './core/core.module';
+import { CoreModule } from './core/app.module';
 
 @Module({
   imports: [

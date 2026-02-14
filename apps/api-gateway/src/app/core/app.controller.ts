@@ -1,24 +1,20 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 
-import { AppService } from './core.service';
+import { CoreService } from './app.service';
 
 @Controller('core')
-export class AppController {
+export class CoreController {
   constructor(
-    private readonly appService: AppService,
+    private readonly coreService: CoreService,
     @Inject('CORE_SERVICE') private assistantClient: ClientProxy,
   ) {}
 
   // Health check endpoint
-  @Get('health')
+  @Get()
   async getHealth() {
-    // Check API Gateway health
-    const gatewayHealth = this.appService.getHealth();
-
-    // Check Assistant Service health
     try {
-      return gatewayHealth;
+      return this.coreService.getMicroserviceHealth();
     } catch (error) {
       return error;
     }

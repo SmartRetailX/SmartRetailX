@@ -3,8 +3,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
 import { AuthModule } from '../../auth/auth.module';
-import { AppController } from './core.controller';
-import { AppService } from './core.service';
+import { CoreController } from './app.controller';
+import { CoreService } from './app.service';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { AppService } from './core.service';
           transport: Transport.RMQ,
           options: {
             urls: [configService.rabbitmqUri],
-            queue: configService.assistantServiceQueue,
+            queue: configService.coreServiceQueue,
             queueOptions: {
               durable: true,
             },
@@ -28,7 +28,7 @@ import { AppService } from './core.service';
       },
     ]),
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [CoreController],
+  providers: [CoreService],
 })
 export class CoreModule {}

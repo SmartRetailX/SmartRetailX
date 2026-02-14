@@ -53,10 +53,6 @@ const envSchema = z.object({
       'RABBITMQ_URI must be a valid AMQP URL',
     ),
 
-  // Service Queue Configurations
-  ASSISTANT_SERVICE_QUEUE: z.string().default('assistant_queue'),
-  BI_DASHBOARD_SERVICE_QUEUE: z.string().default('bi_dashboard_queue'),
-
   // Base URL (for production)
   BASE_URL: z.string().url().optional(),
 

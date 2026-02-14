@@ -10,7 +10,7 @@ async function bootstrap() {
   const config = appContext.get<ConfigService>(ConfigService);
 
   const rabbitMqUrl = config.rabbitmqUri;
-  const queueName = 'coreServiceQueue';
+  const queueName = config.coreServiceQueue;
 
   appContext.close(); // Close the application context as we only needed it to get the config
 
