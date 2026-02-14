@@ -1,12 +1,18 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { ConfigService } from '@smart-retail-x/config';
 
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
-  const rabbitMqUrl = process.env.RABBITMQ_URI;
-  const queueName = process.env.ASSISTANT_SERVICE_QUEUE || 'assistant_queue';
+  const appContext = await NestFactory.createApplicationContext(AppModule);
+  const config = appContext.get<ConfigService>(ConfigService);
+
+  const rabbitMqUrl = config.rabbitmqUri;
+  const queueName = config.assistantServiceQueue;
+
+  appContext.close(); // Close the application context as we only needed it to get the config
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.RMQ,

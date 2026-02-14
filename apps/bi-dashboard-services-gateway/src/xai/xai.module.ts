@@ -1,14 +1,18 @@
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { Controller, Get, Injectable, Module, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@smart-retail-x/config';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 class XaiService {
   private mlServiceUrl: string;
 
-  constructor(private httpService: HttpService) {
-    this.mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+  constructor(
+    private httpService: HttpService,
+    private configService: ConfigService,
+  ) {
+    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL', 'http://localhost:8000');
   }
 
   async explainForecast(query: any) {

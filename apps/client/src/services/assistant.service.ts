@@ -6,10 +6,12 @@ export interface SpeechToTextRequest {
 }
 
 export interface SpeechToTextResponse {
+  success: boolean;
   text: string;
   confidence?: number;
   detectedLanguage?: string;
   duration?: number;
+  error?: string;
 }
 
 export interface AssistantQueryRequest {
@@ -39,6 +41,7 @@ export const assistantService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 90000,
       },
     );
 

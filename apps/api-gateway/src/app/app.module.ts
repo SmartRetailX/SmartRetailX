@@ -1,16 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
 import { AuthModule } from '../auth/auth.module';
-import { ConfigModule, ConfigService } from '../config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
+import { CoreModule } from './core/app.module';
 
 @Module({
   imports: [
     ConfigModule,
     AuthModule,
+    CoreModule,
     BiDashboardModule,
     ClientsModule.registerAsync([
       {

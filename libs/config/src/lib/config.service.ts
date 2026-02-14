@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
 /**
- * Type-safe configuration service for API Gateway
+ * Type-safe configuration service for all services
+ * Provides centralized access to environment variables with proper typing
  */
 @Injectable()
 export class ConfigService {
@@ -35,6 +36,14 @@ export class ConfigService {
 
   get isProduction(): boolean {
     return this.nodeEnv === 'production';
+  }
+
+  get isTest(): boolean {
+    return this.nodeEnv === 'test';
+  }
+
+  get isStaging(): boolean {
+    return this.nodeEnv === 'staging';
   }
 
   // Database Configuration
@@ -72,7 +81,7 @@ export class ConfigService {
     return this.configService.get<string>('CORS_ORIGIN', 'http://localhost:5173');
   }
 
-  // Rate Limiting (not implemented yet)
+  // Rate Limiting
   get rateLimitTtl(): number {
     return this.configService.get<number>('RATE_LIMIT_TTL', 60);
   }
@@ -91,6 +100,11 @@ export class ConfigService {
     return this.configService.get<string>('RABBITMQ_URI', 'amqp://localhost:5672');
   }
 
+  // Core Service Configuration
+  get coreServiceQueue(): string {
+    return this.configService.get<string>('CORE_SERVICE_QUEUE', 'core_queue');
+  }
+
   // Assistant Service Configuration
   get assistantServiceQueue(): string {
     return this.configService.get<string>('ASSISTANT_SERVICE_QUEUE', 'assistant_queue');
@@ -99,5 +113,48 @@ export class ConfigService {
   // BI Dashboard Service Configuration
   get biDashboardServiceQueue(): string {
     return this.configService.get<string>('BI_DASHBOARD_SERVICE_QUEUE', 'bi_dashboard_queue');
+  }
+
+  // Base URL Configuration
+  get baseUrl(): string | undefined {
+    return this.configService.get<string>('BASE_URL');
+  }
+
+  // Core Service Configuration
+  get coreServiceUrl(): string | undefined {
+    return this.configService.get<string>('CORE_SERVICE_URL');
+  }
+
+  get coreServicePort(): number | undefined {
+    return this.configService.get<number>('CORE_SERVICE_PORT');
+  }
+
+  // Redis Configuration
+  get redisHost(): string | undefined {
+    return this.configService.get<string>('REDIS_HOST');
+  }
+
+  get redisPort(): number | undefined {
+    return this.configService.get<number>('REDIS_PORT');
+  }
+
+  get redisPassword(): string | undefined {
+    return this.configService.get<string>('REDIS_PASSWORD');
+  }
+
+  /**
+   * Get a custom environment variable
+   * Useful for service-specific configurations
+   */
+  get<T = string>(key: string, defaultValue?: T): T | undefined {
+    return this.configService.get(key, defaultValue as never) as T | undefined;
+  }
+
+  /**
+   * Get a required environment variable
+   * Throws an error if not found
+   */
+  getOrThrow<T = string>(key: string): T {
+    return this.configService.getOrThrow(key) as T;
   }
 }

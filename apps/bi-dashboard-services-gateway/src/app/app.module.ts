@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule } from '@smart-retail-x/config';
 
 import { AlertsModule } from '../alerts/alerts.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -15,7 +15,7 @@ import { XaiModule } from '../xai/xai.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule,
     PrismaModule,
     ProductsModule,
     SalesModule,

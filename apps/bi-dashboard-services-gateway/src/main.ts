@@ -1,16 +1,23 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { ConfigService } from '@smart-retail-x/config';
 
 import { AppModule } from './app/app.module';
 
 const logger = new Logger('BiDashboardService');
 
 async function bootstrap() {
+  // Create app context to access ConfigService
+  const appContext = await NestFactory.createApplicationContext(AppModule);
+  const configService = appContext.get<ConfigService>(ConfigService);
+
   // Check if we should run in HTTP mode (for local development with Swagger)
-  const enableHttpMode = process.env.BI_DASHBOARD_HTTP_MODE === 'true';
-  const rabbitmqUri = process.env.RABBITMQ_URI || 'amqp://guest:guest@localhost:5672';
-  const queue = process.env.BI_DASHBOARD_SERVICE_QUEUE || 'bi_dashboard_queue';
+  const enableHttpMode = configService.get<string>('BI_DASHBOARD_HTTP_MODE') === 'true';
+  const rabbitmqUri = configService.rabbitmqUri;
+  const queue = configService.biDashboardServiceQueue;
+
+  appContext.close(); // Close the app context as we only needed it for config
 
   if (enableHttpMode) {
     // Hybrid mode: HTTP + RabbitMQ (for development with Swagger docs)
@@ -53,7 +60,7 @@ async function bootstrap() {
 
     await app.startAllMicroservices();
 
-    const port = process.env.BI_DASHBOARD_PORT || 3001;
+    const port = configService.get<number>('BI_DASHBOARD_PORT', 3001);
     await app.listen(port);
 
     logger.log(`🛒 BI Dashboard Services running on http://localhost:${port}`);

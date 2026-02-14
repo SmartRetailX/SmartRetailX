@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // Global Configuration
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.enum(['development', 'production', 'test', 'staging']).default('development'),
 
   // API Gateway Configuration
   API_GATEWAY_PORT: z.string().default('3000').transform(Number).pipe(z.number().min(1).max(65535)),
@@ -37,15 +37,12 @@ const envSchema = z.object({
   // CORS Configuration
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
-  // Rate Limiting (not implemented yet - reserved for future use)
+  // Rate Limiting
   RATE_LIMIT_TTL: z.string().default('60').transform(Number).pipe(z.number().min(1)),
   RATE_LIMIT_MAX: z.string().default('100').transform(Number).pipe(z.number().min(1)),
 
   // Logging
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-
-  // Assistant Service Configuration
-  ASSISTANT_SERVICE_QUEUE: z.string().default('assistant_queue'),
 
   // RabbitMQ Configuration
   RABBITMQ_URI: z
@@ -58,6 +55,21 @@ const envSchema = z.object({
 
   // Base URL (for production)
   BASE_URL: z.string().url().optional(),
+
+  // Core Service Configuration (optional for services that need it)
+  CORE_SERVICE_URL: z.string().url().optional(),
+  CORE_SERVICE_PORT: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : undefined)),
+
+  // Redis Configuration (optional for services that need it)
+  REDIS_HOST: z.string().optional(),
+  REDIS_PORT: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : undefined)),
+  REDIS_PASSWORD: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
