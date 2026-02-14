@@ -1,8 +1,7 @@
 import { expo } from '@better-auth/expo';
+import { ConfigService } from '@smart-retail-x/config';
 import { betterAuth } from 'better-auth';
 import { Pool } from 'pg';
-
-import { ConfigService } from '../config';
 
 /**
  * Initialize Better Auth instance with PostgreSQL

@@ -18,8 +18,7 @@
     "jest.config.ts",
     "jest.config.cts",
     "src/**/*.spec.ts",
-    "src/**/*.test.ts",
-    "jest.resolver.js"
+    "src/**/*.test.ts"
   ],
   "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

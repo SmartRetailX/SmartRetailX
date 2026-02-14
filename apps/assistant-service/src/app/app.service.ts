@@ -1,19 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@smart-retail-x/config';
 import { AssemblyAI } from 'assemblyai';
 
 @Injectable()
 export class AppService {
   private readonly logger = new Logger(AppService.name);
   private readonly assemblyAI: AssemblyAI;
+  private readonly apiKey: string;
 
-  constructor() {
+  constructor(private configService: ConfigService) {
     // Initialize AssemblyAI client with extended timeout
-    const apiKey = process.env.ASSEMBLYAI_API_KEY;
-    if (!apiKey) {
+    this.apiKey = this.configService.get<string>('ASSEMBLYAI_API_KEY', '');
+    if (!this.apiKey) {
       this.logger.warn('ASSEMBLYAI_API_KEY not found. Speech-to-text will not work.');
     }
     this.assemblyAI = new AssemblyAI({
-      apiKey: apiKey,
+      apiKey: this.apiKey,
     });
   }
 
@@ -42,7 +44,7 @@ export class AppService {
 
     try {
       // Check if API key is configured
-      if (!process.env.ASSEMBLYAI_API_KEY) {
+      if (!this.apiKey) {
         return {
           success: false,
           error: 'ASSEMBLYAI_API_KEY is not configured',

@@ -2,19 +2,17 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
-import { AuthModule } from '../auth/auth.module';
+import { AuthModule } from '../../auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
 
 @Module({
   imports: [
     ConfigModule,
     AuthModule,
-    BiDashboardModule,
     ClientsModule.registerAsync([
       {
-        name: 'ASSISTANT_SERVICE',
+        name: 'CORE_SERVICE',
         imports: [ConfigModule],
         useFactory: (configService: ConfigService) => ({
           transport: Transport.RMQ,

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
-import { ConfigModule, ConfigService } from '../config';
 import { createBetterAuthInstance } from '../lib/better-auth';
 import { AuthController } from './auth.controller';
 

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
-import { ConfigModule, ConfigService } from '../../config';
 import { BiDashboardController } from './bi-dashboard.controller';
 
 @Module({

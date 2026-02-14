@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@smart-retail-x/config';
 import { firstValueFrom } from 'rxjs';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,8 +22,9 @@ class ForecastsService {
   constructor(
     private prisma: PrismaService,
     private httpService: HttpService,
+    private configService: ConfigService,
   ) {
-    this.mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL', 'http://localhost:8000');
   }
 
   async getForecasts(query: any) {
