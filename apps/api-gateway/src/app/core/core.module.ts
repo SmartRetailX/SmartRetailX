@@ -3,8 +3,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
 import { AuthModule } from '../../auth/auth.module';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AppController } from './core.controller';
+import { AppService } from './core.service';
 
 @Module({
   imports: [
@@ -31,4 +31,4 @@ import { AppService } from './app.service';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class CoreModule {}

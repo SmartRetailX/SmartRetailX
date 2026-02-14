@@ -11,7 +11,7 @@ export class AppService {
   } {
     return {
       status: 'healthy',
-      service: 'api-gateway',
+      service: 'core-service',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
