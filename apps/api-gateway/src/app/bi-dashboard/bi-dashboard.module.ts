@@ -13,5 +13,8 @@ import { BiDashboardController } from './bi-dashboard.controller';
     }),
   ],
   controllers: [BiDashboardController],
+  exports: [
+    RabbitMQModule, // Export RabbitMQ client for other modules to use
+  ],
 })
 export class BiDashboardModule {}
