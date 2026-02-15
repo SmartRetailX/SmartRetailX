@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ConfigModule, ConfigService } from '@smart-retail-x/config';
+import { ConfigModule } from '@smart-retail-x/config';
+import { RabbitMQModule } from '@smart-retail-x/messaging';
 
 import { AuthModule } from '../../auth/auth.module';
 import { CoreController } from './app.controller';
@@ -12,26 +12,13 @@ import { AssistantService } from './assistant/assistant.service';
   imports: [
     ConfigModule,
     AuthModule,
-    ClientsModule.registerAsync([
-      {
-        name: 'CORE_SERVICE',
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.rabbitmqUri],
-            queue: configService.coreServiceQueue,
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
+    RabbitMQModule.register({
+      name: 'CORE_SERVICE',
+      queueGetter: (config) => config.coreServiceQueue,
+    }),
   ],
   controllers: [CoreController, AssistantController],
   providers: [CoreService, AssistantService],
-  exports: [ClientsModule, CoreService],
+  exports: [CoreService],
 })
 export class CoreModule {}

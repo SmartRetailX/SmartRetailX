@@ -6,9 +6,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
 import { CoreModule } from './core/app.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
-  imports: [ConfigModule, AuthModule, CoreModule, BiDashboardModule],
+  imports: [ConfigModule, HealthModule, AuthModule, CoreModule, BiDashboardModule],
   controllers: [AppController],
   providers: [AppService],
 })
