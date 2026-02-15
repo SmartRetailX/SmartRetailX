@@ -3,8 +3,8 @@ import { ConfigService } from '@smart-retail-x/config';
 import { AssemblyAI } from 'assemblyai';
 
 @Injectable()
-export class AppService {
-  private readonly logger = new Logger(AppService.name);
+export class AssistantService {
+  private readonly logger = new Logger(AssistantService.name);
   private readonly assemblyAI: AssemblyAI;
   private readonly apiKey: string;
 
@@ -165,7 +165,7 @@ export class AppService {
         text: '',
         details: {
           type: lastError?.name,
-          cause: (lastError as any)?.cause?.toString(),
+          cause: (lastError as Error & { cause?: unknown })?.cause?.toString(),
         },
       };
     } catch (error) {

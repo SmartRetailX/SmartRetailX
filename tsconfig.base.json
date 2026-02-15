@@ -17,8 +17,9 @@
     "paths": {
       "@smart-retail-x/shared-types": ["libs/shared-types/src/index.ts"],
       "@smart-retail-x/database": ["libs/database/src/index.ts"],
-      "@smart-retail-x/config": ["libs/config/src/index.ts"]
+      "@smart-retail-x/config": ["libs/config/src/index.ts"],
+      "@smart-retail-x/messaging": ["libs/messaging/src/index.ts"]
     }
   },
-  "exclude": ["node_modules", "tmp"]
+  "exclude": ["node_modules", "tmp", "apps/*-e2e"]
 }
