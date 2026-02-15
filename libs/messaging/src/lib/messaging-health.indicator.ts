@@ -3,6 +3,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { HealthIndicatorResult } from '@nestjs/terminus';
 import { ConfigService } from '@smart-retail-x/config';
 import * as amqp from 'amqplib';
+import { firstValueFrom, timeout } from 'rxjs';
 
 /**
  * Health check options for messaging services
@@ -102,12 +103,12 @@ export class MessagingHealthIndicator {
     services: Record<string, ClientProxy>,
     options?: MessagingHealthCheckOptions,
   ): Promise<HealthIndicatorResult> {
-    const timeout = options?.timeout ?? this.DEFAULT_TIMEOUT;
+    const timeoutMs = options?.timeout ?? this.DEFAULT_TIMEOUT;
     const healthCommand = options?.healthCommand ?? { cmd: 'health' };
 
     // Check all services in parallel
     const serviceChecks = Object.entries(services).map(([name, client]) =>
-      this.checkSingleService(name, client, healthCommand, timeout),
+      this.checkSingleService(name, client, healthCommand, timeoutMs),
     );
 
     const results = await Promise.all(serviceChecks);
@@ -143,16 +144,13 @@ export class MessagingHealthIndicator {
     name: string,
     client: ClientProxy,
     healthCommand: Record<string, unknown>,
-    timeout: number,
+    timeoutMs: number,
   ): Promise<{ name: string; result: MessagingHealthResult }> {
     const startTime = Date.now();
 
     try {
       // Send health check command with timeout
-      await Promise.race([
-        client.send(healthCommand, {}).toPromise(),
-        this.createTimeoutPromise(timeout),
-      ]);
+      await firstValueFrom(client.send(healthCommand, {}).pipe(timeout(timeoutMs)));
 
       const responseTime = Date.now() - startTime;
 
@@ -191,15 +189,13 @@ export class MessagingHealthIndicator {
     client: ClientProxy,
     options?: MessagingHealthCheckOptions,
   ): Promise<HealthIndicatorResult> {
-    const timeout = options?.timeout ?? this.DEFAULT_TIMEOUT;
+    const timeoutMs = options?.timeout ?? this.DEFAULT_TIMEOUT;
     const healthCommand = options?.healthCommand ?? { cmd: 'health' };
     const startTime = Date.now();
 
     try {
-      await Promise.race([
-        client.send(healthCommand, {}).toPromise(),
-        this.createTimeoutPromise(timeout),
-      ]);
+      // Send health check command with timeout
+      await firstValueFrom(client.send(healthCommand, {}).pipe(timeout(timeoutMs)));
 
       const responseTime = Date.now() - startTime;
 

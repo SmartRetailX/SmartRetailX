@@ -41,6 +41,8 @@ export class RabbitMQModule {
                 options: {
                   urls: [uri],
                   queue,
+                  // Don't create/consume from the queue - just send to it
+                  noQueueCreate: true,
                   queueOptions: {
                     durable: true,
                   },
@@ -81,6 +83,8 @@ export class RabbitMQModule {
                 options: {
                   urls: [uri],
                   queue,
+                  // Don't create/consume from the queue - just send to it
+                  noQueueCreate: true,
                   queueOptions: {
                     durable: true,
                   },

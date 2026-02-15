@@ -59,7 +59,7 @@ export async function createMicroserviceWithConfig(
         heartbeatIntervalInSeconds: 60,
         reconnectTimeInSeconds: 5,
       },
-      // Ensure proper message acknowledgment
+      // Disable automatic acknowledgment for reliability
       noAck: false,
     },
   });

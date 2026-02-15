@@ -1,10 +1,12 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 
 import { AppService } from './app.service';
 
 @Controller('core')
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(private readonly appService: AppService) {}
 
   /**
@@ -12,6 +14,9 @@ export class AppController {
    */
   @MessagePattern({ cmd: 'health' })
   getHealth() {
-    return this.appService.getHealth();
+    this.logger.log('📥 Received health check request');
+    const result = this.appService.getHealth();
+    this.logger.log(`📤 Sending health check response`);
+    return result;
   }
 }
