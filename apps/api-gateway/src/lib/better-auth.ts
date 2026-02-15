@@ -1,6 +1,7 @@
 import { expo } from '@better-auth/expo';
 import { ConfigService } from '@smart-retail-x/config';
 import { betterAuth } from 'better-auth';
+import { openAPI } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
 /**
@@ -44,13 +45,17 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     database: pool,
 
     // Plugins
-    plugins: [expo()],
+    plugins: [expo(), openAPI()],
 
     // Base path for auth endpoints (they will be under /api/auth/*)
     basePath: '/api/auth',
 
     // Base URL for the application
     baseURL,
+
+    // Enable hooks for the nestjs-better-auth library
+    // This is required to use @Hook, @BeforeHook, @AfterHook decorators
+    hooks: {},
 
     // Email and password authentication
     emailAndPassword: {
@@ -112,4 +117,4 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
 /**
  * Type helper for Better Auth instance
  */
-export type BetterAuthInstance = ReturnType<typeof createBetterAuthInstance>;
+export type Auth = ReturnType<typeof createBetterAuthInstance>;

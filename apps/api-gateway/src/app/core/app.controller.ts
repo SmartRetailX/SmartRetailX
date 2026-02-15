@@ -1,8 +1,10 @@
 import { Controller, Get, Logger } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { firstValueFrom, timeout } from 'rxjs';
 
 import { CoreService } from './app.service';
 
+@ApiTags('Core Service')
 @Controller('core')
 export class CoreController {
   private readonly logger = new Logger(CoreController.name);
@@ -14,6 +16,11 @@ export class CoreController {
    * Returns the health status of the core microservice
    */
   @Get('health')
+  @ApiOperation({
+    summary: 'Core service health check',
+    description: 'Returns the health status of the core microservice',
+  })
+  @ApiResponse({ status: 200, description: 'Core service health status' })
   async getHealth() {
     try {
       const health = await firstValueFrom(

@@ -157,6 +157,7 @@
     "@tanstack/react-query-devtools": "^5.91.2",
     "@tanstack/react-router": "^1.139.6",
     "@tanstack/react-router-devtools": "^1.139.6",
+    "@thallesp/nestjs-better-auth": "^2.4.0",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^0.10.9",
     "assemblyai": "^4.22.1",

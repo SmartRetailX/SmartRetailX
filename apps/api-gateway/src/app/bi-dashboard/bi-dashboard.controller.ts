@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
 /**
@@ -18,6 +19,7 @@ import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
  * This allows the BI Dashboard service to run without its own HTTP port,
  * with all traffic routed through the API Gateway.
  */
+@ApiTags('BI Dashboard')
 @Controller('bi')
 export class BiDashboardController implements OnModuleInit {
   private readonly logger = new Logger(BiDashboardController.name);
@@ -41,6 +43,7 @@ export class BiDashboardController implements OnModuleInit {
    * Catch-all route that proxies requests to BI Dashboard microservice
    */
   @All('*path')
+  @ApiExcludeEndpoint()
   async proxyRequest(@Req() req: any, @Res() res: any) {
     // Extract the path after /bi/
     const path = req.path.replace(/^\/api\/bi\/?/, '') || '';
