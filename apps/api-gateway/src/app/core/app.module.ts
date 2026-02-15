@@ -5,6 +5,8 @@ import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 import { AuthModule } from '../../auth/auth.module';
 import { CoreController } from './app.controller';
 import { CoreService } from './app.service';
+import { AssistantController } from './assistant/assistant.controller';
+import { AssistantService } from './assistant/assistant.service';
 
 @Module({
   imports: [
@@ -28,7 +30,8 @@ import { CoreService } from './app.service';
       },
     ]),
   ],
-  controllers: [CoreController],
-  providers: [CoreService],
+  controllers: [CoreController, AssistantController],
+  providers: [CoreService, AssistantService],
+  exports: [ClientsModule, CoreService],
 })
 export class CoreModule {}

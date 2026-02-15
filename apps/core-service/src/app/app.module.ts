@@ -4,9 +4,10 @@ import { DatabaseModule } from '@smart-retail-x/database';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule],
+  imports: [ConfigModule, DatabaseModule, AssistantModule],
   controllers: [AppController],
   providers: [AppService],
 })

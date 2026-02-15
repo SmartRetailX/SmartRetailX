@@ -7,6 +7,9 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  /**
+   * Health check endpoint
+   */
   @MessagePattern({ cmd: 'health' })
   getHealth() {
     return this.appService.getHealth();
