@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@smart-retail-x/config';
 
 import { AppModule } from './app/app.module';
@@ -49,20 +48,6 @@ async function bootstrap() {
 
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
-
-  // Connect RabbitMQ microservice for auth events
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [configService.rabbitmqUri],
-      queue: 'auth_queue',
-      queueOptions: {
-        durable: true,
-      },
-    },
-  });
-
-  await app.startAllMicroservices();
 
   const port = configService.port;
   const host = configService.host;
