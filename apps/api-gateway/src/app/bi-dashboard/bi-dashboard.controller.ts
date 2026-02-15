@@ -1,4 +1,13 @@
-import { All, Controller, HttpStatus, Inject, Logger, Req, Res } from '@nestjs/common';
+import {
+  All,
+  Controller,
+  HttpStatus,
+  Inject,
+  Logger,
+  OnModuleInit,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
@@ -10,10 +19,23 @@ import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
  * with all traffic routed through the API Gateway.
  */
 @Controller('bi')
-export class BiDashboardController {
+export class BiDashboardController implements OnModuleInit {
   private readonly logger = new Logger(BiDashboardController.name);
 
   constructor(@Inject('BI_DASHBOARD_SERVICE') private readonly biDashboardClient: ClientProxy) {}
+
+  /**
+   * Eagerly connect RabbitMQ client on module initialization
+   * This prevents lazy connection during the first request
+   */
+  async onModuleInit() {
+    try {
+      await this.biDashboardClient.connect();
+      this.logger.log('✓ BI Dashboard client connected');
+    } catch (error) {
+      this.logger.error('Failed to connect BI Dashboard client:', error);
+    }
+  }
 
   /**
    * Catch-all route that proxies requests to BI Dashboard microservice

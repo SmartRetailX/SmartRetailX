@@ -1,14 +1,30 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { MessagingHealthIndicator } from '@smart-retail-x/messaging';
 
 @Controller('health/messaging')
-export class MessagingHealthController {
+export class MessagingHealthController implements OnModuleInit {
+  private readonly logger = new Logger(MessagingHealthController.name);
+
   constructor(
     private readonly messagingHealth: MessagingHealthIndicator,
     @Inject('CORE_SERVICE') private readonly coreService: ClientProxy,
     @Inject('BI_DASHBOARD_SERVICE') private readonly biService: ClientProxy,
   ) {}
+
+  /**
+   * Eagerly connect RabbitMQ clients on module initialization
+   * This prevents lazy connection during the first health check
+   */
+  async onModuleInit() {
+    try {
+      this.logger.log('Connecting to microservices...');
+      await Promise.all([this.coreService.connect(), this.biService.connect()]);
+      this.logger.log('✓ All microservice clients connected');
+    } catch (error) {
+      this.logger.error('Failed to connect microservice clients:', error);
+    }
+  }
 
   /**
    * Check RabbitMQ connectivity

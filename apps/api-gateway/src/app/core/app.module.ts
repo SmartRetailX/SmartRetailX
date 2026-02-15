@@ -19,6 +19,9 @@ import { AssistantService } from './assistant/assistant.service';
   ],
   controllers: [CoreController, AssistantController],
   providers: [CoreService, AssistantService],
-  exports: [CoreService],
+  exports: [
+    CoreService,
+    RabbitMQModule, // Export RabbitMQ client for other modules to use
+  ],
 })
 export class CoreModule {}
