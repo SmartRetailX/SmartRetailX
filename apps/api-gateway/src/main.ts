@@ -4,10 +4,14 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@smart-retail-x/config';
 
 import { AppModule } from './app/app.module';
+import { LoggingInterceptor } from './interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+
+  // Enable global request logging
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // Enable CORS for the client
   app.enableCors({
