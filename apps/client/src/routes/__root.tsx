@@ -16,7 +16,6 @@ function RootComponent() {
     <React.Fragment>
       <Outlet />
       {/* DevTools are automatically tree-shaken in production */}
-     
     </React.Fragment>
   );
 }

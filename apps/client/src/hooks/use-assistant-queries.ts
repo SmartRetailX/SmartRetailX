@@ -89,7 +89,7 @@ export function useAssistantQueries() {
       if (!sttResult.success || !sttResult.text || sttResult.text.trim().length === 0) {
         const errorMessage = sttResult.error || 'No speech detected in audio';
         console.error('Speech-to-text failed:', errorMessage);
-        
+
         // Log the failed attempt
         const errorLog: QueryLog = {
           id: Date.now().toString(),
@@ -102,7 +102,7 @@ export function useAssistantQueries() {
           detectedLanguage: sttResult.detectedLanguage,
           duration: sttResult.duration,
         };
-        
+
         setLogs((prev) => [errorLog, ...prev]);
         throw new Error(errorMessage);
       }

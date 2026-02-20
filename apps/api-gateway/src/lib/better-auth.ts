@@ -1,7 +1,7 @@
 import { expo } from '@better-auth/expo';
 import { ConfigService } from '@smart-retail-x/config';
 import { betterAuth } from 'better-auth';
-import { openAPI } from 'better-auth/plugins';
+import { admin, openAPI } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
 /**
@@ -11,6 +11,7 @@ import { Pool } from 'pg';
  * - Session management
  * - Account verification
  * - Password reset
+ * - Admin plugin for role-based access control
  */
 export const createBetterAuthInstance = (configService: ConfigService) => {
   // Create PostgreSQL connection pool
@@ -45,7 +46,14 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     database: pool,
 
     // Plugins
-    plugins: [expo(), openAPI()],
+    plugins: [
+      expo(),
+      openAPI(),
+      admin({
+        defaultRole: 'user',
+        adminRoles: ['admin'],
+      }),
+    ],
 
     // Base path for auth endpoints (they will be under /api/auth/*)
     basePath: '/api/auth',
@@ -76,13 +84,9 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     },
 
     // User schema customization
+    // Note: role field is now provided by admin plugin
     user: {
       additionalFields: {
-        role: {
-          type: 'string',
-          defaultValue: 'user',
-          required: false,
-        },
         emailVerified: {
           type: 'boolean',
           defaultValue: false,

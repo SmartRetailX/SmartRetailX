@@ -59,8 +59,9 @@ export async function createMicroserviceWithConfig(
         heartbeatIntervalInSeconds: 60,
         reconnectTimeInSeconds: 5,
       },
-      // Disable automatic acknowledgment for reliability
-      noAck: false,
+      // Use auto-ack because handlers don't manually ack via RmqContext.
+      // Keeping noAck=false without explicit ack causes queue starvation.
+      noAck: true,
     },
   });
 
@@ -115,7 +116,7 @@ export async function createHybridAppWithConfig(
         heartbeatIntervalInSeconds: 60,
         reconnectTimeInSeconds: 5,
       },
-      noAck: false,
+      noAck: true,
     },
   });
 

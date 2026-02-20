@@ -64,10 +64,20 @@ async function main() {
     console.log(`   Audit Logs: ${auditLogCount}`);
     console.log(`   Notifications: ${notificationCount}`);
 
-    const total = userCount + storeCount + productCount + customerCount + 
-                  saleCount + saleItemCount + inventoryCount + 
-                  forecastCount + forecastDriverCount + alertCount + 
-                  promotionCount + auditLogCount + notificationCount;
+    const total =
+      userCount +
+      storeCount +
+      productCount +
+      customerCount +
+      saleCount +
+      saleItemCount +
+      inventoryCount +
+      forecastCount +
+      forecastDriverCount +
+      alertCount +
+      promotionCount +
+      auditLogCount +
+      notificationCount;
 
     console.log('\n' + '='.repeat(60));
     console.log(`📊 Total Records: ${total.toLocaleString()}`);
@@ -81,7 +91,7 @@ async function main() {
       });
 
       console.log('\n📦 Product Stock Status:');
-      stockStatus.forEach(s => {
+      stockStatus.forEach((s) => {
         console.log(`   ${s.status}: ${s._count} products`);
       });
     }
@@ -93,7 +103,7 @@ async function main() {
       });
 
       console.log('\n👤 Customer Segments:');
-      segments.forEach(s => {
+      segments.forEach((s) => {
         console.log(`   ${s.segment}: ${s._count} customers`);
       });
     }
@@ -105,7 +115,7 @@ async function main() {
       });
 
       console.log('\n🚨 Alert Status:');
-      alertStatus.forEach(a => {
+      alertStatus.forEach((a) => {
         console.log(`   ${a.status}: ${a._count} alerts`);
       });
     }
@@ -115,7 +125,9 @@ async function main() {
         _sum: { finalAmount: true },
       });
 
-      console.log(`\n💵 Total Revenue: LKR ${totalRevenue._sum.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`);
+      console.log(
+        `\n💵 Total Revenue: LKR ${totalRevenue._sum.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`,
+      );
     }
 
     // Database connection info
@@ -129,7 +141,6 @@ async function main() {
     console.log('   Reset: npm run prisma:reset');
     console.log('   Prisma Studio: npx prisma studio');
     console.log('='.repeat(60) + '\n');
-
   } catch (error) {
     console.error('\n❌ Error fetching database status:', error);
     console.log('\n💡 Is the database running?');

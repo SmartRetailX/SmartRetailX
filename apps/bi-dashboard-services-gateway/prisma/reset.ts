@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -15,8 +15,8 @@ async function main() {
   console.log('  2. Re-seed with fresh data\n');
   console.log('⚠️  WARNING: All current data will be lost!');
   console.log('Starting in 3 seconds...\n');
-  
-  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   try {
     // Step 1: Clean database
@@ -35,7 +35,6 @@ async function main() {
     console.log('   3. Visit Swagger docs: http://localhost:3001/api/docs');
     console.log('   4. Better Auth users managed separately via auth endpoints');
     console.log('='.repeat(60) + '\n');
-
   } catch (error) {
     console.error('\n❌ Reset failed:', error);
     throw error;

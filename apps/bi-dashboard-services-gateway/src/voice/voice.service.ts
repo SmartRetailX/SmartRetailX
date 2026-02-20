@@ -14,7 +14,7 @@ export class VoiceService {
     let entities: any = {};
     let response = '';
     let responseSi = '';
-    let data: any = {};
+    const data: any = {};
 
     if (query.toLowerCase().includes('restock') || query.toLowerCase().includes('low stock')) {
       intent = 'query_inventory';

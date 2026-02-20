@@ -5,21 +5,21 @@ const prisma = new PrismaClient();
 /**
  * Truncate/Clean all database tables
  * Run: npm run prisma:clean
- * 
+ *
  * WARNING: This will delete ALL data from the database!
  * Use with caution in development environments only.
  */
 async function main() {
   console.log('⚠️  WARNING: This will DELETE ALL DATA from the database!');
   console.log('Starting database cleanup in 3 seconds...\n');
-  
-  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   console.log('🧹 Starting database cleanup...\n');
 
   try {
     // Delete in correct order to respect foreign key constraints
-    
+
     console.log('🗑️  Deleting notifications...');
     const notifications = await prisma.notification.deleteMany({});
     console.log(`   ✅ Deleted ${notifications.count} notifications`);
@@ -78,7 +78,9 @@ async function main() {
 
     console.log('\n' + '='.repeat(60));
     console.log('✅ Database cleanup completed successfully!');
-    console.log('⚠️  Note: Better Auth tables (user, session, account, verification) are NOT cleaned');
+    console.log(
+      '⚠️  Note: Better Auth tables (user, session, account, verification) are NOT cleaned',
+    );
     console.log('='.repeat(60));
     console.log('\n📊 Total records deleted:');
     console.log(`   Stores: ${stores.count}`);
@@ -95,17 +97,26 @@ async function main() {
     console.log(`   Audit Logs: ${auditLogs.count}`);
     console.log(`   Notifications: ${notifications.count}`);
     console.log(`   User-Store Links: ${userStores.count}`);
-    
-    const total = stores.count + products.count + customers.count + 
-                  sales.count + saleItems.count + inventoryMovements.count + 
-                  forecasts.count + forecastDrivers.count + alerts.count + 
-                  promotions.count + promotionProducts.count + auditLogs.count + 
-                  notifications.count + userStores.count;
-    
+
+    const total =
+      stores.count +
+      products.count +
+      customers.count +
+      sales.count +
+      saleItems.count +
+      inventoryMovements.count +
+      forecasts.count +
+      forecastDrivers.count +
+      alerts.count +
+      promotions.count +
+      promotionProducts.count +
+      auditLogs.count +
+      notifications.count +
+      userStores.count;
+
     console.log(`\n   TOTAL: ${total} records deleted`);
     console.log('\n💡 To add fresh data, run: npm run prisma:seed');
     console.log('='.repeat(60) + '\n');
-
   } catch (error) {
     console.error('\n❌ Error during cleanup:', error);
     throw error;

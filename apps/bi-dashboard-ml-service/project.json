@@ -45,5 +45,9 @@
       }
     }
   },
-  "tags": ["type:app", "lang:python", "scope:ml"]
+  "tags": [
+    "type:app",
+    "lang:python",
+    "scope:ml"
+  ]
 }

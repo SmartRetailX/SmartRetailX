@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS "user" (
     "email" TEXT NOT NULL UNIQUE,
     "emailVerified" BOOLEAN NOT NULL DEFAULT FALSE,
     "image" TEXT,
+    "banned" BOOLEAN NOT NULL DEFAULT FALSE,
+    "banReason" TEXT,
+    "banExpires" TIMESTAMP,
     "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
     "role" TEXT DEFAULT 'user'
