@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { authClient } from '@/lib/auth-client';
+import { redirectIfAuthenticated } from '@/lib/auth-guards';
 
 /**
  * Login form schema
@@ -26,6 +28,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
  */
 function LoginPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +46,13 @@ function LoginPage() {
       setError(null);
       setIsLoading(true);
       await login(data.email, data.password);
-      navigate({ to: '/' });
+      // Get fresh session to determine role-based redirect
+      const { data: session } = await authClient.getSession();
+      if (session?.user?.role?.includes('admin')) {
+        void navigate({ to: '/admin' });
+      } else {
+        void navigate({ to: (search.redirect as string) || '/' });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {
@@ -52,11 +61,11 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-green-50 via-white to-emerald-50 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#00A651] shadow-lg">
             <ShoppingBag className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -104,12 +113,12 @@ function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                  <a
+                    href="/forgot-password"
+                    className="text-sm text-[#00A651] hover:underline dark:text-emerald-400"
                   >
                     Forgot password?
-                  </Link>
+                  </a>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -129,7 +138,11 @@ function LoginPage() {
               </div>
 
               {/* Submit Button */}
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full bg-[#00A651] hover:bg-[#008A43] text-white font-bold"
+                disabled={isLoading}
+              >
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
@@ -139,7 +152,7 @@ function LoginPage() {
               <span className="text-slate-600 dark:text-slate-400">Don't have an account? </span>
               <Link
                 to="/signup"
-                className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                className="font-medium text-[#00A651] hover:underline dark:text-emerald-400"
               >
                 Sign up
               </Link>
@@ -165,5 +178,9 @@ function LoginPage() {
 
 // TanStack Router file-based routing
 export const Route = createFileRoute('/login')({
+  validateSearch: z.object({
+    redirect: z.string().optional().catch(''),
+  }),
+  beforeLoad: redirectIfAuthenticated,
   component: LoginPage,
 });

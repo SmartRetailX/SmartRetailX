@@ -37,17 +37,10 @@
     "train": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": [
-          "python -m pip install -r requirements.txt",
-          "python train_models.py"
-        ],
+        "commands": ["python -m pip install -r requirements.txt", "python train_models.py"],
         "cwd": "apps/bi-dashboard-ml-service"
       }
     }
   },
-  "tags": [
-    "type:app",
-    "lang:python",
-    "scope:ml"
-  ]
+  "tags": ["type:app", "lang:python", "scope:ml"]
 }

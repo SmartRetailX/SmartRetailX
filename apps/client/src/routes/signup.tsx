@@ -59,11 +59,11 @@ function SignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-green-50 via-white to-emerald-50 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#00A651] shadow-lg">
             <ShoppingBag className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -166,7 +166,11 @@ function SignupPage() {
               </div>
 
               {/* Submit Button */}
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full bg-[#00A651] hover:bg-[#008A43] text-white font-bold"
+                disabled={isLoading}
+              >
                 {isLoading ? 'Creating account...' : 'Create Account'}
               </Button>
             </form>
@@ -176,7 +180,7 @@ function SignupPage() {
               <span className="text-slate-600 dark:text-slate-400">Already have an account? </span>
               <Link
                 to="/login"
-                className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                className="font-medium text-[#00A651] hover:underline dark:text-emerald-400"
               >
                 Sign in
               </Link>

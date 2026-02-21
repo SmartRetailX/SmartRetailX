@@ -2,24 +2,27 @@
 
 /**
  * Environment variable type definitions
- * Add your environment variables here for type safety
- * Note: Rsbuild uses the same PUBLIC_ or VITE_ prefix for client-side variables
+ * All client-side env vars must be prefixed with PUBLIC_ (Rsbuild convention).
+ * Add new variables here and to .env.example.
+ *
+ * Authentication note:
+ *   Better Auth uses HttpOnly session cookies – there are NO client-side auth
+ *   tokens/keys stored in env variables or localStorage.
  */
 interface ImportMetaEnv {
-  // Application
+  // Application metadata
   readonly PUBLIC_APP_NAME: string;
   readonly PUBLIC_APP_VERSION: string;
   readonly PUBLIC_APP_ENV: 'development' | 'staging' | 'production';
 
-  // API Configuration
+  // API
+  // The scheme + host of the API gateway, e.g. "http://localhost:3000".
+  // – axios apiClient  → <PUBLIC_API_BASE_URL>/api
+  // – authClient       → <PUBLIC_API_BASE_URL>/api/auth
   readonly PUBLIC_API_BASE_URL: string;
-  readonly PUBLIC_API_TIMEOUT: string;
+  readonly PUBLIC_API_TIMEOUT: string; // milliseconds as string
 
-  // Authentication
-  readonly PUBLIC_AUTH_TOKEN_KEY: string;
-  readonly PUBLIC_AUTH_REFRESH_TOKEN_KEY: string;
-
-  // Feature Flags
+  // Feature flags
   readonly PUBLIC_ENABLE_DEVTOOLS: string;
   readonly PUBLIC_ENABLE_ANALYTICS: string;
 }

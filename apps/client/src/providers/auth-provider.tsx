@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AuthContext, AuthContextType } from '@/contexts/auth-context';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { AuthContextType } from '@/contexts/auth-context';
+import { AuthContext } from '@/contexts/auth-context';
+import { clearSessionRefresh, registerSessionRefresh } from '@/services/api-client';
 
 import type { User } from '@/lib/auth-client';
 import { auth } from '@/lib/auth-client';
@@ -26,24 +28,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isCheckingSession = useRef(false);
   const hasCheckedSession = useRef(false);
 
-  /**
-   * Check for existing session on mount
-   */
-  useEffect(() => {
-    // Only check session once on initial mount
-    if (!hasCheckedSession.current) {
-      checkSession();
-    }
-  }, []);
+  // ---------------------------------------------------------------------------
+  // Session check
+  // ---------------------------------------------------------------------------
 
   /**
-   * Check current session
+   * Fetches the current Better Auth session.
+   * The `isCheckingSession` ref prevents parallel duplicate calls.
    */
-  const checkSession = async () => {
-    // Prevent duplicate session checks
-    if (isCheckingSession.current) {
-      return;
-    }
+  const checkSession = useCallback(async () => {
+    if (isCheckingSession.current) return;
 
     try {
       isCheckingSession.current = true;
@@ -58,13 +52,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       hasCheckedSession.current = true;
     } catch (error) {
-      console.error('Session check failed:', error);
+      console.error('[AuthProvider] Session check failed:', error);
       setUser(null);
     } finally {
       setIsLoading(false);
       isCheckingSession.current = false;
     }
-  };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Bootstrap
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // 1. Register the session-refresh callback with the axios API client.
+    //    This enables the 401-interceptor to silently refresh cookies and
+    //    replay the failed request without the user noticing.
+    registerSessionRefresh(checkSession);
+
+    // 2. Listen for the global "auth:session-expired" event dispatched by the
+    //    API client when a refresh attempt itself returns 401 (truly expired).
+    const handleSessionExpired = () => {
+      setUser(null);
+      // Redirect to sign-in; replaceState prevents navigating back to a
+      // protected page without going through the login flow.
+      window.location.replace('/sign-in');
+    };
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+
+    // 3. Check for an existing session on initial page load.
+    if (!hasCheckedSession.current) {
+      void checkSession();
+    }
+
+    return () => {
+      clearSessionRefresh();
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+    };
+  }, [checkSession]);
 
   /**
    * Sign up a new user

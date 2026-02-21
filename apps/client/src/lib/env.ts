@@ -49,11 +49,11 @@ export const api = {
 
 /**
  * Authentication configuration
+ *
+ * NOTE: Better Auth uses HttpOnly session cookies.
+ * There are no client-side auth tokens stored in env variables or localStorage.
  */
-export const auth = {
-  tokenKey: getEnv('PUBLIC_AUTH_TOKEN_KEY', false) || 'smartretailx_auth_token',
-  refreshTokenKey: getEnv('PUBLIC_AUTH_REFRESH_TOKEN_KEY', false) || 'smartretailx_refresh_token',
-} as const;
+export const auth = {} as const;
 
 /**
  * Feature flags
