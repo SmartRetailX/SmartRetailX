@@ -60,7 +60,7 @@ export async function createMicroserviceWithConfig(
         reconnectTimeInSeconds: 5,
       },
       // Disable automatic acknowledgment for reliability
-      noAck: true,
+      noAck: false,
     },
   });
 
@@ -115,7 +115,7 @@ export async function createHybridAppWithConfig(
         heartbeatIntervalInSeconds: 60,
         reconnectTimeInSeconds: 5,
       },
-      noAck: true,
+      noAck: false,
     },
   });
 
