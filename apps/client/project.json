@@ -4,69 +4,27 @@
   "sourceRoot": "apps/client/src",
   "projectType": "application",
   "tags": ["type:app", "scope:client"],
-  "implicitDependencies": ["shared-types"],
   "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/client",
+        "command": "vite"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/apps/client/dist"],
       "options": {
         "cwd": "apps/client",
-        "command": "rsbuild build"
-      }
-    },
-    "serve": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/client",
-        "command": "rsbuild dev --open"
+        "command": "vite build"
       }
     },
     "preview": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/client",
-        "command": "rsbuild preview"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/client",
-        "command": "tsc --noEmit"
-      }
-    },
-    "lint": {
-      "executor": "@nx/eslint:lint",
-      "options": {
-        "lintFilePatterns": ["apps/client/**/*.{ts,tsx,js,jsx}"]
-      }
-    },
-    "lint:fix": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/client",
-        "command": "eslint . --fix"
-      }
-    },
-    "format": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/client",
-        "command": "prettier --write ."
-      }
-    },
-    "format:check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/client",
-        "command": "prettier --check ."
-      }
-    },
-    "check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": ["nx typecheck client", "nx lint client", "nx format:check client"],
-        "parallel": false
+        "command": "vite preview"
       }
     }
   }
