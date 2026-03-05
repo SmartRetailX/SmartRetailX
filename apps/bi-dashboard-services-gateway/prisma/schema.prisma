@@ -1,70 +1,5 @@
-// Add these at the TOP of your schema.prisma file:
-
-// ==================== BETTER AUTH TABLES (DO NOT MODIFY) ====================
-// These are managed by Better Auth - just declaring them so Prisma doesn't drop them
-
-model User {
-  id            String   @id
-  name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false) @map("emailVerified")
-  image         String?
-  role          String   @default("user")
-  createdAt     DateTime @default(now()) @map("createdAt")
-  updatedAt     DateTime @updatedAt @map("updatedAt")
-  
-  sessions      Session[]
-  accounts      Account[]
-  
-  @@map("user")
-}
-
-model Session {
-  id        String   @id
-  userId    String   @map("userId")
-  token     String   @unique
-  expiresAt DateTime @map("expiresAt")
-  ipAddress String?  @map("ipAddress")
-  userAgent String?  @map("userAgent")
-  createdAt DateTime @default(now()) @map("createdAt")
-  updatedAt DateTime @updatedAt @map("updatedAt")
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("session")
-}
-
-model Account {
-  id           String    @id
-  userId       String    @map("userId")
-  accountId    String    @map("accountId")
-  providerId   String    @map("providerId")
-  accessToken  String?   @map("accessToken")
-  refreshToken String?   @map("refreshToken")
-  idToken      String?   @map("idToken")
-  expiresAt    DateTime? @map("expiresAt")
-  password     String?
-  createdAt    DateTime  @default(now()) @map("createdAt")
-  updatedAt    DateTime  @updatedAt @map("updatedAt")
-  
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([providerId, accountId])
-  @@map("account")
-}
-
-model Verification {
-  id         String   @id
-  identifier String
-  value      String
-  expiresAt  DateTime @map("expiresAt")
-  createdAt  DateTime @default(now()) @map("createdAt")
-  updatedAt  DateTime @updatedAt @map("updatedAt")
-  
-  @@map("verification")
-}
-
-// ==================== YOUR BUSINESS MODELS BELOW ====================
+// Auth tables (user, session, account, verification) are owned by Better Auth
+// in the api-gateway via raw pg.Pool. Prisma only manages BI dashboard business models.
 
 generator client {
   provider = "prisma-client-js"
@@ -75,9 +10,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================== USER & AUTH ====================
-// Better Auth manages: user, session, account, verification tables
-// We only store the userId reference (no Prisma relation to Better Auth tables)
+// ==================== USER-STORE ASSOCIATIONS ====================
+// userId is a plain string reference to the user managed by Better Auth (api-gateway)
 
 model UserStore {
   userId  String
@@ -85,7 +19,7 @@ model UserStore {
   store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   
   @@id([userId, storeId])
-  @@map("user_stores")
+  @@map("bi_user_stores")
 }
 
 // ==================== STORES ====================
@@ -113,7 +47,7 @@ model Store {
   promotions    Promotion[]
   alerts        Alert[]
   
-  @@map("stores")
+  @@map("bi_stores")
 }
 
 // ==================== PRODUCTS ====================
@@ -150,7 +84,7 @@ model Product {
   @@index([storeId])
   @@index([category])
   @@index([status])
-  @@map("products")
+  @@map("bi_products")
 }
 
 enum StockStatus {
@@ -181,7 +115,7 @@ model Sale {
   @@index([storeId])
   @@index([customerId])
   @@index([timestamp])
-  @@map("sales")
+  @@map("bi_sales")
 }
 
 model SaleItem {
@@ -200,7 +134,7 @@ model SaleItem {
   
   @@index([saleId])
   @@index([productId])
-  @@map("sale_items")
+  @@map("bi_sale_items")
 }
 
 enum PaymentMethod {
@@ -234,7 +168,7 @@ model InventoryMovement {
   @@index([productId])
   @@index([storeId])
   @@index([timestamp])
-  @@map("inventory_movements")
+  @@map("bi_inventory_movements")
 }
 
 enum MovementType {
@@ -265,7 +199,7 @@ model Forecast {
   @@unique([productId, storeId, date])
   @@index([productId])
   @@index([date])
-  @@map("forecasts")
+  @@map("bi_sales_forecasts")
 }
 
 model ForecastDriver {
@@ -280,7 +214,7 @@ model ForecastDriver {
   generatedAt     DateTime @default(now()) @map("generated_at")
   
   @@index([productId])
-  @@map("forecast_drivers")
+  @@map("bi_sales_forecast_drivers")
 }
 
 // ==================== CUSTOMERS ====================
@@ -309,7 +243,7 @@ model Customer {
   
   @@index([storeId])
   @@index([segment])
-  @@map("customers")
+  @@map("bi_customers")
 }
 
 // ==================== ALERTS ====================
@@ -339,7 +273,7 @@ model Alert {
   @@index([storeId])
   @@index([status])
   @@index([urgency])
-  @@map("alerts")
+  @@map("bi_inventory_alerts")
 }
 
 enum AlertType {
@@ -383,7 +317,7 @@ model Promotion {
   
   @@index([storeId])
   @@index([status])
-  @@map("promotions")
+  @@map("bi_promotions")
 }
 
 model PromotionProduct {
@@ -393,7 +327,7 @@ model PromotionProduct {
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   
   @@id([promotionId, productId])
-  @@map("promotion_products")
+  @@map("bi_promotion_products")
 }
 
 enum PromotionStatus {
@@ -420,7 +354,7 @@ model AuditLog {
   @@index([userId])
   @@index([entityType])
   @@index([timestamp])
-  @@map("audit_logs")
+  @@map("bi_audit_logs")
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -439,7 +373,7 @@ model Notification {
   
   @@index([userId])
   @@index([read])
-  @@map("notifications")
+  @@map("bi_notifications")
 }
 
 enum NotificationType {

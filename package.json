@@ -4,7 +4,8 @@
   "license": "MIT",
   "scripts": {
     "prisma:generate": "cd apps/bi-dashboard-services-gateway && npx prisma generate",
-    "prisma:push": "cd apps/bi-dashboard-services-gateway && npx prisma db push",
+    "prisma:migrate": "cd apps/bi-dashboard-services-gateway && npx prisma migrate deploy",
+    "prisma:migrate:dev": "cd apps/bi-dashboard-services-gateway && npx prisma migrate dev",
     "prisma:seed": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/seed.ts",
     "prisma:clean": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/clean.ts",
     "prisma:reset": "cd apps/bi-dashboard-services-gateway && npx tsx prisma/reset.ts",
