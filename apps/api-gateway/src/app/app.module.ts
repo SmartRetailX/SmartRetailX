@@ -8,9 +8,18 @@ import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
 import { CoreModule } from './core/app.module';
 import { HealthModule } from './health/health.module';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
-  imports: [ConfigModule, HealthModule, AuthModule, CoreModule, BiDashboardModule, DocsModule],
+  imports: [
+    ConfigModule,
+    HealthModule,
+    AuthModule,
+    CoreModule,
+    BiDashboardModule,
+    DocsModule,
+    VoiceModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

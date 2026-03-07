@@ -1,0 +1,23 @@
+{
+  "name": "agent-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/agent-service",
+  "targets": {
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -r requirements.txt",
+        "cwd": "apps/agent-service"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": ".venv/bin/python -u -m uvicorn main:app --reload --host 0.0.0.0 --port 8010 --log-level info",
+        "cwd": "apps/agent-service"
+      }
+    }
+  },
+  "tags": ["type:app", "lang:python", "scope:assistant"]
+}

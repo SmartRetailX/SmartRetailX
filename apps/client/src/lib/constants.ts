@@ -89,6 +89,7 @@ export const API_ENDPOINTS = {
   // Voice
   VOICE: {
     TEXT_QUERY: '/api/bi/voice/text-query',
+    CHAT: '/api/v1/voice/chat',
   },
 
   // Health
