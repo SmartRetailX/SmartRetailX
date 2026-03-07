@@ -1,35 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule } from '@smart-retail-x/config';
 
 import { AuthModule } from '../auth/auth.module';
-import { ConfigModule, ConfigService } from '../config';
+import { DocsModule } from '../docs/docs.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
+import { CoreModule } from './core/app.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
-  imports: [
-    ConfigModule,
-    AuthModule,
-    BiDashboardModule,
-    ClientsModule.registerAsync([
-      {
-        name: 'ASSISTANT_SERVICE',
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.rabbitmqUri],
-            queue: configService.assistantServiceQueue,
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
-  ],
+  imports: [ConfigModule, HealthModule, AuthModule, CoreModule, BiDashboardModule, DocsModule],
   controllers: [AppController],
   providers: [AppService],
 })

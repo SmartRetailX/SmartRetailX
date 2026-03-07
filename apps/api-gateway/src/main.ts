@@ -1,13 +1,21 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@smart-retail-x/config';
 
 import { AppModule } from './app/app.module';
-import { ConfigService } from './config';
+import { SwaggerDocumentService } from './docs/swagger-document.service';
+import { LoggingInterceptor } from './interceptors/logging.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Disable body parser to allow Better Auth to handle request bodies
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+  });
   const configService = app.get(ConfigService);
+
+  // Enable global request logging
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // Enable CORS for the client
   app.enableCors({
@@ -46,27 +54,37 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 
-  // Connect RabbitMQ microservice for auth events
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [configService.rabbitmqUri],
-      queue: 'auth_queue',
-      queueOptions: {
-        durable: true,
-      },
-    },
-  });
+  // Setup Swagger for automatic API documentation
+  const config = new DocumentBuilder()
+    .setTitle('Smart RetailX API Gateway')
+    .setDescription(
+      'Complete API reference for Smart RetailX platform - automatically generated from controllers',
+    )
+    .setVersion('1.0.0')
+    .addServer(`http://localhost:${configService.port}/${globalPrefix}`, 'Development server')
+    .addTag('Health', 'Health check endpoints')
+    .addTag('Messaging Health', 'RabbitMQ and microservices health checks')
+    .addTag('Core Service', 'Core microservice endpoints')
+    .addTag('Assistant', 'Voice assistant endpoints')
+    .addTag('BI Dashboard', 'Business Intelligence dashboard proxy')
+    .addTag('Authentication', 'Better Auth endpoints')
+    .addBearerAuth()
+    .build();
 
-  await app.startAllMicroservices();
+  const document = SwaggerModule.createDocument(app, config);
+
+  // Store the document in the service for the docs controller to access
+  const swaggerDocService = app.get(SwaggerDocumentService);
+  swaggerDocService.setDocument(document);
 
   const port = configService.port;
   const host = configService.host;
 
   await app.listen(port, host);
 
-  Logger.log(`API Gateway running on: http://${host}:${port}/${globalPrefix}`);
-  Logger.log(`RabbitMQ: ${configService.rabbitmqUri}`);
+  Logger.log(`🚀 API Gateway running on: http://${host}:${port}/${globalPrefix}`);
+  Logger.log(`📚 API docs available at: http://${host}:${port}/${globalPrefix}/docs`);
+  Logger.log(`🐰 RabbitMQ: ${configService.rabbitmqUri}`);
 }
 
 bootstrap();

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule } from '@smart-retail-x/config';
 
 import { AlertsController } from './alerts.controller';
 import { AlertsService } from './alerts.service';

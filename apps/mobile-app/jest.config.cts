@@ -2,7 +2,7 @@
 /// <reference types="node" />
 module.exports = {
   displayName: 'mobile-app',
-  resolver: require.resolve('./jest.resolver.js'),
+
   preset: 'jest-expo',
   moduleFileExtensions: ['ts', 'js', 'html', 'tsx', 'jsx'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],

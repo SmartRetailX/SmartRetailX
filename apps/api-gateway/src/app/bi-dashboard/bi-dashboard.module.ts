@@ -1,29 +1,20 @@
 import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule } from '@smart-retail-x/config';
+import { RabbitMQModule } from '@smart-retail-x/messaging';
 
-import { ConfigModule, ConfigService } from '../../config';
 import { BiDashboardController } from './bi-dashboard.controller';
 
 @Module({
   imports: [
-    ClientsModule.registerAsync([
-      {
-        name: 'BI_DASHBOARD_SERVICE',
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.rabbitmqUri],
-            queue: configService.biDashboardServiceQueue,
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
+    ConfigModule,
+    RabbitMQModule.register({
+      name: 'BI_DASHBOARD_SERVICE',
+      queueGetter: (config) => config.biDashboardServiceQueue,
+    }),
   ],
   controllers: [BiDashboardController],
+  exports: [
+    RabbitMQModule, // Export RabbitMQ client for other modules to use
+  ],
 })
 export class BiDashboardModule {}

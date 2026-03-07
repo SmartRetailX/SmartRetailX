@@ -1,6 +1,16 @@
-import { All, Controller, HttpStatus, Inject, Logger, Req, Res } from '@nestjs/common';
+import {
+  All,
+  Controller,
+  HttpStatus,
+  Inject,
+  Logger,
+  OnModuleInit,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { catchError, firstValueFrom, timeout } from 'rxjs';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
 /**
  * BI Dashboard Proxy Controller
@@ -9,16 +19,31 @@ import { catchError, firstValueFrom, timeout } from 'rxjs';
  * This allows the BI Dashboard service to run without its own HTTP port,
  * with all traffic routed through the API Gateway.
  */
+@ApiTags('BI Dashboard')
 @Controller('bi')
-export class BiDashboardController {
+export class BiDashboardController implements OnModuleInit {
   private readonly logger = new Logger(BiDashboardController.name);
 
   constructor(@Inject('BI_DASHBOARD_SERVICE') private readonly biDashboardClient: ClientProxy) {}
 
   /**
+   * Eagerly connect RabbitMQ client on module initialization
+   * This prevents lazy connection during the first request
+   */
+  async onModuleInit() {
+    try {
+      await this.biDashboardClient.connect();
+      this.logger.log('✓ BI Dashboard client connected');
+    } catch (error) {
+      this.logger.error('Failed to connect BI Dashboard client:', error);
+    }
+  }
+
+  /**
    * Catch-all route that proxies requests to BI Dashboard microservice
    */
-  @All('*')
+  @All('*path')
+  @ApiExcludeEndpoint()
   async proxyRequest(@Req() req: any, @Res() res: any) {
     // Extract the path after /bi/
     const path = req.path.replace(/^\/api\/bi\/?/, '') || '';
@@ -47,6 +72,7 @@ export class BiDashboardController {
       const result = await firstValueFrom(
         this.biDashboardClient.send(pattern, payload).pipe(
           timeout(30000), // 30 second timeout
+          defaultIfEmpty({ statusCode: 503, success: false, error: 'No response from BI service' }),
           catchError((error) => {
             this.logger.error(`RabbitMQ error for ${pattern}:`, error.message);
             throw error;

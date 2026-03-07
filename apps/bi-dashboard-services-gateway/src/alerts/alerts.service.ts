@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@smart-retail-x/config';
 import axios from 'axios';
 
 import { PrismaService } from '../prisma/prisma.service';

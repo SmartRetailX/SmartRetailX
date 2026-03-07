@@ -1,36 +1,35 @@
-import '@/styles/globals.css';
+import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useRoutes } from 'react-router-dom';
 
-import { useAuth } from '@/contexts/auth-context';
-import { AuthProvider } from '@/providers/auth-provider';
-import { QueryProvider } from '@/providers/query-provider';
-import { createAppRouter } from '@/router';
-import { RouterProvider } from '@tanstack/react-router';
+import { AuthProvider } from './contexts/AuthContext';
+import { appRoutes } from './routes';
+import { useThemeStore } from './stores/appStore';
 
-import { ThemeProvider } from '@/components/theme-provider';
-
-/**
- * Router wrapper that provides auth context to routes
- */
-function RouterWrapper() {
-  const auth = useAuth();
-  const router = createAppRouter(auth);
-
-  return <RouterProvider router={router} />;
+function AppRoutes() {
+  return useRoutes(appRoutes);
 }
 
-/**
- * App - Root component
- */
-const App = () => {
+function App() {
+  const { theme } = useThemeStore();
+  const { i18n } = useTranslation();
+
+  // Apply theme on mount
+  useEffect(() => {
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  }, [theme]);
+
+  // Apply language direction
+  useEffect(() => {
+    document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+  }, [i18n.language]);
+
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <QueryProvider>
-        <AuthProvider>
-          <RouterWrapper />
-        </AuthProvider>
-      </QueryProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
-};
+}
 
 export default App;
