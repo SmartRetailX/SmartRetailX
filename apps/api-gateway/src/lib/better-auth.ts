@@ -18,6 +18,16 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     connectionString: configService.databaseUrl,
     min: configService.databasePoolMin,
     max: configService.databasePoolMax,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    keepAlive: true,
+  });
+
+  // Prevent hard process crashes on transient network/DB restarts.
+  // `pg` emits pool-level errors for idle clients; without a listener
+  // Node treats them as uncaught "error" events and exits.
+  pool.on('error', (error) => {
+    console.error('[better-auth][pg] idle client error:', error.message);
   });
 
   // Base URL for Better Auth
