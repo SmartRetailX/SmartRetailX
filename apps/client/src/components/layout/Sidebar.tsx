@@ -6,7 +6,8 @@ import {
   Package, 
   TrendingUp, 
   Users, 
-  Mic, 
+  Mic,
+  Gift, 
   Settings,
   X,
   ChevronLeft,
@@ -40,6 +41,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         { name: t('nav.forecasting'), href: PATHS.FORECASTING, icon: TrendingUp },
         { name: t('nav.customers'), href: PATHS.CUSTOMERS, icon: Users },
         { name: t('nav.tiers'), href: PATHS.TIERS, icon: Layers },
+        { name: t('nav.loyalty'), href: PATHS.LOYALTY, icon: Gift },
         { name: t('nav.voice'), href: PATHS.VOICE, icon: Mic },
         ...(hasRole('ADMIN')
           ? [{ name: t('nav.settings'), href: PATHS.ADMIN_SETTINGS, icon: Settings }]
