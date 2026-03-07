@@ -62,6 +62,7 @@
     "inventory": "Inventory",
     "forecasting": "Forecasting",
     "customers": "Customers",
+    "tiers": "Dynamic Tiers",
     "voice": "Voice Assistant",
     "admin": "Admin Panel",
     "settings": "Settings",
