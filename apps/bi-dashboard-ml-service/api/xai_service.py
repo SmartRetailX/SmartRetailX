@@ -45,8 +45,8 @@ class XAIService:
                 SELECT p.id, p.name, p.price, p.cost, p.current_stock,
                        p.reorder_level, p.max_stock, p.category,
                        s.name as store_name
-                FROM products p
-                JOIN stores s ON p.store_id = s.id
+                FROM bi_dashboard.products p
+                JOIN bi_dashboard.stores s ON p.store_id = s.id
                 WHERE p.sku = :product_id AND s.id = :store_id
                 LIMIT 1
             """
@@ -71,9 +71,9 @@ class XAIService:
                 SELECT COUNT(*) as sale_count, 
                        COALESCE(SUM(si.quantity), 0) as total_qty,
                        COALESCE(AVG(si.unit_price), 0) as avg_price
-                FROM sale_items si
-                JOIN sales s ON si.sale_id = s.id
-                JOIN products p ON si.product_id = p.id
+                FROM bi_dashboard.sale_items si
+                JOIN bi_dashboard.sales s ON si.sale_id = s.id
+                JOIN bi_dashboard.products p ON si.product_id = p.id
                 WHERE p.sku = :product_id 
                   AND s.store_id = :store_id
                   AND s.timestamp > NOW() - INTERVAL '30 days'
@@ -94,9 +94,9 @@ class XAIService:
             # Check for active promotions
             promo_query = """
                 SELECT pr.discount
-                FROM promotions pr
-                JOIN promotion_products pp ON pr.id = pp."promotionId"
-                JOIN products p ON pp."productId" = p.id
+                FROM bi_dashboard.promotions pr
+                JOIN bi_dashboard.promotion_products pp ON pr.id = pp."promotionId"
+                JOIN bi_dashboard.products p ON pp."productId" = p.id
                 WHERE p.sku = :product_id 
                   AND pr.store_id = :store_id
                   AND pr.status = 'ACTIVE'
@@ -184,8 +184,8 @@ class XAIService:
             # Check for active promotions
             promo_query = """
                 SELECT pr.discount
-                FROM promotions pr
-                JOIN promotion_products pp ON pr.id = pp."promotionId"
+                FROM bi_dashboard.promotions pr
+                JOIN bi_dashboard.promotion_products pp ON pr.id = pp."promotionId"
                 WHERE pp."productId" = :product_id 
                   AND pr.store_id = :store_id
                   AND pr.status = 'ACTIVE'
@@ -395,8 +395,8 @@ class XAIService:
                 SELECT a.id, a.product_id, a.store_id, a.current_stock, 
                        a.recommended_quantity, a.estimated_stockout_date, a.confidence,
                        p.name, p.reorder_level, p.price
-                FROM alerts a
-                JOIN products p ON a.product_id = p.id
+                FROM bi_dashboard.inventory_alerts a
+                JOIN bi_dashboard.products p ON a.product_id = p.id
                 WHERE a.id = :alert_id
             """
             
