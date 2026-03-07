@@ -66,7 +66,7 @@ class AlertGenerator:
             query = """
                 SELECT p.id, p.store_id as "storeId", p.name, p.name_si as "nameSi",
                        p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
-                FROM products p
+                FROM bi_dashboard.products p
                 WHERE p.status IN ('IN_STOCK', 'LOW_STOCK')
             """
             
@@ -169,7 +169,7 @@ class AlertGenerator:
                 print(f"  [OK] No demand predicted, stock adequate")
                 return None
             
-            print(f"  ⏰ Stockout predicted in {days_until_stockout:.1f} days")
+            print(f"  [TIME] Stockout predicted in {days_until_stockout:.1f} days")
             
             # Alert criteria: ONLY if stock below reorder level OR stockout within 3 days (CRITICAL)
             if current_stock < reorder_level:
@@ -186,10 +186,10 @@ class AlertGenerator:
             # STEP 4: Calculate alert urgency
             stock_ratio = current_stock / reorder_level if reorder_level > 0 else 1
             
-            if stock_ratio < 0.5 or days_until_stockout < 3:
+            if stock_ratio < 0.5 or days_until_stockout <= 3:
                 urgency = "HIGH"
                 confidence = 0.92
-            elif stock_ratio < 0.8 or days_until_stockout < 7:
+            elif stock_ratio < 0.8 or days_until_stockout <= 7:
                 urgency = "MEDIUM"
                 confidence = 0.85
             else:
@@ -262,7 +262,7 @@ class AlertGenerator:
             query = """
                 SELECT p.id, p.store_id as "storeId", p.name, p.name_si as "nameSi",
                        p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
-                FROM products p
+                FROM bi_dashboard.products p
                 WHERE p.id = :product_id AND p.store_id = :store_id
             """
             
