@@ -20,6 +20,7 @@ export const PATHS = {
   INVENTORY:   '/inventory',
   FORECASTING: '/forecasting',
   CUSTOMERS:   '/customers',
+  TIERS:       '/tiers',
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
@@ -36,6 +37,8 @@ const RevenuePage       = lazy(() => import('@/pages/admin/RevenuePage'))
 const InventoryPage     = lazy(() => import('@/pages/admin/InventoryPage'))
 const ForecastingPage   = lazy(() => import('@/pages/admin/ForecastingPage'))
 const CustomersPage     = lazy(() => import('@/pages/admin/CustomersPage'))
+const TiersPage         = lazy(() => import('@/pages/admin/TiersPage'))
+const TierDetailsPage = lazy(() => import('@/pages/admin/TierDetailsPage'))
 const VoicePage         = lazy(() => import('@/pages/admin/VoicePage'))
 const SettingsPage      = lazy(() => import('@/pages/admin/SettingsPage'))
 
@@ -97,6 +100,8 @@ export const appRoutes: RouteObject[] = [
         { path: 'inventory',   element: adminOnly(InventoryPage) },
         { path: 'forecasting', element: adminOnly(ForecastingPage) },
         { path: 'customers',   element: adminOnly(CustomersPage) },
+        { path: 'tiers',       element: adminOnly(TiersPage) },
+        { path: 'tiers/:id',   element: adminOnly(TierDetailsPage) },
         { path: 'voice',             element: adminOnly(VoicePage) },
         { path: 'admin-settings',    element: adminOnly(SettingsPage) },
 
