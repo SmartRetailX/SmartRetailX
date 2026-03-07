@@ -24,8 +24,11 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${token}`
   }
 
-  const language = localStorage.getItem('language') || 'en'
-  config.params = { ...config.params, lang: language }
+  const isVoiceChatEndpoint = (config.url || '').includes('/api/v1/voice/chat')
+  if (!isVoiceChatEndpoint) {
+    const uiLanguage = localStorage.getItem('language') || localStorage.getItem('i18nextLng') || 'en'
+    config.params = { lang: uiLanguage, ...config.params }
+  }
 
   return config
 })
