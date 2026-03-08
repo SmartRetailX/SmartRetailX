@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import AgentChatWidget from '@/components/chat/AgentChatWidget'
+import { useAuth } from '@/contexts/AuthContext'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { isCustomer } = useAuth()
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -19,6 +22,7 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+      {isCustomer ? <AgentChatWidget /> : null}
     </div>
   )
 }
