@@ -1,156 +1,164 @@
-import { useState } from 'react'
+import { AssistantRuntimeProvider, useThread } from '@assistant-ui/react'
+import { Loader2, Mic, MicOff, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Mic, MicOff, Loader2 } from 'lucide-react'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { useTextQuery } from '@/hooks/useVoice'
-import { useLanguageStore } from '@/stores/appStore'
+import { useAuth } from '@/contexts/AuthContext'
+import { useVoiceChatRuntime } from '@/hooks/useVoiceChatRuntime'
+
+const getMessageText = (content: unknown): string => {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (!Array.isArray(content)) {
+    return ''
+  }
+
+  return content
+    .filter((part): part is { type: string; text?: string } => Boolean(part && typeof part === 'object'))
+    .map((part) => (part.type === 'text' ? part.text || '' : ''))
+    .join(' ')
+    .trim()
+}
+
+function VoiceMessages() {
+  const messages = useThread((state) => state.messages)
+
+  if (!messages.length) {
+    return null
+  }
+
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')
+  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant')
+
+  return (
+    <div className="space-y-4">
+      {lastUserMessage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Transcript</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg">{getMessageText(lastUserMessage.content)}</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {lastAssistantMessage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Response</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg">{getMessageText(lastAssistantMessage.content)}</p>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  )
+}
 
 export default function VoicePage() {
-  const { t, i18n } = useTranslation()
-  const language = useLanguageStore((state) => state.language)
-  const [listening, setListening] = useState(false)
-  const [transcript, setTranscript] = useState('')
-  const textQueryMutation = useTextQuery()
+  const { t } = useTranslation()
+  const { user } = useAuth()
+  const role = user?.role?.toLowerCase()
+  const intents =
+    role === 'customer'
+      ? ['offers', 'order_history', 'buying_suggestions', 'prices', 'product_search']
+      : ['offers', 'prices', 'product_search', 'general']
 
-  const processQuery = async (query: string) => {
-    try {
-      const result = await textQueryMutation.mutateAsync(query)
-      setTranscript(query)
-    } catch (error) {
-      console.error('Query failed:', error)
+  const {
+    runtime,
+    isRecording,
+    isRunning,
+    error,
+    liveTranscript,
+    hasLastRecording,
+    startRecording,
+    stopRecording,
+    replayLastRecording,
+  } = useVoiceChatRuntime({
+    language: 'auto',
+    user: user
+      ? {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        }
+      : null,
+    intents,
+  })
+
+  const onToggleRecording = () => {
+    if (isRecording) {
+      stopRecording()
+      return
     }
-  }
 
-  const toggleListening = () => {
-    setListening(!listening)
-    // Mock voice recognition - in production, integrate with Web Speech API
-    if (!listening) {
-      setTimeout(() => {
-        const mockQuery = 'What are my low stock items?'
-        processQuery(mockQuery)
-        setListening(false)
-      }, 2000)
-    }
-  }
-
-  const handleExampleClick = (example: string) => {
-    processQuery(example)
+    void startRecording()
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">{t('voice.title')}</h1>
-        <p className="text-gray-500 mt-1">Ask questions about your business</p>
-      </div>
+    <AssistantRuntimeProvider runtime={runtime}>
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">{t('voice.title')}</h1>
+          <p className="text-gray-500 mt-1">Sinhala voice assistant (Whisper + agent service)</p>
+        </div>
 
-      {/* Voice Interface */}
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex flex-col items-center gap-6">
-            <button
-              onClick={toggleListening}
-              className={`h-32 w-32 rounded-full flex items-center justify-center transition-all ${
-                listening
-                  ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                  : 'bg-primary hover:bg-primary/90'
-              }`}
-            >
-              {listening ? (
-                <MicOff className="h-16 w-16 text-white" />
-              ) : (
-                <Mic className="h-16 w-16 text-white" />
-              )}
-            </button>
-
-            <p className="text-lg font-medium">
-              {listening ? t('voice.listening') : t('voice.startListening')}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Transcript */}
-      {transcript && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t('voice.transcript')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg">{transcript}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Response */}
-      {textQueryMutation.isPending && (
-        <Card>
-          <CardContent className="py-12 flex items-center justify-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <p>{t('common.loading')}</p>
-          </CardContent>
-        </Card>
-      )}
-      
-      {textQueryMutation.data && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('voice.response')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg">
-              {language === 'si' ? textQueryMutation.data.responseSi : textQueryMutation.data.response}
-            </p>
-            {textQueryMutation.data.suggestedActions && textQueryMutation.data.suggestedActions.length > 0 && (
-              <div className="mt-4">
-                <p className="text-sm font-semibold mb-2">Suggested Actions:</p>
-                <div className="flex flex-wrap gap-2">
-                  {textQueryMutation.data.suggestedActions.map((action, i) => (
-                    <Button key={i} variant="outline" size="sm">
-                      {action}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-      
-      {textQueryMutation.isError && (
-        <Card className="border-red-200">
-          <CardContent className="py-6">
-            <p className="text-red-600">Error processing your query. Please try again.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Examples */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('voice.examples')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[
-              'What are my top selling products?',
-              'Show me low stock items',
-              'What is the sales forecast for next week?',
-              'How many orders did we get today?',
-            ].map((example, index) => (
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center gap-6">
               <button
-                key={index}
-                onClick={() => handleExampleClick(example)}
-                className="w-full text-left p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onClick={onToggleRecording}
+                className={`h-32 w-32 rounded-full flex items-center justify-center transition-all ${
+                  isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-primary hover:bg-primary/90'
+                }`}
+                type="button"
               >
-                {example}
+                {isRecording ? (
+                  <MicOff className="h-16 w-16 text-white" />
+                ) : (
+                  <Mic className="h-16 w-16 text-white" />
+                )}
               </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+
+              <p className="text-lg font-medium">
+                {isRecording ? t('voice.listening') : t('voice.startListening')}
+              </p>
+
+              <button
+                type="button"
+                onClick={replayLastRecording}
+                disabled={!hasLastRecording || isRecording}
+                className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Play className="h-4 w-4" />
+                <span>Replay Last Speech</span>
+              </button>
+
+              {isRunning ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{t('voice.processing')}</span>
+                </div>
+              ) : null}
+
+              {error ? <p className="text-sm text-red-600">{error}</p> : null}
+              {liveTranscript ? (
+                <div className="w-full rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Live Transcript</p>
+                  <p className="text-sm">{liveTranscript}</p>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <VoiceMessages />
+      </div>
+    </AssistantRuntimeProvider>
   )
 }

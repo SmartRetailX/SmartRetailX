@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.db.session import engine
-from app.routers import customer_segments
+from app.routers import customer_segments, loyalty_tiers
 from fastapi.middleware.cors import CORSMiddleware
 from app.models.customer_segment import CustomerSegment
 from app.models.customer_category import CustomerCategoryContribution, CustomerCategoryPreference
@@ -20,3 +20,4 @@ app.add_middleware(
 )
 
 app.include_router(customer_segments.router)
+app.include_router(loyalty_tiers.router)

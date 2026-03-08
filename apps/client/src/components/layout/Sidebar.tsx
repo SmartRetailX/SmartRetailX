@@ -1,11 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { 
+import {
+  Layers, 
   DollarSign, 
   Package, 
   TrendingUp, 
   Users, 
-  Mic, 
+  Mic,
+  Gift, 
   Settings,
   X,
   ChevronLeft,
@@ -38,6 +40,8 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         { name: t('nav.inventory'), href: PATHS.INVENTORY, icon: Package },
         { name: t('nav.forecasting'), href: PATHS.FORECASTING, icon: TrendingUp },
         { name: t('nav.customers'), href: PATHS.CUSTOMERS, icon: Users },
+        { name: t('nav.tiers'), href: PATHS.TIERS, icon: Layers },
+        { name: t('nav.loyalty'), href: PATHS.LOYALTY, icon: Gift },
         { name: t('nav.voice'), href: PATHS.VOICE, icon: Mic },
         ...(hasRole('ADMIN')
           ? [{ name: t('nav.settings'), href: PATHS.ADMIN_SETTINGS, icon: Settings }]
@@ -102,7 +106,8 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href
+            const isActive = item.href === '/' ? location.pathname === '/' 
+                                               : location.pathname.startsWith(item.href);
             const Icon = item.icon
 
             return (

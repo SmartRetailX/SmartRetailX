@@ -2,12 +2,14 @@
 // in the api-gateway via raw pg.Pool. Prisma only manages BI dashboard business models.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["bi_dashboard"]
 }
 
 // ==================== USER-STORE ASSOCIATIONS ====================
@@ -19,7 +21,8 @@ model UserStore {
   store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   
   @@id([userId, storeId])
-  @@map("bi_user_stores")
+  @@map("user_stores")
+  @@schema("bi_dashboard")
 }
 
 // ==================== STORES ====================
@@ -47,7 +50,8 @@ model Store {
   promotions    Promotion[]
   alerts        Alert[]
   
-  @@map("bi_stores")
+  @@map("stores")
+  @@schema("bi_dashboard")
 }
 
 // ==================== PRODUCTS ====================
@@ -84,13 +88,16 @@ model Product {
   @@index([storeId])
   @@index([category])
   @@index([status])
-  @@map("bi_products")
+  @@map("products")
+  @@schema("bi_dashboard")
 }
 
 enum StockStatus {
   IN_STOCK
   LOW_STOCK
   OUT_OF_STOCK
+
+  @@schema("bi_dashboard")
 }
 
 // ==================== SALES ====================
@@ -115,7 +122,8 @@ model Sale {
   @@index([storeId])
   @@index([customerId])
   @@index([timestamp])
-  @@map("bi_sales")
+  @@map("sales")
+  @@schema("bi_dashboard")
 }
 
 model SaleItem {
@@ -134,7 +142,8 @@ model SaleItem {
   
   @@index([saleId])
   @@index([productId])
-  @@map("bi_sale_items")
+  @@map("sale_items")
+  @@schema("bi_dashboard")
 }
 
 enum PaymentMethod {
@@ -142,6 +151,8 @@ enum PaymentMethod {
   CARD
   MOBILE
   BANK_TRANSFER
+
+  @@schema("bi_dashboard")
 }
 
 // ==================== INVENTORY ====================
@@ -168,7 +179,8 @@ model InventoryMovement {
   @@index([productId])
   @@index([storeId])
   @@index([timestamp])
-  @@map("bi_inventory_movements")
+  @@map("inventory_movements")
+  @@schema("bi_dashboard")
 }
 
 enum MovementType {
@@ -177,6 +189,8 @@ enum MovementType {
   TRANSFER
   ADJUSTMENT
   WASTE
+
+  @@schema("bi_dashboard")
 }
 
 // ==================== FORECASTS ====================
@@ -199,7 +213,8 @@ model Forecast {
   @@unique([productId, storeId, date])
   @@index([productId])
   @@index([date])
-  @@map("bi_sales_forecasts")
+  @@map("sales_forecasts")
+  @@schema("bi_dashboard")
 }
 
 model ForecastDriver {
@@ -214,7 +229,8 @@ model ForecastDriver {
   generatedAt     DateTime @default(now()) @map("generated_at")
   
   @@index([productId])
-  @@map("bi_sales_forecast_drivers")
+  @@map("sales_forecast_drivers")
+  @@schema("bi_dashboard")
 }
 
 // ==================== CUSTOMERS ====================
@@ -243,7 +259,8 @@ model Customer {
   
   @@index([storeId])
   @@index([segment])
-  @@map("bi_customers")
+  @@map("customers")
+  @@schema("bi_dashboard")
 }
 
 // ==================== ALERTS ====================
@@ -273,7 +290,8 @@ model Alert {
   @@index([storeId])
   @@index([status])
   @@index([urgency])
-  @@map("bi_inventory_alerts")
+  @@map("inventory_alerts")
+  @@schema("bi_dashboard")
 }
 
 enum AlertType {
@@ -281,18 +299,24 @@ enum AlertType {
   PRICE
   PROMOTION
   QUALITY
+
+  @@schema("bi_dashboard")
 }
 
 enum Urgency {
   HIGH
   MEDIUM
   LOW
+
+  @@schema("bi_dashboard")
 }
 
 enum AlertStatus {
   PENDING
   ACCEPTED
   REJECTED
+
+  @@schema("bi_dashboard")
 }
 
 // ==================== PROMOTIONS ====================
@@ -317,7 +341,8 @@ model Promotion {
   
   @@index([storeId])
   @@index([status])
-  @@map("bi_promotions")
+  @@map("promotions")
+  @@schema("bi_dashboard")
 }
 
 model PromotionProduct {
@@ -327,7 +352,8 @@ model PromotionProduct {
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   
   @@id([promotionId, productId])
-  @@map("bi_promotion_products")
+  @@map("promotion_products")
+  @@schema("bi_dashboard")
 }
 
 enum PromotionStatus {
@@ -335,6 +361,8 @@ enum PromotionStatus {
   ACTIVE
   COMPLETED
   CANCELLED
+
+  @@schema("bi_dashboard")
 }
 
 // ==================== AUDIT LOGS ====================
@@ -354,7 +382,8 @@ model AuditLog {
   @@index([userId])
   @@index([entityType])
   @@index([timestamp])
-  @@map("bi_audit_logs")
+  @@map("audit_logs")
+  @@schema("bi_dashboard")
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -373,7 +402,8 @@ model Notification {
   
   @@index([userId])
   @@index([read])
-  @@map("bi_notifications")
+  @@map("notifications")
+  @@schema("bi_dashboard")
 }
 
 enum NotificationType {
@@ -381,4 +411,6 @@ enum NotificationType {
   INFO
   SUCCESS
   WARNING
+
+  @@schema("bi_dashboard")
 }

@@ -3,6 +3,14 @@ Smart RetailX ML Service
 FastAPI service for AI forecasting and XAI explanations
 """
 
+import sys
+import io
+# Force UTF-8 output to prevent charmap errors with emoji on Windows
+if hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
