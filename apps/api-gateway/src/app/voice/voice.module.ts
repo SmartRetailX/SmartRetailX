@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
+import { CoreModule } from '../core/app.module';
 import { VoiceController } from './voice.controller';
 import { VoiceChatRepository } from './voice-chat.repository';
 import { VoiceService } from './voice.service';
@@ -9,6 +10,7 @@ import { VoiceService } from './voice.service';
 @Module({
   imports: [
     ConfigModule,
+    CoreModule,
     ClientsModule.registerAsync([
       {
         name: 'AGENT_SERVICE',
