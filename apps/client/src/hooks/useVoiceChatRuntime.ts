@@ -1,5 +1,5 @@
 import { type AppendMessage, type ThreadMessageLike, useExternalStoreRuntime } from '@assistant-ui/react'
-import { type VoiceChatResponseDto } from '@smart-retail-x/shared-types'
+import { type VoiceChatResponseDto, type VoiceChatSessionDto } from '@smart-retail-x/shared-types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import apiClient from '@/lib/api-client'
@@ -25,7 +25,7 @@ declare global {
   }
 }
 
-type VoiceRuntimeMessage = {
+export type VoiceRuntimeMessage = {
   id: string
   role: 'user' | 'assistant'
   text: string
@@ -62,6 +62,15 @@ const getAppendMessageText = (message: AppendMessage): string => {
     .trim()
 }
 
+const mapSessionMessage = (session: VoiceChatSessionDto): VoiceRuntimeMessage[] => {
+  return session.messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    text: message.content,
+    createdAt: message.createdAt,
+  }))
+}
+
 export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
   const defaultLanguage = options?.language || 'auto'
   const userRole = options?.user?.role?.toLowerCase() || 'guest'
@@ -71,6 +80,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
   const [messages, setMessages] = useState<VoiceRuntimeMessage[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [liveTranscript, setLiveTranscript] = useState('')
 
@@ -78,13 +88,23 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const finalTranscriptRef = useRef('')
+  const liveTranscriptRef = useRef('')
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
   const lastAudioUrlRef = useRef<string | null>(null)
   const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null)
 
+  const updateLiveTranscript = useCallback((value: string) => {
+    liveTranscriptRef.current = value
+    setLiveTranscript(value)
+  }, [])
+
   const appendMessage = useCallback((role: VoiceRuntimeMessage['role'], text: string) => {
+    if (!text.trim()) {
+      return
+    }
+
     const next: VoiceRuntimeMessage = {
       id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       role,
@@ -108,6 +128,79 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
     }
   }, [])
 
+  const applyResponseMessages = useCallback(
+    (response: VoiceChatResponseDto) => {
+      if (response.transcription) {
+        appendMessage('user', response.transcription)
+      }
+
+      if (response.response) {
+        appendMessage('assistant', response.response)
+      }
+    },
+    [appendMessage],
+  )
+
+  const loadSession = useCallback(async () => {
+    if (!options?.user?.id) {
+      setMessages([])
+      return
+    }
+
+    setIsLoadingSession(true)
+    setError(null)
+
+    try {
+      const { data } = await apiClient.get<VoiceChatSessionDto>(API_ENDPOINTS.VOICE.SESSION, {
+        params: { limit: 200 },
+      })
+      sessionIdRef.current = data.agentSessionId
+      setMessages(mapSessionMessage(data))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load chat session'
+      setError(message)
+    } finally {
+      setIsLoadingSession(false)
+    }
+  }, [options?.user?.id])
+
+  useEffect(() => {
+    void loadSession()
+  }, [loadSession])
+
+  const sendTextMessage = useCallback(
+    async (text: string) => {
+      const value = text.trim()
+      if (!value) {
+        return
+      }
+
+      setIsRunning(true)
+      setError(null)
+
+      try {
+        const { data } = await apiClient.post<VoiceChatResponseDto>(API_ENDPOINTS.VOICE.TEXT_CHAT, {
+          text: value,
+          language: defaultLanguage,
+          userRole,
+          intents,
+        })
+
+        if (!data.success) {
+          throw new Error(data.error || 'Text processing failed')
+        }
+
+        applyResponseMessages(data)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Text request failed'
+        setError(message)
+      } finally {
+        setIsRunning(false)
+      }
+    },
+    [applyResponseMessages, defaultLanguage, intents, userRole],
+  )
+
   const sendAudioBlob = useCallback(
     async (blob: Blob, transcriptText?: string) => {
       const formData = new FormData()
@@ -115,9 +208,6 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
       formData.append('language', defaultLanguage)
       formData.append('sessionId', sessionIdRef.current)
       formData.append('userRole', userRole)
-      if (options?.user?.id) {
-        formData.append('userId', options.user.id)
-      }
       formData.append('intents', intents.join(','))
       if (transcriptText?.trim()) {
         formData.append('transcriptText', transcriptText.trim())
@@ -136,13 +226,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
           throw new Error(data.error || 'Voice processing failed')
         }
 
-        if (data.transcription) {
-          appendMessage('user', data.transcription)
-        }
-
-        if (data.response) {
-          appendMessage('assistant', data.response)
-        }
+        applyResponseMessages(data)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Voice request failed'
         setError(message)
@@ -150,7 +234,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
         setIsRunning(false)
       }
     },
-    [appendMessage, defaultLanguage, intents, options?.user?.id, userRole],
+    [applyResponseMessages, defaultLanguage, intents, userRole],
   )
 
   const startRecording = useCallback(async () => {
@@ -178,7 +262,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
       const recorder = new MediaRecorder(stream, { mimeType })
       chunksRef.current = []
       finalTranscriptRef.current = ''
-      setLiveTranscript('')
+      updateLiveTranscript('')
       streamRef.current = stream
       mediaRecorderRef.current = recorder
 
@@ -204,7 +288,10 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
           setError('Please speak for at least 2-3 seconds and try again.')
           return
         }
-        await sendAudioBlob(audioBlob, finalTranscriptRef.current)
+
+        const transcriptCandidate =
+          finalTranscriptRef.current.trim() || liveTranscriptRef.current.trim()
+        await sendAudioBlob(audioBlob, transcriptCandidate)
       }
 
       const RecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -224,7 +311,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
             }
           }
           const preview = `${finalTranscriptRef.current} ${interimText}`.trim()
-          setLiveTranscript(preview)
+          updateLiveTranscript(preview)
         }
         recognition.onerror = () => {
           // Keep audio fallback path; no hard failure here.
@@ -242,7 +329,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
       const message = err instanceof Error ? err.message : 'Unable to access microphone'
       setError(message)
     }
-  }, [defaultLanguage, sendAudioBlob, stopRecognition, stopTracks])
+  }, [defaultLanguage, sendAudioBlob, stopRecognition, stopTracks, updateLiveTranscript])
 
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current
@@ -286,20 +373,23 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
         return
       }
 
-      appendMessage('user', text)
-      appendMessage('assistant', 'Voice pipeline expects recorded audio. Please use the microphone button.')
+      await sendTextMessage(text)
     },
   })
 
   return {
     runtime,
+    messages,
     isRecording,
     isRunning,
+    isLoadingSession,
     error,
     liveTranscript,
     hasLastRecording: Boolean(lastAudioUrl),
     startRecording,
     stopRecording,
     replayLastRecording,
+    sendTextMessage,
+    refreshSession: loadSession,
   }
 }

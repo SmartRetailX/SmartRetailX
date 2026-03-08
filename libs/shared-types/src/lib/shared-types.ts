@@ -42,6 +42,28 @@ export interface VoiceChatResponseDto {
   error?: string;
 }
 
+export type VoiceChatInputMode = 'text' | 'voice';
+
+export interface VoiceChatStoredMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  channel: VoiceChatInputMode;
+  content: string;
+  transcription?: string | null;
+  language: VoiceLanguageCode;
+  createdAt: string;
+}
+
+export interface VoiceChatSessionDto {
+  id: string;
+  userId: string;
+  agentSessionId: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt?: string | null;
+  messages: VoiceChatStoredMessage[];
+}
+
 export interface VoiceChatTcpPayload {
   audioBase64: string;
   mimeType: string;

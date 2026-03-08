@@ -2,8 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
+  ParseIntPipe,
   Post,
+  Query,
   Req,
+  UnauthorizedException,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -13,6 +17,7 @@ import {
   type VoiceAssistantIntent,
   type VoiceChatDto,
   type VoiceChatResponseDto,
+  type VoiceChatSessionDto,
   type VoiceUserContext,
   type VoiceUserRole,
 } from '@smart-retail-x/shared-types';
@@ -24,6 +29,14 @@ import { VoiceService } from './voice.service';
 @Controller('v1/voice')
 export class VoiceController {
   constructor(private readonly voiceService: VoiceService) {}
+
+  private getUser(req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } }) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
+    return req.user;
+  }
 
   private parseIntents(rawIntents: unknown): VoiceAssistantIntent[] {
     if (Array.isArray(rawIntents)) {
@@ -40,6 +53,19 @@ export class VoiceController {
     return ['offers', 'order_history', 'buying_suggestions', 'prices', 'product_search'];
   }
 
+  @Get('chat/session')
+  @ApiOperation({
+    summary: 'Get chat session and history for authenticated user',
+  })
+  @ApiResponse({ status: 200, description: 'Chat session retrieved successfully' })
+  async getSession(
+    @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ): Promise<VoiceChatSessionDto> {
+    const user = this.getUser(req);
+    return this.voiceService.getSession(user.id!, limit);
+  }
+
   @Post('chat')
   @ApiOperation({
     summary: 'Process Sinhala voice chat',
@@ -50,7 +76,6 @@ export class VoiceController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['audio'],
       properties: {
         audio: { type: 'string', format: 'binary' },
         language: { type: 'string', example: 'si-LK', default: 'si-LK' },
@@ -72,19 +97,48 @@ export class VoiceController {
     @Body() dto: Partial<VoiceChatDto>,
     @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
   ): Promise<VoiceChatResponseDto> {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException('Audio file is required');
+    if (!file?.buffer?.length && !dto.transcriptText?.trim()) {
+      throw new BadRequestException('Either audio file or transcriptText is required');
     }
 
-    const resolvedRole = (dto.userRole || req.user?.role || 'guest') as VoiceUserRole;
+    const user = this.getUser(req);
+    const resolvedRole = (dto.userRole || user.role || 'guest') as VoiceUserRole;
     const userContext: VoiceUserContext = {
-      id: dto.userId || req.user?.id,
-      email: req.user?.email,
-      name: req.user?.name,
+      id: user.id,
+      email: user.email,
+      name: user.name,
       role: resolvedRole,
     };
     const intents = this.parseIntents(dto.intents);
 
-    return this.voiceService.chatWithAudio(file, dto, userContext, intents);
+    return this.voiceService.chatWithAudio(file, dto, user.id!, userContext, intents);
+  }
+
+  @Post('chat/text')
+  @ApiOperation({
+    summary: 'Process text chat message and persist response',
+    description: 'Accepts user text, forwards to agent, and stores user/assistant messages.',
+  })
+  @ApiResponse({ status: 201, description: 'Text chat processed successfully' })
+  async chatText(
+    @Body() dto: Partial<VoiceChatDto> & { text?: string },
+    @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
+  ): Promise<VoiceChatResponseDto> {
+    const user = this.getUser(req);
+    const text = dto.text?.trim();
+    if (!text) {
+      throw new BadRequestException('text is required');
+    }
+
+    const resolvedRole = (dto.userRole || user.role || 'guest') as VoiceUserRole;
+    const userContext: VoiceUserContext = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: resolvedRole,
+    };
+    const intents = this.parseIntents(dto.intents);
+
+    return this.voiceService.chatWithText(text, dto, user.id!, userContext, intents);
   }
 }
