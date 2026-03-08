@@ -76,6 +76,14 @@ export const API_ENDPOINTS = {
     LIST: '/api/bi/promotions',
   },
 
+  // Promotion Engine (ML Service)
+  PROMOTION_ENGINE: {
+    PRODUCTS: '/api/promotion-engine/products',
+    CATEGORIES: '/api/promotion-engine/products/categories',
+    GENERATE: '/api/promotion-engine/campaigns/generate',
+    HEALTH: '/api/promotion-engine/health',
+  },
+
   // Audit Logs
   AUDIT: {
     LIST: '/api/bi/audit-logs',

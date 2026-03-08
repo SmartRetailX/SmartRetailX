@@ -12,7 +12,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard
+  LayoutDashboard,
+  Target
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -42,6 +43,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         { name: t('nav.customers'), href: PATHS.CUSTOMERS, icon: Users },
         { name: t('nav.tiers'), href: PATHS.TIERS, icon: Layers },
         { name: t('nav.loyalty'), href: PATHS.LOYALTY, icon: Gift },
+        { name: 'Promotions', href: PATHS.PROMOTIONS, icon: Target },
         { name: t('nav.voice'), href: PATHS.VOICE, icon: Mic },
         ...(hasRole('ADMIN')
           ? [{ name: t('nav.settings'), href: PATHS.ADMIN_SETTINGS, icon: Settings }]

@@ -9,6 +9,7 @@ import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
 import { CoreModule } from './core/app.module';
 import { HealthModule } from './health/health.module';
 import { VoiceModule } from './voice/voice.module';
+import { PromotionEngineModule } from './promotion-engine/promotion-engine.module';
 
 @Module({
   imports: [
@@ -19,8 +20,10 @@ import { VoiceModule } from './voice/voice.module';
     BiDashboardModule,
     DocsModule,
     VoiceModule,
+    PromotionEngineModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
