@@ -1,8 +1,78 @@
 import { Loader2, MessageCircle, Mic, MicOff, Send, X } from 'lucide-react'
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useVoiceChatRuntime } from '@/hooks/useVoiceChatRuntime'
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g)
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={`md-strong-${index}`} className="font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+
+    if (part.startsWith('_') && part.endsWith('_')) {
+      return (
+        <em key={`md-em-${index}`} className="italic text-gray-500 dark:text-gray-400">
+          {part.slice(1, -1)}
+        </em>
+      )
+    }
+
+    return <span key={`md-text-${index}`}>{part}</span>
+  })
+}
+
+function AssistantMarkdownMessage({ text }: { text: string }) {
+  const lines = text.split('\n')
+
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((rawLine, index) => {
+        const line = rawLine.trim()
+        if (!line) {
+          return <div key={`md-space-${index}`} className="h-1" />
+        }
+
+        const headingMatch = line.match(/^###\s+(.+)$/)
+        if (headingMatch) {
+          return (
+            <p key={`md-h-${index}`} className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {renderInlineMarkdown(headingMatch[1])}
+            </p>
+          )
+        }
+
+        const orderedMatch = line.match(/^(\d+)\.\s+(.+)$/)
+        if (orderedMatch) {
+          return (
+            <p key={`md-ol-${index}`} className="pl-0.5">
+              <span className="mr-1 font-medium text-gray-600 dark:text-gray-300">{orderedMatch[1]}.</span>
+              {renderInlineMarkdown(orderedMatch[2])}
+            </p>
+          )
+        }
+
+        const bulletMatch = line.match(/^-\s+(.+)$/)
+        if (bulletMatch) {
+          return (
+            <p key={`md-ul-${index}`} className="pl-0.5">
+              <span className="mr-1 font-medium text-gray-600 dark:text-gray-300">•</span>
+              {renderInlineMarkdown(bulletMatch[1])}
+            </p>
+          )
+        }
+
+        return <p key={`md-p-${index}`}>{renderInlineMarkdown(line)}</p>
+      })}
+    </div>
+  )
+}
 
 export default function AgentChatWidget() {
   const { user, isCustomer } = useAuth()
@@ -123,13 +193,13 @@ export default function AgentChatWidget() {
               return (
                 <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                    className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${
                       isUser
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
                     }`}
                   >
-                    {message.text}
+                    {isUser ? message.text : <AssistantMarkdownMessage text={message.text} />}
                   </div>
                 </div>
               )
