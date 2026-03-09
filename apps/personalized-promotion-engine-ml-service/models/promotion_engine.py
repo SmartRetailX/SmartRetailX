@@ -318,7 +318,10 @@ class PersonalizedPromotionEngine:
             print(f"    {row['CustomerID']}: ML={row['purchase_probability']:.2%}, CF={row['cf_score']:.2f}, Hybrid={row['hybrid_score']:.2%}")
         
         return top_targets[['CustomerID', 'ProductID', 'purchase_probability', 'cf_score',
-                           'hybrid_score', 'above_threshold', 'category_affinity', 'targeting_method']]
+                           'hybrid_score', 'above_threshold', 'category_affinity', 'targeting_method',
+                           'customer_purchase_frequency', 'customer_avg_transaction',
+                           'customer_recency', 'customer_promo_response_rate',
+                           'customer_age', 'category_purchase_count']]
         
     def get_promotion_targets(self, product_id, strategy='hybrid', top_n=100):
         """

@@ -6,6 +6,8 @@ import {
   DollarSign,
   TrendingUp,
   AlertTriangle,
+  ShoppingBag,
+  Tag,
 } from "lucide-react";
 import {
   RadarChart,
@@ -20,6 +22,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  BarChart,
+  Bar,
+  Cell,
+  PieChart,
+  Pie,
+  Legend,
 } from "recharts";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -39,6 +47,12 @@ interface BackendCustomerProfile {
       monetary: number;
     };
   };
+  category_preference?: {
+    preferred_category: string;
+    ratio: number;
+    top_categories: string[];
+    category_contributions: Record<string, number>;
+  };
 }
 
 interface TierDetail {
@@ -52,6 +66,12 @@ interface TierDetail {
   avg_behavioral_score: number;
   avg_churn_risk: number;
 }
+
+// Distinct color palette for categories
+const CATEGORY_COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+  "#EC4899", "#14B8A6", "#F97316", "#6366F1", "#84CC16",
+];
 
 function getTierColor(behavior: string) {
   if (behavior.toLowerCase().includes("high")) return "#3B82F6";
@@ -70,6 +90,68 @@ function churnRisk(recency: number) {
   return Math.min(recency / 365, 1);
 }
 
+// ── Category analytics helpers ────────────────────────────────────────────────
+
+/** Aggregate total contribution share per category across all customers. */
+function buildCategoryContributions(customers: BackendCustomerProfile[]) {
+  const totals: Record<string, number> = {};
+  let grandTotal = 0;
+
+  customers.forEach((c) => {
+    if (!c.category_preference) return;
+    Object.entries(c.category_preference.category_contributions).forEach(
+      ([cat, ratio]) => {
+        const revenue = c.rfm.metrics.monetary * ratio;
+        totals[cat] = (totals[cat] || 0) + revenue;
+        grandTotal += revenue;
+      }
+    );
+  });
+
+  return Object.entries(totals)
+    .map(([name, revenue]) => ({
+      name,
+      revenue: Math.round(revenue),
+      share: grandTotal > 0 ? (revenue / grandTotal) * 100 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+/** Count how many customers prefer each category. */
+function buildPreferredCategoryCounts(customers: BackendCustomerProfile[]) {
+  const counts: Record<string, number> = {};
+  customers.forEach((c) => {
+    const pref = c.category_preference?.preferred_category;
+    if (pref) counts[pref] = (counts[pref] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/** Average affinity ratio per category (how loyal buyers are to it). */
+function buildCategoryAffinity(customers: BackendCustomerProfile[]) {
+  const sums: Record<string, { total: number; n: number }> = {};
+  customers.forEach((c) => {
+    if (!c.category_preference) return;
+    Object.entries(c.category_preference.category_contributions).forEach(
+      ([cat, ratio]) => {
+        if (!sums[cat]) sums[cat] = { total: 0, n: 0 };
+        sums[cat].total += ratio;
+        sums[cat].n += 1;
+      }
+    );
+  });
+  return Object.entries(sums)
+    .map(([name, { total, n }]) => ({
+      name,
+      affinity: parseFloat(((total / n) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.affinity - a.affinity);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function TierDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,7 +164,7 @@ export default function TierDetailsPage() {
 
   async function loadTier(tierKey: string) {
     try {
-      const res = await fetch("http://localhost:8000/segments/profiles");
+      const res = await fetch("http://localhost:8003/segments/profiles");
       const data: BackendCustomerProfile[] = await res.json();
 
       const tierCustomers = data.filter(
@@ -170,17 +252,18 @@ export default function TierDetailsPage() {
     {} as Record<string, number>
   );
 
+  // Category analytics
+  const categoryContributions = buildCategoryContributions(customers);
+  const preferredCategoryCounts = buildPreferredCategoryCounts(customers);
+  const categoryAffinity = buildCategoryAffinity(customers);
+  const hasCategoryData = customers.some((c) => c.category_preference);
+
+  // Top category for summary badge
+  const topCategory = categoryContributions[0]?.name ?? "—";
+  const topCategoryRevenue = categoryContributions[0]?.revenue ?? 0;
+
   return (
     <div className="space-y-6">
-
-      {/* Back Button */}
-      <button
-        onClick={() => navigate("/tiers")}
-        className="flex items-center gap-2 text-gray-500 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Tiers
-      </button>
 
       {/* Tier Header */}
       <div className="flex items-center gap-4">
@@ -203,6 +286,25 @@ export default function TierDetailsPage() {
         <StatCard icon={TrendingUp} label="Behavior Score" value={tier.avg_behavioral_score.toFixed(1)} />
         <StatCard icon={AlertTriangle} label="Churn Risk" value={`${(tier.avg_churn_risk * 100).toFixed(1)}%`} />
       </div>
+
+      {/* Sub-Clusters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sub-Cluster Segments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {tier.behavioral_traits.map((segment) => (
+              <span
+                key={segment}
+                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full"
+              >
+                {segment} ({subClusterCounts[segment] || 0})
+              </span>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -235,61 +337,196 @@ export default function TierDetailsPage() {
         </ChartCard>
       </div>
 
-      {/* Sub-Clusters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sub-Cluster Segments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2 text-sm">
-            {tier.behavioral_traits.map((segment) => (
-              <span
-                key={segment}
-                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full"
-              >
-                {segment} ({subClusterCounts[segment] || 0})
-              </span>
-            ))}
+      {/* ── CATEGORY SEPARATION SECTION ─────────────────────────────────────── */}
+      {hasCategoryData && (
+        <div className="space-y-6">
+          {/* Section heading */}
+          <div className="flex items-center gap-2 pt-2">
+            <ShoppingBag className="w-5 h-5 text-blue-500" />
+            <h2 className="text-xl font-bold">Category Analysis</h2>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Customer Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Customers in This Tier</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="py-2 px-3">Customer ID</th>
-                  <th className="py-2 px-3">Sub-Cluster</th>
-                  <th className="py-2 px-3">Recency</th>
-                  <th className="py-2 px-3">Frequency</th>
-                  <th className="py-2 px-3">Monetary</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((c) => (
-                  <tr key={c.customer_id} className="border-b last:border-none hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="py-2 px-3 font-medium">{c.customer_id}</td>
-                    <td className="py-2 px-3">
-                      <span className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">
-                        {c.rfm.sub_cluster.segment}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3">{c.rfm.metrics.recency}</td>
-                    <td className="py-2 px-3">{c.rfm.metrics.frequency}</td>
-                    <td className="py-2 px-3">${c.rfm.metrics.monetary.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Category summary stat cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              icon={Tag}
+              label="Top Category"
+              value={topCategory}
+            />
+            <StatCard
+              icon={DollarSign}
+              label="Top Category Revenue"
+              value={`$${topCategoryRevenue.toLocaleString()}`}
+            />
+            <StatCard
+              icon={ShoppingBag}
+              label="Distinct Categories"
+              value={categoryContributions.length}
+            />
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Revenue by Category (bar) + Preferred Category distribution (pie) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Revenue by Category">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryContributions} layout="vertical" margin={{ left: 16, right: 24 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]} />
+                  <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                    {categoryContributions.map((_, i) => (
+                      <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="Preferred Category Distribution">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={preferredCategoryCounts}
+                    dataKey="count"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={({ name, percent }) =>
+                      `${name} (${(percent * 100).toFixed(0)}%)`
+                    }
+                    labelLine={false}
+                  >
+                    {preferredCategoryCounts.map((_, i) => (
+                      <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [v, "Customers"]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {/* Category Affinity (avg ratio) bar chart */}
+          <ChartCard title="Average Category Affinity (% of spend per buyer)">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={categoryAffinity} margin={{ left: 8, right: 24 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                <Tooltip formatter={(v: number) => [`${v}%`, "Avg Affinity"]} />
+                <Bar dataKey="affinity" radius={[4, 4, 0, 0]}>
+                  {categoryAffinity.map((_, i) => (
+                    <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Category breakdown table per customer */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Category Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-2 px-3">Customer ID</th>
+                      <th className="py-2 px-3">Preferred Category</th>
+                      <th className="py-2 px-3">Affinity Ratio</th>
+                      <th className="py-2 px-3">Top Categories</th>
+                      <th className="py-2 px-3">Category Contributions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers
+                      .filter((c) => c.category_preference)
+                      .map((c) => {
+                        const pref = c.category_preference!;
+                        return (
+                          <tr
+                            key={c.customer_id}
+                            className="border-b last:border-none hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            <td className="py-2 px-3 font-medium">{c.customer_id}</td>
+                            <td className="py-2 px-3">
+                              <span className="px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium">
+                                {pref.preferred_category}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-20 h-2 rounded-full bg-gray-200 dark:bg-gray-600 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-blue-500"
+                                    style={{ width: `${pref.ratio * 100}%` }}
+                                  />
+                                </div>
+                                <span>{(pref.ratio * 100).toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {pref.top_categories.map((cat) => (
+                                  <span
+                                    key={cat}
+                                    className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs"
+                                  >
+                                    {cat}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-col gap-1 min-w-[160px]">
+                                {Object.entries(pref.category_contributions).map(
+                                  ([cat, ratio], i) => (
+                                    <div key={cat} className="flex items-center gap-2 text-xs">
+                                      <span
+                                        className="w-2 h-2 rounded-full flex-shrink-0"
+                                        style={{
+                                          backgroundColor:
+                                            CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                                        }}
+                                      />
+                                      <span className="text-gray-600 dark:text-gray-400 w-24 truncate">
+                                        {cat}
+                                      </span>
+                                      <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full rounded-full"
+                                          style={{
+                                            width: `${ratio * 100}%`,
+                                            backgroundColor:
+                                              CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="text-gray-500">
+                                        {(ratio * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      {/* ── END CATEGORY SECTION ─────────────────────────────────────────────── */}
+
     </div>
   );
 }

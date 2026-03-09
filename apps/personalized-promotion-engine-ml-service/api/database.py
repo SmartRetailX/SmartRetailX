@@ -112,6 +112,111 @@ def get_promotions() -> pd.DataFrame:
     return df
 
 
+# ── Campaign History ───────────────────────────────────────
+
+def _ensure_campaign_table():
+    """Create the campaign history table if it doesn't exist."""
+    ddl = """
+    CREATE TABLE IF NOT EXISTS pe_campaign_history (
+        id              SERIAL PRIMARY KEY,
+        product_id      TEXT NOT NULL,
+        product_name    TEXT NOT NULL,
+        product_category TEXT NOT NULL,
+        product_price   DOUBLE PRECISION NOT NULL,
+        discount_percent DOUBLE PRECISION NOT NULL,
+        total_targeted  INTEGER NOT NULL,
+        avg_purchase_probability DOUBLE PRECISION,
+        expected_conversions INTEGER,
+        expected_revenue DOUBLE PRECISION,
+        expected_cost    DOUBLE PRECISION,
+        expected_profit  DOUBLE PRECISION,
+        cost_savings_vs_broadcast DOUBLE PRECISION,
+        targets_json     JSONB,
+        created_at       TIMESTAMP DEFAULT NOW()
+    );
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(ddl)
+        conn.commit()
+
+
+def save_campaign(campaign_data: dict, targets_list: list) -> int:
+    """Save a generated campaign and return its ID."""
+    _ensure_campaign_table()
+    sql = """
+    INSERT INTO pe_campaign_history (
+        product_id, product_name, product_category, product_price,
+        discount_percent, total_targeted, avg_purchase_probability,
+        expected_conversions, expected_revenue, expected_cost,
+        expected_profit, cost_savings_vs_broadcast, targets_json
+    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+    RETURNING id;
+    """
+    import json
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (
+                campaign_data['productId'],
+                campaign_data['productName'],
+                campaign_data['productCategory'],
+                campaign_data['productPrice'],
+                campaign_data['discountPercent'],
+                campaign_data['totalTargeted'],
+                campaign_data.get('avgPurchaseProbability', 0),
+                campaign_data.get('expectedConversions', 0),
+                campaign_data.get('expectedRevenue', 0),
+                campaign_data.get('expectedCost', 0),
+                campaign_data.get('expectedProfit', 0),
+                campaign_data.get('costSavingsVsBroadcast', 0),
+                json.dumps(targets_list),
+            ))
+            campaign_id = cur.fetchone()[0]
+        conn.commit()
+    return campaign_id
+
+
+def get_campaigns(limit: int = 50) -> list:
+    """Get recent campaign history."""
+    _ensure_campaign_table()
+    sql = """
+    SELECT id, product_id, product_name, product_category, product_price,
+           discount_percent, total_targeted, avg_purchase_probability,
+           expected_conversions, expected_revenue, expected_cost,
+           expected_profit, cost_savings_vs_broadcast, created_at
+    FROM pe_campaign_history
+    ORDER BY created_at DESC
+    LIMIT %s;
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (limit,))
+            columns = [desc[0] for desc in cur.description]
+            rows = cur.fetchall()
+    return [dict(zip(columns, row)) for row in rows]
+
+
+def get_campaign_by_id(campaign_id: int) -> dict | None:
+    """Get a single campaign with full targets."""
+    _ensure_campaign_table()
+    sql = """
+    SELECT id, product_id, product_name, product_category, product_price,
+           discount_percent, total_targeted, avg_purchase_probability,
+           expected_conversions, expected_revenue, expected_cost,
+           expected_profit, cost_savings_vs_broadcast, targets_json, created_at
+    FROM pe_campaign_history
+    WHERE id = %s;
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (campaign_id,))
+            columns = [desc[0] for desc in cur.description]
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return dict(zip(columns, row))
+
+
 if __name__ == "__main__":
     print("Testing database connection...")
     try:
@@ -123,6 +228,7 @@ if __name__ == "__main__":
         print(f"  Products: {len(p)}")
         print(f"  Transactions: {len(t)}")
         print(f"  Promotions: {len(pr)}")
-        print("\n✓ Database connection OK")
+        print("\\n[OK] Database connection OK")
     except Exception as e:
         print(f"  ERROR: {e}")
+

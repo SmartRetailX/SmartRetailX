@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@smart-retail-x/config';
+import { buildCatalogQueryTokens, normalizeCatalogQuery } from '@smart-retail-x/shared-types';
 import { Pool } from 'pg';
 
 type CatalogMatch = {
@@ -15,6 +16,16 @@ type CatalogMatch = {
   currentStock: number;
   status: string;
   storeId: string | null;
+  tokenHits: number;
+  exactHit: boolean;
+  prefixHit: boolean;
+  matchScore: number;
+};
+
+type CatalogSearchResponse = {
+  success: boolean;
+  term: string;
+  matches: CatalogMatch[];
 };
 
 @Injectable()
@@ -45,14 +56,14 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
     await this.pool.end();
   }
 
-  async search(term: string, limit = 5): Promise<{ success: boolean; term: string; matches: CatalogMatch[] }> {
-    const normalizedTerm = this.normalizeTerm(term);
+  async search(term: string, limit = 5): Promise<CatalogSearchResponse> {
+    const normalizedTerm = normalizeCatalogQuery(term);
     if (!normalizedTerm) {
       return { success: true, term: '', matches: [] };
     }
 
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 20)) : 5;
-    const tokens = this.buildSearchTokens(normalizedTerm);
+    const tokens = buildCatalogQueryTokens(normalizedTerm);
 
     const result = await this.pool.query<{
       product_id: string;
@@ -68,6 +79,8 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
       status: string;
       store_id: string | null;
       token_hits: number;
+      exact_hit: boolean;
+      prefix_hit: boolean;
     }>(
       `
       SELECT
@@ -84,6 +97,21 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
         v.status,
         v.store_id,
         (
+          lower(coalesce(v.product_name_si, '')) = $1
+          OR lower(coalesce(v.product_name_en, '')) = $1
+          OR EXISTS (
+            SELECT 1
+            FROM public.product_alias pa
+            WHERE pa.product_id = v.product_id
+              AND pa.locale = 'si'
+              AND lower(pa.alias) = $1
+          )
+        ) AS exact_hit,
+        (
+          lower(coalesce(v.product_name_si, '')) LIKE $1 || '%'
+          OR lower(coalesce(v.product_name_en, '')) LIKE $1 || '%'
+        ) AS prefix_hit,
+        (
           SELECT count(*)::int
           FROM unnest($2::text[]) AS t(token)
           WHERE
@@ -93,13 +121,13 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
             OR lower(coalesce(v.category_en, '')) LIKE '%' || t.token || '%'
             OR EXISTS (
               SELECT 1
-              FROM catalog.product_alias pa
+              FROM public.product_alias pa
               WHERE pa.product_id = v.product_id
                 AND pa.locale = 'si'
                 AND lower(pa.alias) LIKE '%' || t.token || '%'
             )
         ) AS token_hits
-      FROM catalog.v_products_resolved v
+      FROM public.v_products_resolved v
       WHERE
         lower(coalesce(v.product_name_si, '')) LIKE '%' || $1 || '%'
         OR lower(coalesce(v.product_name_en, '')) LIKE '%' || $1 || '%'
@@ -107,7 +135,7 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
         OR lower(coalesce(v.category_en, '')) LIKE '%' || $1 || '%'
         OR EXISTS (
           SELECT 1
-          FROM catalog.product_alias pa
+          FROM public.product_alias pa
           WHERE pa.product_id = v.product_id
             AND pa.locale = 'si'
             AND lower(pa.alias) LIKE '%' || $1 || '%'
@@ -122,27 +150,15 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
             OR lower(coalesce(v.category_en, '')) LIKE '%' || t.token || '%'
             OR EXISTS (
               SELECT 1
-              FROM catalog.product_alias pa
+              FROM public.product_alias pa
               WHERE pa.product_id = v.product_id
                 AND pa.locale = 'si'
                 AND lower(pa.alias) LIKE '%' || t.token || '%'
             )
         )
       ORDER BY
-        CASE
-          WHEN lower(coalesce(v.product_name_si, '')) = $1 THEN 0
-          WHEN lower(coalesce(v.product_name_en, '')) = $1 THEN 1
-          WHEN EXISTS (
-            SELECT 1
-            FROM catalog.product_alias pa
-            WHERE pa.product_id = v.product_id
-              AND pa.locale = 'si'
-              AND lower(pa.alias) = $1
-          ) THEN 2
-          WHEN lower(coalesce(v.product_name_si, '')) LIKE $1 || '%' THEN 3
-          WHEN lower(coalesce(v.product_name_en, '')) LIKE $1 || '%' THEN 4
-          ELSE 5
-        END,
+        exact_hit DESC,
+        prefix_hit DESC,
         token_hits DESC,
         v.product_name_en ASC
       LIMIT $3
@@ -150,15 +166,46 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
       [normalizedTerm, tokens, safeLimit],
     );
 
-    if (result.rows.length > 0) {
+    const mappedMatches = result.rows.map((row) => this.toCatalogMatch(row));
+    const filteredMatches = mappedMatches.filter((match) => this.isRelevantMatch(match, tokens));
+
+    if (filteredMatches.length > 0) {
       this.logger.log(
-        `Catalog match found: term="${normalizedTerm}" tokens=${tokens.length} results=${result.rows.length}`,
+        `Catalog match found: term="${normalizedTerm}" tokens=${tokens.length} results=${filteredMatches.length}`,
       );
     } else {
       this.logger.debug(`Catalog no match: term="${normalizedTerm}" tokens=${tokens.length}`);
     }
 
-    const matches: CatalogMatch[] = result.rows.map((row) => ({
+    return {
+      success: true,
+      term: normalizedTerm,
+      matches: filteredMatches,
+    };
+  }
+
+  private toCatalogMatch(row: {
+    product_id: string;
+    product_uuid: string;
+    sku: string | null;
+    product_name_en: string;
+    product_name_si: string | null;
+    category_en: string;
+    category_si: string | null;
+    brand_si: string | null;
+    price: number;
+    current_stock: number;
+    status: string;
+    store_id: string | null;
+    token_hits: number;
+    exact_hit: boolean;
+    prefix_hit: boolean;
+  }): CatalogMatch {
+    const tokenHits = Number(row.token_hits) || 0;
+    const exactHit = !!row.exact_hit;
+    const prefixHit = !!row.prefix_hit;
+
+    return {
       productId: row.product_id,
       productUuid: row.product_uuid,
       sku: row.sku,
@@ -171,75 +218,48 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
       currentStock: Number(row.current_stock),
       status: row.status,
       storeId: row.store_id,
-    }));
-
-    return {
-      success: true,
-      term: normalizedTerm,
-      matches,
+      tokenHits,
+      exactHit,
+      prefixHit,
+      matchScore: this.calculateMatchScore({ tokenHits, exactHit, prefixHit }),
     };
   }
 
-  private normalizeTerm(input: string): string {
-    return input.toLowerCase().replace(/\s+/g, ' ').trim();
+  private calculateMatchScore(params: {
+    tokenHits: number;
+    exactHit: boolean;
+    prefixHit: boolean;
+  }): number {
+    let score = Math.min(params.tokenHits, 6) * 12;
+    if (params.prefixHit) {
+      score += 30;
+    }
+    if (params.exactHit) {
+      score += 70;
+    }
+    return score;
   }
 
-  private buildSearchTokens(normalizedTerm: string): string[] {
-    const stopWords = new Set([
-      'what',
-      'is',
-      'the',
-      'of',
-      'for',
-      'show',
-      'me',
-      'please',
-      'can',
-      'you',
-      'tell',
-      'about',
-      'do',
-      'have',
-      'any',
-      'with',
-      'and',
-      'to',
-      'in',
-      'on',
-      'price',
-      'details',
-      'product',
-      'products',
-      'මට',
-      'වල',
-      'සඳහා',
-      'දෙන්න',
-      'ලබාදෙන්න',
-      'බලන්න',
-      'මිල',
-      'එක',
-      'ගේ',
-      'ගැන',
-    ]);
-
-    const tokens = normalizedTerm
-      .split(/\s+/)
-      .map((token) => token.replace(/^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu, ''))
-      .filter((token) => (token.length >= 2 || /^\d+$/.test(token)) && !stopWords.has(token));
-
-    const uniqueTokens = Array.from(new Set(tokens)).slice(0, 8);
-    if (!uniqueTokens.length && normalizedTerm.length >= 2) {
-      return [normalizedTerm];
+  private isRelevantMatch(match: CatalogMatch, tokens: string[]): boolean {
+    if (match.exactHit || match.prefixHit) {
+      return true;
     }
 
-    return uniqueTokens;
+    if (tokens.length >= 2) {
+      return match.tokenHits >= 2;
+    }
+
+    const singleToken = tokens[0] ?? '';
+    if (singleToken.length <= 3) {
+      return false;
+    }
+
+    return match.tokenHits >= 1;
   }
 
   private async ensureCatalogSchema(): Promise<void> {
-    await this.pool.query('CREATE SCHEMA IF NOT EXISTS catalog');
-
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS catalog.product_localization (
+      CREATE TABLE IF NOT EXISTS public.product_localization (
         product_id text NOT NULL,
         locale text NOT NULL DEFAULT 'si',
         product_name text,
@@ -253,7 +273,7 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS catalog.product_alias (
+      CREATE TABLE IF NOT EXISTS public.product_alias (
         product_id text NOT NULL,
         locale text NOT NULL DEFAULT 'si',
         alias text NOT NULL,
@@ -265,7 +285,7 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
 
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS idx_product_alias_norm
-        ON catalog.product_alias (locale, normalized_alias)
+        ON public.product_alias (locale, normalized_alias)
     `);
 
     await this.pool.query(`
@@ -280,7 +300,7 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
-      CREATE OR REPLACE VIEW catalog.v_products_resolved AS
+      CREATE OR REPLACE VIEW public.v_products_resolved AS
       SELECT
         p.id::text AS product_uuid,
         COALESCE(NULLIF(p.external_product_id, ''), p.sku, p.id::text) AS product_id,
@@ -297,7 +317,7 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
         NULL::text AS store_id,
         NOW() AS updated_at
       FROM public.products p
-      LEFT JOIN catalog.product_localization l
+      LEFT JOIN public.product_localization l
         ON l.product_id = COALESCE(NULLIF(p.external_product_id, ''), p.sku, p.id::text)
        AND l.locale = 'si'
     `);
