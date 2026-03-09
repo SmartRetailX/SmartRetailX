@@ -5,7 +5,9 @@ import { ArrowLeft, Calendar, Loader2, MapPin, Package, XCircle } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useOrder, useCancelOrder, type OrderItem } from '@/hooks/useOrders'
+import { useLanguageStore } from '@/stores/appStore'
 import { cn, formatCurrency } from '@/lib/utils'
+import type { Language } from '@/types/api'
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: 'bg-accent', text: 'text-accent-foreground', label: 'Pending' },
@@ -32,7 +34,9 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function OrderItemRow({ item }: { item: OrderItem }) {
+function OrderItemRow({ item, language }: { item: OrderItem; language: Language }) {
+  const displayName = language === 'si' && item.productNameSi ? item.productNameSi : item.productName
+
   return (
     <div className="flex items-center gap-4 border-b py-4 last:border-0">
       {/* Product image placeholder */}
@@ -42,7 +46,7 @@ function OrderItemRow({ item }: { item: OrderItem }) {
 
       {/* Product details */}
       <div className="flex-1">
-        <h4 className="font-semibold">{item.productNameSi || item.productName}</h4>
+        <h4 className="font-semibold">{displayName}</h4>
         <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
         <p className="text-sm text-muted-foreground">
           {formatCurrency(item.unitPrice)} × {item.quantity}
@@ -60,6 +64,7 @@ export default function OrderDetailPage() {
   const { data: order, isLoading, error } = useOrder(id || '')
   const cancelOrder = useCancelOrder()
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const { language } = useLanguageStore()
 
   const handleCancel = async () => {
     if (!id) return
@@ -77,8 +82,8 @@ export default function OrderDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0d7f44]" />
       </div>
     )
   }
@@ -161,7 +166,7 @@ export default function OrderDetailPage() {
           </CardHeader>
           <CardContent className="pt-0">
             {order.items.map((item) => (
-              <OrderItemRow key={item.id} item={item} />
+              <OrderItemRow key={item.id} item={item} language={language} />
             ))}
           </CardContent>
         </Card>

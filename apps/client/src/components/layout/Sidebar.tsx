@@ -16,7 +16,8 @@ import {
   LayoutDashboard,
   Target,
   Award,
-  ShoppingBag
+  ShoppingBag,
+  Tag,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -58,6 +59,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         // Customer navigation
         { name: t('nav.dashboard'), href: PATHS.DASHBOARD, icon: LayoutDashboard },
         { name: t('nav.myloyalty'), href: PATHS.CUSTOMER_LOYALTY, icon: Award },
+        { name: 'My Promotions',   href: PATHS.MY_PROMOTIONS, icon: Tag },
         { name: t('nav.settings'), href: PATHS.CUSTOMER_SETTINGS, icon: Settings },
       ]
 

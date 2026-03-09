@@ -24,9 +24,11 @@ export const PATHS = {
   TIERS:       '/tiers',
   LOYALTY:       '/loyalty',
   PROMOTIONS:  '/promotions',
+  MY_PROMOTIONS: '/my-promotions',
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
+  ASSISTANT: '/assistant',
   CUSTOMER_LOYALTY:   '/customer-loyalty',
   // Customer shopping
   CART:        '/cart',
@@ -61,9 +63,11 @@ const CartPage          = lazy(() => import('@/pages/customer/CartPage'))
 const CheckoutPage      = lazy(() => import('@/pages/customer/CheckoutPage'))
 const OrdersPage        = lazy(() => import('@/pages/customer/OrdersPage'))
 const OrderDetailPage   = lazy(() => import('@/pages/customer/OrderDetailPage'))
+const AssistantPage     = lazy(() => import('@/pages/customer/AssistantPage'))
 
 // Admin order management
 const OrderManagementPage = lazy(() => import('@/pages/admin/OrderManagementPage'))
+const MyPromotionsPage  = lazy(() => import('@/pages/customer/MyPromotionsPage'))
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -139,7 +143,9 @@ export const appRoutes: RouteObject[] = [
         { path: 'checkout',    element: customerOnly(CheckoutPage) },
         { path: 'orders',      element: customerOnly(OrdersPage) },
         { path: 'orders/:id',  element: customerOnly(OrderDetailPage) },
+        { path: 'assistant',   element: customerOnly(AssistantPage) },
         { path: 'customer-settings', element: customerOnly(CustomerSettings) },
+        { path: 'my-promotions',     element: page(MyPromotionsPage) },
       ],
     }],
   },
