@@ -15,6 +15,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Target,
+  Award,
   ShoppingBag
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -56,6 +57,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
     : [
         // Customer navigation
         { name: t('nav.dashboard'), href: PATHS.DASHBOARD, icon: LayoutDashboard },
+        { name: t('nav.myloyalty'), href: PATHS.CUSTOMER_LOYALTY, icon: Award },
         { name: t('nav.settings'), href: PATHS.CUSTOMER_SETTINGS, icon: Settings },
       ]
 
