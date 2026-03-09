@@ -26,6 +26,7 @@ export const PATHS = {
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
+  CUSTOMER_LOYALTY:   '/customer-loyalty'
 } as const
 
 // ── Pages (lazy-loaded) ───────────────────────────────────────────────
@@ -45,6 +46,7 @@ const LoyaltyPage       = lazy(() => import('@/pages/admin/LoyaltyPage'))
 const VoicePage         = lazy(() => import('@/pages/admin/VoicePage'))
 const SettingsPage      = lazy(() => import('@/pages/admin/SettingsPage'))
 const PromotionsPage    = lazy(() => import('@/pages/admin/PromotionsPage'))
+const CustomerLoyalty    = lazy(() => import('@/pages/customer/CustomerLoyalty'))
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -112,6 +114,7 @@ export const appRoutes: RouteObject[] = [
         { path: 'admin-settings',    element: adminOnly(SettingsPage) },
 
         // Customer
+        { path: 'customer-loyalty', element: customerOnly(CustomerLoyalty) },
         { path: 'customer-settings', element: customerOnly(CustomerSettings) },
       ],
     }],

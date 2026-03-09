@@ -67,7 +67,8 @@
     "voice": "Voice Assistant",
     "admin": "Admin Panel",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "myloyalty": "My Loyalty"
   },
   "dashboard": {
     "title": "Dashboard Overview",
@@ -218,6 +219,23 @@
     "thisMonth": "This Month",
     "avgPerOrder": "Avg. Per Order",
     "savedWithCoupons": "Saved with Coupons"
+  },
+  "loyalty": {
+    "title": "My Loyalty",
+    "welcomeMessage": "Hello, here is your loyalty overview.",
+    "totalPurchases": "Total Purchases",
+    "totalSpent": "Total Spent",
+    "currentTier": "Current Tier",
+    "memberSince": "Member Since",
+    "yourTier": "Your Loyalty Tier",
+    "behaviorMetrics": "Behavior Metrics",
+    "behaviorMetricsDesc": "Your engagement and shopping behavior analysis",
+    "customerSegment": "Customer Segment",
+    "customerSegmentDesc": "Your dynamic customer segment based on shopping patterns",
+    "nextTier": "Next Tier",
+    "nextTierDesc": "Unlock more rewards by reaching the next tier",
+    "membershipInfo": "Membership Information",
+    "lastPurchase": "Last Purchase"
   },
   "customerSettings": {
     "title": "Settings",
