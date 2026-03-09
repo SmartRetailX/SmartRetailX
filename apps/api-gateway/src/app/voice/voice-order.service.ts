@@ -142,6 +142,17 @@ export class VoiceOrderService implements VoiceCapability {
     return await this.fetchLatestOrder(userId);
   }
 
+  async getRecentOrdersForUser(userId: string, maxOrders = 3): Promise<OrderDetail[]> {
+    const safeMax = Number.isFinite(maxOrders) ? Math.max(1, Math.min(Math.floor(maxOrders), 10)) : 3;
+    const { orders } = await this.fetchAllOrders(userId, safeMax);
+    if (!orders.length) {
+      return [];
+    }
+
+    const details = await Promise.all(orders.map((order) => this.fetchOrderById(userId, order.id)));
+    return details.filter((detail): detail is OrderDetail => Boolean(detail));
+  }
+
   private async fetchLatestOrderSummary(userId: string): Promise<OrderListItem | null> {
     const list = await this.fetchOrders(userId, 1, 1);
     return list?.data?.orders?.[0] ?? null;

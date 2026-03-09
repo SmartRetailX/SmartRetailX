@@ -11,6 +11,14 @@ import { VoiceOrderService } from './voice-order.service';
 import { VoiceProductService } from './voice-product.service';
 import { type CatalogSearchRaw } from './voice.types';
 
+type RecommendationSeedItem = {
+  productId: string;
+  productName: string;
+  productNameSi: string | null;
+  totalQuantity: number;
+  orderHits: number;
+};
+
 @Injectable()
 export class VoiceRecommendationService implements VoiceCapability {
   readonly id = 'recommendation';
@@ -58,48 +66,44 @@ export class VoiceRecommendationService implements VoiceCapability {
   }
 
   private async buildRecommendationsFromLastOrder(userId: string): Promise<string | null> {
-    const lastOrder = await this.voiceOrderService.getLatestOrderForUser(userId);
-    if (!lastOrder || !Array.isArray(lastOrder.items) || lastOrder.items.length === 0) {
+    const recentOrders = await this.voiceOrderService.getRecentOrdersForUser(userId, 4);
+    if (!recentOrders.length) {
       return 'නිර්දේශ ලබා දීමට ඔබගේ පෙර ඇණවුම් දත්ත හමු නොවුණා.';
     }
 
-    const topItems = [...lastOrder.items].sort((a, b) => b.quantity - a.quantity).slice(0, 4);
+    const latestOrder = recentOrders[0];
+    const aggregatedItems = this.aggregateRecentOrderItems(recentOrders);
+    if (!aggregatedItems.length) {
+      return 'නිර්දේශ ලබා දීමට ඔබගේ පෙර ඇණවුම් දත්ත හමු නොවුණා.';
+    }
 
-    const suggestions = await Promise.all(
-      topItems.map(async (item) => {
-        const searchTerm = (item.productNameSi || item.productName || '').trim();
-        if (!searchTerm) {
-          return null;
-        }
+    const topItems = aggregatedItems.slice(0, 12);
 
-        const catalog = await this.voiceProductService.searchCatalog(searchTerm, 4);
-        if (!catalog?.success || !Array.isArray(catalog.matches) || catalog.matches.length === 0) {
-          return null;
-        }
+    const recentProducts = await this.resolveRecentOrderProducts(topItems);
+    const productLines = recentProducts.map((product) => this.formatRecommendationLine(product)).slice(0, 5);
 
-        const best = catalog.matches.find((m) => m.productId === item.productId) || catalog.matches[0];
-        if (!best) {
-          return null;
-        }
-
-        return this.formatRecommendationLine(best);
-      }),
+    const pickedProductIds = new Set(recentProducts.map((product) => product.productId));
+    const categoryLines = await this.buildCategoryExpansionLines(recentProducts, pickedProductIds, 6);
+    const offerLines = await this.buildOfferRecommendationLines(
+      topItems.map((item) => item.productNameSi || item.productName || ''),
+      recentProducts,
     );
 
-    const lines = suggestions.filter((line): line is string => Boolean(line)).slice(0, 5);
-    const offerLines = await this.buildOfferRecommendationLines(topItems.map((item) => item.productNameSi || item.productName || ''));
-
-    if (lines.length === 0 && offerLines.length === 0) {
+    if (productLines.length === 0 && categoryLines.length === 0 && offerLines.length === 0) {
       return 'ඔබගේ අවසන් ඇණවුම අනුව නිර්දේශ සකස් කළා, නමුත් දැනට ගැලපෙන stock items හමු නොවුණා.';
     }
 
     const sections = [
       '### ඔබට නිර්දේශිත ලැයිස්තුව',
-      `- **මූලාශ්‍රය:** ඔබගේ අවසන් ඇණවුම (${lastOrder.orderNumber})`,
+      `- **මූලාශ්‍රය:** ඔබගේ මෑත ඇණවුම් ${recentOrders.length} (${latestOrder?.orderNumber || 'N/A'} latest)`,
     ];
 
-    if (lines.length > 0) {
-      sections.push('### නැවත මිලදී ගත හැකි items', ...lines);
+    if (productLines.length > 0) {
+      sections.push('### නැවත මිලදී ගත හැකි items', ...productLines);
+    }
+
+    if (categoryLines.length > 0) {
+      sections.push('### කාණ්ඩය අනුව තවත් නිර්දේශ', ...categoryLines);
     }
 
     if (offerLines.length > 0) {
@@ -115,7 +119,130 @@ export class VoiceRecommendationService implements VoiceCapability {
     return `- **${this.voiceProductService.getDisplayName(product)}** - ${this.voiceProductService.formatPrice(product.price)} | ${this.voiceProductService.formatStockLabel(product.currentStock)}`;
   }
 
-  private async buildOfferRecommendationLines(lastOrderNames: string[]): Promise<string[]> {
+  private aggregateRecentOrderItems(
+    recentOrders: Array<{ items: Array<{ productId: string; productName: string; productNameSi: string | null; quantity: number }> }>,
+  ): RecommendationSeedItem[] {
+    const bucket = new Map<string, RecommendationSeedItem>();
+
+    for (const order of recentOrders) {
+      for (const item of order.items || []) {
+        const key = item.productId || normalizeCatalogQuery(item.productNameSi || item.productName || '');
+        if (!key) {
+          continue;
+        }
+
+        const existing = bucket.get(key);
+        if (!existing) {
+          bucket.set(key, {
+            productId: item.productId,
+            productName: item.productName,
+            productNameSi: item.productNameSi,
+            totalQuantity: Math.max(0, Number(item.quantity) || 0),
+            orderHits: 1,
+          });
+          continue;
+        }
+
+        existing.totalQuantity += Math.max(0, Number(item.quantity) || 0);
+        existing.orderHits += 1;
+      }
+    }
+
+    return Array.from(bucket.values()).sort((a, b) => {
+      if (b.orderHits !== a.orderHits) {
+        return b.orderHits - a.orderHits;
+      }
+      return b.totalQuantity - a.totalQuantity;
+    });
+  }
+
+  private async resolveRecentOrderProducts(
+    topItems: RecommendationSeedItem[],
+  ): Promise<CatalogSearchRaw[]> {
+    const matches = await Promise.all(
+      topItems.map(async (item) => {
+        const searchTerm = (item.productNameSi || item.productName || '').trim();
+        if (!searchTerm) {
+          return null;
+        }
+
+        const catalog = await this.voiceProductService.searchCatalog(searchTerm, 4);
+        if (!catalog?.success || !Array.isArray(catalog.matches) || catalog.matches.length === 0) {
+          return null;
+        }
+
+        return catalog.matches.find((match) => match.productId === item.productId) || catalog.matches[0] || null;
+      }),
+    );
+
+    const dedup = new Map<string, CatalogSearchRaw>();
+    for (const match of matches) {
+      if (!match) {
+        continue;
+      }
+      if (!dedup.has(match.productId)) {
+        dedup.set(match.productId, match);
+      }
+    }
+
+    return Array.from(dedup.values());
+  }
+
+  private async buildCategoryExpansionLines(
+    seedProducts: CatalogSearchRaw[],
+    excludeProductIds: Set<string>,
+    maxItems: number,
+  ): Promise<string[]> {
+    if (seedProducts.length === 0 || maxItems <= 0) {
+      return [];
+    }
+
+    const categories = this.extractRelevantCategories(seedProducts).slice(0, 8);
+    if (categories.length === 0) {
+      return [];
+    }
+
+    const expanded: CatalogSearchRaw[] = [];
+
+    for (const category of categories) {
+      const catalog = await this.voiceProductService.searchCatalog(category, 10);
+      if (!catalog?.success || !Array.isArray(catalog.matches) || catalog.matches.length === 0) {
+        continue;
+      }
+
+      for (const product of catalog.matches) {
+        if (expanded.length >= maxItems) {
+          break;
+        }
+
+        if (excludeProductIds.has(product.productId)) {
+          continue;
+        }
+
+        if (product.currentStock <= 0) {
+          continue;
+        }
+
+        if (!this.belongsToCategory(product, category)) {
+          continue;
+        }
+
+        expanded.push(product);
+        excludeProductIds.add(product.productId);
+      }
+
+      if (expanded.length >= maxItems) {
+        break;
+      }
+    }
+
+    return expanded.map((product) => {
+      const categoryLabel = (product.categorySi || product.category || 'N/A').trim();
+      return `- **${this.voiceProductService.getDisplayName(product)}** - ${this.voiceProductService.formatPrice(product.price)} | ${this.voiceProductService.formatStockLabel(product.currentStock)} | ${categoryLabel}`;
+    });
+  }
+
+  private async buildOfferRecommendationLines(lastOrderNames: string[], seedProducts: CatalogSearchRaw[]): Promise<string[]> {
     const offers = await this.voiceOfferService.getOfferCandidates(6);
     if (!offers || offers.length === 0) {
       return [];
@@ -126,7 +253,18 @@ export class VoiceRecommendationService implements VoiceCapability {
       return [];
     }
 
-    const related = activeOrUpcoming.filter((offer) => this.isOfferRelatedToRecentOrders(offer, lastOrderNames));
+    const relatedChecks = await Promise.all(
+      activeOrUpcoming.map(async (offer) => {
+        const relatedByName = this.isOfferRelatedToRecentOrders(offer, lastOrderNames);
+        if (relatedByName) {
+          return true;
+        }
+
+        return await this.isOfferRelatedToSeedCategories(offer, seedProducts);
+      }),
+    );
+
+    const related = activeOrUpcoming.filter((_, index) => relatedChecks[index]);
     const selected = (related.length > 0 ? related : activeOrUpcoming).slice(0, 3);
 
     return selected.map((offer) => {
@@ -137,6 +275,71 @@ export class VoiceRecommendationService implements VoiceCapability {
 
       return `- **${offerName}** - ${discount} | ${status}${validity}`;
     });
+  }
+
+  private async isOfferRelatedToSeedCategories(offer: ActivePromotionItem, seedProducts: CatalogSearchRaw[]): Promise<boolean> {
+    const categories = this.extractRelevantCategories(seedProducts);
+    if (categories.length === 0) {
+      return false;
+    }
+
+    const offerSearchTerm = (offer.productName || offer.productId || '').trim();
+    if (!offerSearchTerm) {
+      return false;
+    }
+
+    const catalog = await this.voiceProductService.searchCatalog(offerSearchTerm, 2);
+    if (!catalog?.success || !Array.isArray(catalog.matches) || catalog.matches.length === 0) {
+      return false;
+    }
+
+    const best = catalog.matches[0];
+    const offerCategory = normalizeCatalogQuery(best.categorySi || best.category || '');
+    if (!offerCategory) {
+      return false;
+    }
+
+    return categories.some((category) => {
+      const normalizedCategory = normalizeCatalogQuery(category);
+      return offerCategory.includes(normalizedCategory) || normalizedCategory.includes(offerCategory);
+    });
+  }
+
+  private extractRelevantCategories(products: CatalogSearchRaw[]): string[] {
+    const categories: string[] = [];
+
+    for (const product of products) {
+      const label = (product.categorySi || product.category || '').trim();
+      if (!label) {
+        continue;
+      }
+
+      const normalized = normalizeCatalogQuery(label);
+      if (!normalized) {
+        continue;
+      }
+
+      if (!categories.some((existing) => normalizeCatalogQuery(existing) === normalized)) {
+        categories.push(label);
+      }
+    }
+
+    return categories;
+  }
+
+  private belongsToCategory(product: CatalogSearchRaw, category: string): boolean {
+    const normalizedCategory = normalizeCatalogQuery(category);
+    if (!normalizedCategory) {
+      return false;
+    }
+
+    const fields = [product.categorySi || '', product.category || '', product.baseProductSi || '', product.baseProduct || '']
+      .map((value) => normalizeCatalogQuery(value))
+      .filter(Boolean);
+
+    return fields.some(
+      (field) => field.includes(normalizedCategory) || normalizedCategory.includes(field),
+    );
   }
 
   private isOfferRelatedToRecentOrders(offer: ActivePromotionItem, lastOrderNames: string[]): boolean {
