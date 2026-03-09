@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.database import save_campaign, get_campaigns, get_campaign_by_id
+from api.database import save_campaign, get_campaigns, get_campaign_by_id, save_customer_promotions
 
 router = APIRouter()
 
@@ -322,9 +322,14 @@ async def generate_campaign(request: GenerateCampaignRequest):
             costSavingsVsBroadcast=round(savings, 2),
         )
 
-        # Persist campaign to database
+        # Persist campaign to database and fan-out per-customer notifications
         try:
-            save_campaign(
+            campaign_id = save_campaign(
+                campaign_data=summary.model_dump(),
+                targets_list=[t.model_dump() for t in target_list],
+            )
+            save_customer_promotions(
+                campaign_id=campaign_id,
                 campaign_data=summary.model_dump(),
                 targets_list=[t.model_dump() for t in target_list],
             )
