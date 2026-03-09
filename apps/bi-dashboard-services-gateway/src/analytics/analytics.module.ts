@@ -1,6 +1,5 @@
 import { Controller, Get, Injectable, Module, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -40,9 +39,6 @@ class AnalyticsService {
     const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
 
     // Sales trend: daily revenue + order count
-    const storeFilter = query.storeId ? Prisma.sql`AND store_id = ${query.storeId}` : Prisma.empty;
-    const storeFilterSales = query.storeId ? Prisma.sql`AND s.store_id = ${query.storeId}` : Prisma.empty;
-
     const salesTrendRaw = await this.prisma.$queryRaw<{ date: string; revenue: number; orders: number }[]>`
       SELECT
         DATE(timestamp)::text AS date,
@@ -50,7 +46,6 @@ class AnalyticsService {
         COUNT(*)::int AS orders
       FROM bi_dashboard.sales
       WHERE timestamp >= ${since}
-      ${storeFilter}
       GROUP BY DATE(timestamp)
       ORDER BY DATE(timestamp) ASC
     `;
@@ -71,7 +66,6 @@ class AnalyticsService {
       JOIN bi_dashboard.products p ON p.id = si.product_id
       JOIN bi_dashboard.sales s ON s.id = si.sale_id
       WHERE s.timestamp >= ${since}
-      ${storeFilterSales}
       GROUP BY p.id, p.name
       ORDER BY revenue DESC
       LIMIT 5
@@ -115,13 +109,6 @@ class AnalyticsController {
       'Retrieve comprehensive business intelligence metrics including revenue, orders, alerts, forecast accuracy, customer retention, and inventory turnover with trend indicators.',
   })
   @ApiQuery({
-    name: 'storeId',
-    required: false,
-    type: String,
-    description: 'Filter by store ID',
-    example: 'S001',
-  })
-  @ApiQuery({
     name: 'period',
     required: false,
     enum: ['day', 'week', 'month', 'year'],
@@ -145,7 +132,7 @@ class AnalyticsController {
           },
           topProducts: [
             {
-              id: 'P0001',
+              id: 'PROD001',
               name: 'Basmati Rice 5kg',
               revenue: 125000.0,
               quantity: 850,

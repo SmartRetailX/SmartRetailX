@@ -10,7 +10,6 @@ export const alertKeys = {
 }
 
 interface AlertFilters {
-  storeId?: string
   severity?: string
   read?: boolean
 }

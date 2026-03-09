@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { TrendingUp, HelpCircle, Download, Maximize2 } from 'lucide-react'
 import { useForecast, useForecastExplanation } from '@/hooks/useForecasts'
 import { useProducts } from '@/hooks/useInventory'
-import { useStores } from '@/hooks/useStores'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -15,13 +14,11 @@ export default function ForecastingPage() {
   const { t, i18n } = useTranslation()
   const isSinhala = i18n.language === 'si'
   const [productId, setProductId] = useState('')
-  const [storeId, setStoreId] = useState('')
   const [showXAIModal, setShowXAIModal] = useState(false)
 
   const { data: productsData, isLoading: loadingProducts } = useProducts({})
-  const { data: stores, isLoading: loadingStores } = useStores({})
-  const { data: forecastData, isLoading, refetch } = useForecast({ productId, storeId, horizon: 30 })
-  const { data: explanation } = useForecastExplanation(productId, storeId)
+  const { data: forecastData, isLoading, refetch } = useForecast({ productId, horizon: 30 })
+  const { data: explanation } = useForecastExplanation(productId)
   
   const handleGenerateForecast = () => {
     refetch()
@@ -40,7 +37,7 @@ export default function ForecastingPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
               <Label>Product</Label>
               <Select value={productId} onValueChange={setProductId}>
@@ -58,27 +55,6 @@ export default function ForecastingPage() {
                     ))
                   ) : (
                     <SelectItem value="none" disabled>No products available</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Store</Label>
-              <Select value={storeId} onValueChange={setStoreId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a store" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadingStores ? (
-                    <SelectItem value="loading" disabled>Loading stores...</SelectItem>
-                  ) : stores && stores.length > 0 ? (
-                    stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.name} ({store.id})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>No stores available</SelectItem>
                   )}
                 </SelectContent>
               </Select>

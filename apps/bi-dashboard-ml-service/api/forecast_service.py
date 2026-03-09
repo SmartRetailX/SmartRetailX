@@ -114,27 +114,27 @@ class ForecastService:
         
         return model
     
-    def load_model(self, product_id: str, store_id: str):
+    def load_model(self, product_id: str):
         """Load pre-trained Prophet model from disk"""
-        model_file = f"{self.model_path}/{product_id}_{store_id}_prophet.pkl"
+        model_file = f"{self.model_path}/{product_id}_prophet.pkl"
         
         if os.path.exists(model_file):
             print(f"[LOAD] Loading pre-trained model: {model_file}")
             with open(model_file, 'rb') as f:
                 return pickle.load(f)
         else:
-            print(f"[WARN]  No pre-trained model found for {product_id}_{store_id}")
+            print(f"[WARN]  No pre-trained model found for {product_id}")
             return None
     
-    def save_model(self, model, product_id: str, store_id: str, model_type: str = 'prophet'):
+    def save_model(self, model, product_id: str, model_type: str = 'prophet'):
         """Save trained model to disk"""
-        filename = f"{self.model_path}/{product_id}_{store_id}_{model_type}.pkl"
+        filename = f"{self.model_path}/{product_id}_{model_type}.pkl"
         with open(filename, 'wb') as f:
             pickle.dump(model, f)
         print(f"[EMOJI] Saved {model_type} model: {filename}")
         return filename
     
-    def save_model_metadata(self, product_id: str, store_id: str, feature_names: list, drivers: List[Dict[str, Any]] = None, avg_price: float = None):
+    def save_model_metadata(self, product_id: str, feature_names: list, drivers: List[Dict[str, Any]] = None, avg_price: float = None):
         """Save feature names, drivers, and price for future predictions"""
         metadata = {
             'feature_names': feature_names,
@@ -142,14 +142,14 @@ class ForecastService:
             'avg_price': avg_price,
             'trained_at': datetime.now().isoformat()
         }
-        filename = f"{self.model_path}/{product_id}_{store_id}_metadata.pkl"
+        filename = f"{self.model_path}/{product_id}_metadata.pkl"
         with open(filename, 'wb') as f:
             pickle.dump(metadata, f)
         return filename
     
-    def load_xgboost_model(self, product_id: str, store_id: str):
+    def load_xgboost_model(self, product_id: str):
         """Load pre-trained XGBoost model from disk"""
-        model_file = f"{self.model_path}/{product_id}_{store_id}_xgboost.pkl"
+        model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
         
         if os.path.exists(model_file):
             print(f"[LOAD] Loading pre-trained XGBoost model: {model_file}")
@@ -157,9 +157,9 @@ class ForecastService:
                 return pickle.load(f)
         return None
     
-    def load_model_metadata(self, product_id: str, store_id: str) -> Dict[str, Any]:
+    def load_model_metadata(self, product_id: str) -> Dict[str, Any]:
         """Load saved metadata (drivers, price, feature names)"""
-        metadata_file = f"{self.model_path}/{product_id}_{store_id}_metadata.pkl"
+        metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
         
         if os.path.exists(metadata_file):
             with open(metadata_file, 'rb') as f:
@@ -173,21 +173,21 @@ class ForecastService:
             'trained_at': None
         }
     
-    async def predict(self, product_id: str, store_id: str, 
+    async def predict(self, product_id: str,
                      horizon: int = 30, lang: str = "en") -> Dict[str, Any]:
         """
         Generate forecast using PRE-TRAINED models (Prophet + XGBoost)
         Models should be trained via train_models.py script or /retrain endpoint
         """
         # Check cache first
-        model_key = f"{product_id}_{store_id}"
+        model_key = product_id
         
         # Try to load Prophet model (check cache, then disk)
         if model_key in self.prophet_models:
             prophet_model = self.prophet_models[model_key]
             print(f"[OK] Using cached Prophet model for {model_key}")
         else:
-            prophet_model = self.load_model(product_id, store_id)
+            prophet_model = self.load_model(product_id)
             if prophet_model:
                 self.prophet_models[model_key] = prophet_model
                 print(f"[OK] Loaded and cached Prophet model for {model_key}")
@@ -195,13 +195,13 @@ class ForecastService:
         # If no pre-trained model exists, fail with clear error message
         if prophet_model is None:
             raise FileNotFoundError(
-                f"[ERROR] No pre-trained model found for {product_id} in {store_id}.\n"
+                f"[ERROR] No pre-trained model found for {product_id}.\n"
                 f"Please run: cd ml-service && python train_models.py\n"
                 f"This will train all models from the Kaggle dataset."
             )
         
         # Load saved metadata (drivers, price) - NO CSV loading!
-        metadata = self.load_model_metadata(product_id, store_id)
+        metadata = self.load_model_metadata(product_id)
         
         # Generate Prophet forecast
         future = prophet_model.make_future_dataframe(periods=horizon)
@@ -236,7 +236,6 @@ class ForecastService:
         
         return {
             'productId': product_id,
-            'storeId': store_id,
             'modelType': 'Prophet',
             'confidence': 0.87,
             'generatedAt': datetime.now().isoformat(),
@@ -352,7 +351,7 @@ class ForecastService:
         # Return top 5 drivers
         return drivers[:5]
     
-    async def retrain(self, product_id: str = None, store_id: str = None) -> Dict[str, Any]:
+    async def retrain(self, product_id: str = None) -> Dict[str, Any]:
         """Retrain models - redirects to train_models.py"""
         return {
             'status': 'error',

@@ -1,3 +1,8 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -68,20 +73,11 @@ async function main() {
     const products = await prisma.product.deleteMany({});
     console.log(`   ✅ Deleted ${products.count} products`);
 
-    console.log('🗑️  Deleting user-store links...');
-    const userStores = await prisma.userStore.deleteMany({});
-    console.log(`   ✅ Deleted ${userStores.count} user-store links`);
-
-    console.log('🗑️  Deleting stores...');
-    const stores = await prisma.store.deleteMany({});
-    console.log(`   ✅ Deleted ${stores.count} stores`);
-
     console.log('\n' + '='.repeat(60));
     console.log('✅ Database cleanup completed successfully!');
     console.log('⚠️  Note: Better Auth tables (user, session, account, verification) are NOT cleaned');
     console.log('='.repeat(60));
     console.log('\n📊 Total records deleted:');
-    console.log(`   Stores: ${stores.count}`);
     console.log(`   Products: ${products.count}`);
     console.log(`   Customers: ${customers.count}`);
     console.log(`   Sales: ${sales.count}`);
@@ -94,13 +90,12 @@ async function main() {
     console.log(`   Promotion Products: ${promotionProducts.count}`);
     console.log(`   Audit Logs: ${auditLogs.count}`);
     console.log(`   Notifications: ${notifications.count}`);
-    console.log(`   User-Store Links: ${userStores.count}`);
     
-    const total = stores.count + products.count + customers.count + 
+    const total = products.count + customers.count + 
                   sales.count + saleItems.count + inventoryMovements.count + 
                   forecasts.count + forecastDrivers.count + alerts.count + 
                   promotions.count + promotionProducts.count + auditLogs.count + 
-                  notifications.count + userStores.count;
+                  notifications.count;
     
     console.log(`\n   TOTAL: ${total} records deleted`);
     console.log('\n💡 To add fresh data, run: npm run prisma:seed');

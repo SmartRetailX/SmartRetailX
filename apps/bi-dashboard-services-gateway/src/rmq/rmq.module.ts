@@ -7,7 +7,6 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { ProductsModule } from '../products/products.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { SalesModule } from '../sales/sales.module';
-import { StoresModule } from '../stores/stores.module';
 import { VoiceModule } from '../voice/voice.module';
 import { XaiModule } from '../xai/xai.module';
 import { RmqController } from './rmq.controller';
@@ -25,7 +24,6 @@ import { RmqController } from './rmq.controller';
     AlertsModule,
     PromotionsModule,
     InventoryModule,
-    StoresModule,
     AnalyticsModule,
     ForecastsModule,
     XaiModule,

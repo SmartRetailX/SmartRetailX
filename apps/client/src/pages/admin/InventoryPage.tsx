@@ -16,11 +16,10 @@ export default function InventoryPage() {
   const [filters, setFilters] = useState({
     status: undefined,
     category: undefined,
-    storeId: undefined
   })
 
   const { data: productsData, isLoading } = useProducts({ search, ...filters })
-  const { data: inventoryStatus } = useInventoryStatus(filters.storeId)
+  const { data: inventoryStatus } = useInventoryStatus()
 
   return (
     <div className="space-y-6">

@@ -41,23 +41,22 @@ class ModelTrainer:
         
         print(f"   [OK] Loaded {len(df)} rows")
         print(f"   [EMOJI] Date range: {df['date'].min()} to {df['date'].max()}")
-        print(f"   [EMOJI] Stores: {df['store_id'].nunique()}")
         print(f"   [EMOJI] Products: {df['product_id'].nunique()}")
+        print(f"   [EMOJI] (Training per-product, aggregated across all stores)")
         
         self.kaggle_data = df
         return df
     
-    def get_products_and_stores(self):
-        """Get all product-store combinations from Kaggle dataset"""
-        combinations = self.kaggle_data[['product_id', 'store_id']].drop_duplicates()
-        return combinations.to_dict('records')
+    def get_products(self):
+        """Get all unique products from Kaggle dataset (aggregated across all stores)"""
+        products = self.kaggle_data['product_id'].drop_duplicates()
+        return products.tolist()
     
-    def fetch_sales_data(self, product_id: str, store_id: str):
-        """Get sales data for specific product-store from Kaggle dataset"""
+    def fetch_sales_data(self, product_id: str):
+        """Get sales data for specific product, aggregated across all stores"""
         df_daily = self.processor.aggregate_daily(
             self.kaggle_data, 
-            product_id, 
-            store_id
+            product_id
         )
         return df_daily
     
@@ -124,14 +123,14 @@ class ModelTrainer:
         
         return model, available_features
     
-    def save_model(self, model, product_id: str, store_id: str, model_type: str = 'prophet'):
+    def save_model(self, model, product_id: str, model_type: str = 'prophet'):
         """Save trained model to disk"""
-        filename = f"{self.model_path}/{product_id}_{store_id}_{model_type}.pkl"
+        filename = f"{self.model_path}/{product_id}_{model_type}.pkl"
         with open(filename, 'wb') as f:
             pickle.dump(model, f)
         return filename
     
-    def save_metadata(self, product_id: str, store_id: str, feature_names: list, drivers: list = None, avg_price: float = None, sample_data: pd.DataFrame = None):
+    def save_metadata(self, product_id: str, feature_names: list, drivers: list = None, avg_price: float = None, sample_data: pd.DataFrame = None):
         """Save model metadata (feature names, drivers, price, sample data for SHAP)"""
         metadata = {
             'feature_names': feature_names,
@@ -140,7 +139,7 @@ class ModelTrainer:
             'sample_data': sample_data.to_dict('records') if sample_data is not None else None,
             'trained_at': datetime.now().isoformat()
         }
-        filename = f"{self.model_path}/{product_id}_{store_id}_metadata.pkl"
+        filename = f"{self.model_path}/{product_id}_metadata.pkl"
         with open(filename, 'wb') as f:
             pickle.dump(metadata, f)
         return filename
@@ -207,29 +206,26 @@ class ModelTrainer:
         return drivers[:5]  # Top 5 drivers
     
     def train_all_models(self):
-        """Train models for all product-store combinations"""
+        """Train models for all products (aggregated across all stores)"""
         print("\n[EMOJI] Starting Model Training...")
         print("=" * 60)
         
         # Load Kaggle dataset
         self.load_kaggle_dataset()
         
-        # Get all product-store combinations
-        combinations = self.get_products_and_stores()
-        print(f"\n[DATA] Found {len(combinations)} product-store combinations")
+        # Get all unique products
+        products = self.get_products()
+        print(f"\n[DATA] Found {len(products)} unique products (training aggregated across all stores)")
         
         trained_count = 0
         skipped_count = 0
         
-        for combo in combinations:
-            product_id = combo['product_id']
-            store_id = combo['store_id']
-            
+        for product_id in products:
             try:
-                print(f"\n[EMOJI] Training: {product_id} in {store_id}...")
+                print(f"\n[EMOJI] Training: {product_id} (all stores aggregated)...")
                 
-                # Fetch sales data
-                sales_data = self.fetch_sales_data(product_id, store_id)
+                # Fetch sales data aggregated across all stores
+                sales_data = self.fetch_sales_data(product_id)
                 
                 if len(sales_data) < 30:
                     print(f"   [WARN]  Skipped: Only {len(sales_data)} days of data (need at least 30 for feature engineering)")
@@ -241,13 +237,13 @@ class ModelTrainer:
                 # 1. Train Prophet model
                 prophet_data = self.prepare_prophet_data(sales_data)
                 prophet_model = self.train_prophet_model(prophet_data)
-                prophet_file = self.save_model(prophet_model, product_id, store_id, 'prophet')
+                prophet_file = self.save_model(prophet_model, product_id, 'prophet')
                 print(f"   [OK] Prophet model saved: {prophet_file}")
                 
                 # 2. Train XGBoost model for XAI (and engineer features)
                 df_engineered = self.processor.engineer_features(sales_data)
                 xgb_model, feature_names = self.train_xgboost_model(sales_data)
-                xgb_file = self.save_model(xgb_model, product_id, store_id, 'xgboost')
+                xgb_file = self.save_model(xgb_model, product_id, 'xgboost')
                 print(f"   [OK] XGBoost model saved: {xgb_file}")
                 
                 # 3. Calculate drivers and average price
@@ -259,7 +255,7 @@ class ModelTrainer:
                 sample_data = df_engineered[feature_names].tail(30)
                 
                 # 5. Save metadata with drivers, price, and sample data
-                meta_file = self.save_metadata(product_id, store_id, feature_names, drivers, avg_price, sample_data)
+                meta_file = self.save_metadata(product_id, feature_names, drivers, avg_price, sample_data)
                 print(f"   [OK] Metadata saved: {meta_file}")
                 print(f"   [DATA] Drivers: {len(drivers)}, Avg Price: ${avg_price:.2f}, Sample rows: {len(sample_data)}")
                 
@@ -267,7 +263,7 @@ class ModelTrainer:
                 
             except Exception as e:
                 import traceback
-                print(f"   [ERROR] Error training {product_id}_{store_id}: {e}")
+                print(f"   [ERROR] Error training {product_id}: {e}")
                 print(f"   {traceback.format_exc()}")
                 skipped_count += 1
         

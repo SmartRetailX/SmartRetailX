@@ -1,11 +1,12 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@smart-retail-x/config';
 import axios from 'axios';
 
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class AlertsService {
+export class AlertsService implements OnModuleInit {
+  private readonly logger = new Logger(AlertsService.name);
   private mlServiceUrl: string;
 
   constructor(
@@ -15,13 +16,25 @@ export class AlertsService {
     this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL') || 'http://localhost:8000';
   }
 
+  async onModuleInit() {
+    // Wait for ML service to be ready before generating alerts on startup
+    setTimeout(async () => {
+      try {
+        this.logger.log('Auto-generating alerts on startup...');
+        await this.generateAlerts();
+        this.logger.log('Startup alert generation complete.');
+      } catch (error) {
+        this.logger.warn(`Startup alert generation failed (will retry on next manual trigger): ${error.message}`);
+      }
+    }, 10000); // 10s delay to allow ML service to start
+  }
+
   async getAlerts(query: any) {
-    const { storeId, type, urgency, status } = query;
+    const { type, urgency, status } = query;
     const where: any = {
       status: 'PENDING', // Default: only show pending alerts
     };
 
-    if (storeId && storeId !== 'undefined') where.storeId = storeId;
     if (type && type !== 'undefined') where.type = type.toUpperCase();
     if (urgency && urgency !== 'undefined') where.urgency = urgency.toUpperCase();
     if (status && status !== 'undefined') where.status = status.toUpperCase(); // Allow override
@@ -35,12 +48,6 @@ export class AlertsService {
             name: true,
             nameSi: true,
             currentStock: true,
-          },
-        },
-        store: {
-          select: {
-            id: true,
-            name: true,
           },
         },
       },
@@ -57,8 +64,6 @@ export class AlertsService {
           productId: a.productId,
           productName: a.product?.name,
           productNameSi: a.product?.nameSi,
-          storeId: a.storeId,
-          storeName: a.store.name,
           currentStock: a.currentStock,
           recommendedQuantity: a.recommendedQuantity,
           reason: a.reason,
@@ -107,20 +112,20 @@ export class AlertsService {
    * Generate alerts by calling ML service to analyze inventory
    * This syncs AI-generated alerts into the database
    */
-  async generateAlerts(storeId?: string) {
+  async generateAlerts() {
     try {
-      console.log(`🤖 Calling ML service to generate alerts for store: ${storeId || 'all'}`);
+      console.log('🤖 Calling ML service to generate alerts...');
 
       // Call ML service to analyze inventory and generate alerts
-      const url = `${this.mlServiceUrl}/api/v1/alerts/generate${storeId ? `?store_id=${storeId}` : ''}`;
+      const url = `${this.mlServiceUrl}/api/v1/alerts/generate`;
       const response = await axios.post(url);
 
       const { alerts, alertsGenerated } = response.data.data;
 
       console.log(`📊 ML service generated ${alertsGenerated} alerts`);
 
-      // Get all currently active product/store combos from new alerts
-      const activeProductStores = new Set(alerts.map((a) => `${a.productId}_${a.storeId}`));
+      // Get all currently active product combos from new alerts
+      const activeProducts = new Set(alerts.map((a) => a.productId));
 
       // Auto-dismiss old PENDING alerts that are no longer critical
       const dismissedAlerts = await this.prisma.alert.updateMany({
@@ -130,7 +135,6 @@ export class AlertsService {
           NOT: {
             OR: alerts.map((a) => ({
               productId: a.productId,
-              storeId: a.storeId,
             })),
           },
         },
@@ -147,11 +151,10 @@ export class AlertsService {
       // Sync alerts to database
       const savedAlerts = [];
       for (const alertData of alerts) {
-        // Check if alert already exists for this product/store
+        // Check if alert already exists for this product
         const existing = await this.prisma.alert.findFirst({
           where: {
             productId: alertData.productId,
-            storeId: alertData.storeId,
             status: 'PENDING',
           },
         });
@@ -179,7 +182,6 @@ export class AlertsService {
               type: alertData.type,
               urgency: alertData.urgency,
               productId: alertData.productId,
-              storeId: alertData.storeId,
               currentStock: alertData.currentStock,
               recommendedQuantity: alertData.recommendedQuantity,
               reason: alertData.reason,
@@ -203,7 +205,6 @@ export class AlertsService {
             type: a.type,
             urgency: a.urgency,
             productId: a.productId,
-            storeId: a.storeId,
             currentStock: a.currentStock,
             recommendedQuantity: a.recommendedQuantity,
             reason: a.reason,

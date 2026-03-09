@@ -7,10 +7,9 @@ export class PromotionsService {
   constructor(private prisma: PrismaService) {}
 
   async getPromotions(query: any) {
-    const { storeId, status } = query;
+    const { status } = query;
     const where: any = {};
 
-    if (storeId && storeId !== 'undefined') where.storeId = storeId;
     if (status && status !== 'undefined') {
       where.status = status.toUpperCase();
     } else {
@@ -34,7 +33,6 @@ export class PromotionsService {
           descriptionSi: '',
           type: 'PERCENTAGE',
           discountValue: p.discount,
-          storeId: p.storeId,
           startDate: p.startDate.toISOString().split('T')[0],
           endDate: p.endDate.toISOString().split('T')[0],
           status: p.status,
@@ -67,7 +65,6 @@ export class PromotionsService {
         descriptionSi: '',
         type: 'PERCENTAGE',
         discountValue: promotion.discount,
-        storeId: promotion.storeId,
         startDate: promotion.startDate.toISOString().split('T')[0],
         endDate: promotion.endDate.toISOString().split('T')[0],
         status: promotion.status,
@@ -90,7 +87,6 @@ export class PromotionsService {
         name: createPromotionDto.name,
         nameSi: createPromotionDto.nameSi,
         discount: createPromotionDto.discountValue,
-        storeId: createPromotionDto.storeId,
         startDate: new Date(createPromotionDto.startDate),
         endDate: new Date(createPromotionDto.endDate),
         status: new Date(createPromotionDto.startDate) > new Date() ? 'SCHEDULED' : 'ACTIVE',

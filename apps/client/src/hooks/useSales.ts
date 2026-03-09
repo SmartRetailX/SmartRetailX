@@ -19,7 +19,6 @@ export const salesKeys = {
 interface SalesFilters {
   startDate?: string
   endDate?: string
-  storeId?: string
   page?: number
   limit?: number
 }
@@ -27,7 +26,6 @@ interface SalesFilters {
 interface AggregateFilters {
   startDate: string
   endDate: string
-  storeId?: string
 }
 
 // Get sales transactions
@@ -62,7 +60,6 @@ export function useSalesAggregate(filters?: Partial<AggregateFilters>) {
   const params: AggregateFilters = {
     startDate: filters?.startDate || defaultDates.startDate,
     endDate: filters?.endDate || defaultDates.endDate,
-    storeId: filters?.storeId
   }
   
   return useQuery({

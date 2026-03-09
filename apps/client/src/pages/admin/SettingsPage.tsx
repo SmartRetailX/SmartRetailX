@@ -16,7 +16,6 @@ function AdminPanelContent() {
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
           <TabsTrigger value="users">{t('admin.users')}</TabsTrigger>
-          <TabsTrigger value="stores">{t('admin.stores')}</TabsTrigger>
           <TabsTrigger value="audit">{t('admin.audit')}</TabsTrigger>
           <TabsTrigger value="settings">{t('admin.settings')}</TabsTrigger>
         </TabsList>
@@ -28,17 +27,6 @@ function AdminPanelContent() {
             </CardHeader>
             <CardContent>
               <p className="text-gray-500">User management functionality</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="stores">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('admin.stores')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500">Store management functionality</p>
             </CardContent>
           </Card>
         </TabsContent>

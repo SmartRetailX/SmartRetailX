@@ -13,76 +13,36 @@ async function main() {
   console.log('ℹ️  Note: User authentication is handled by Better Auth');
   console.log('ℹ️  Create users via /api/auth/sign-up/email endpoint\n');
 
-  // Create Stores
-  const stores = await Promise.all([
-    prisma.store.upsert({
-      where: { id: 'S001' },
-      update: {},
-      create: {
-        id: 'S001',
-        name: 'Colombo Central',
-        nameSi: 'කොළඹ මධ්‍යම',
-        address: '123 Main Street, Colombo 01',
-        city: 'Colombo',
-        phone: '+94112345678',
-        manager: 'John Perera',
-        openingHours: '08:00-20:00',
-        latitude: 6.9271,
-        longitude: 79.8612,
-        active: true,
-      },
-    }),
-    prisma.store.upsert({
-      where: { id: 'S002' },
-      update: {},
-      create: {
-        id: 'S002',
-        name: 'Galle Fort',
-        nameSi: 'ගාල්ල කොටුව',
-        address: '456 Fort Road, Galle',
-        city: 'Galle',
-        phone: '+94912234567',
-        manager: 'Priya Fernando',
-        openingHours: '09:00-19:00',
-        latitude: 6.0328,
-        longitude: 80.217,
-        active: true,
-      },
-    }),
-  ]);
-  console.log(`✅ ${stores.length} stores created`);
-
   // Create Products (20 products matching Kaggle dataset)
-  // Stock levels adjusted to trigger alerts:
-  // - P0002: Stock 8, Reorder 22 (HIGH urgency - way below reorder)
-  // - P0005: Stock 15, Reorder 28 (MEDIUM urgency - below reorder)
-  // - P0009: Stock 25, Reorder 36 (LOW urgency - approaching reorder)
+  // Stock scaled to match ML model training data (~136 units/day avg demand).
+  // Reorder level = ~1.5 days supply. Healthy stock = 3–5 days supply (~400–700 units).
+  // PROD002, PROD005, PROD009 intentionally below reorder to generate realistic alerts.
   const productData = [
-    { sku: 'GRO-P0001', name: 'Basmati Rice 5kg', nameSi: 'බාස්මති සහල් 5kg', category: 'Groceries', categorySi: 'ආහාර', price: 54.55, cost: 40.91, stock: 50, reorder: 20, max: 200, storeId: 'S001' },
-    { sku: 'TOY-P0002', name: 'Building Blocks Set', nameSi: 'ගොඩනැගීමේ කුට්ටි කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.27, cost: 41.45, stock: 8, reorder: 22, max: 210, storeId: 'S001' },
-    { sku: 'TOY-P0003', name: 'Remote Control Car', nameSi: 'දුරස්ථ පාලන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.89, cost: 41.17, stock: 60, reorder: 24, max: 220, storeId: 'S002' },
-    { sku: 'TOY-P0004', name: 'Board Game Set', nameSi: 'මේස ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.54, cost: 41.66, stock: 65, reorder: 26, max: 230, storeId: 'S002' },
-    { sku: 'ELE-P0005', name: 'Bluetooth Speaker', nameSi: 'බ්ලූටූත් ශබ්ද විකාශක', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.02, cost: 41.27, stock: 15, reorder: 28, max: 240, storeId: 'S001' },
-    { sku: 'GRO-P0006', name: 'Fresh Milk 1L', nameSi: 'නැවුම් කිරි 1L', category: 'Groceries', categorySi: 'ආහාර', price: 54.77, cost: 41.08, stock: 75, reorder: 30, max: 250, storeId: 'S001' },
-    { sku: 'FUR-P0007', name: 'Office Chair', nameSi: 'කාර්යාල පුටුව', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 54.92, cost: 41.19, stock: 80, reorder: 32, max: 260, storeId: 'S002' },
-    { sku: 'CLO-P0008', name: 'Cotton T-Shirt', nameSi: 'කපු ටී ෂර්ට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.35, cost: 41.51, stock: 85, reorder: 34, max: 270, storeId: 'S002' },
-    { sku: 'ELE-P0009', name: 'Wireless Mouse', nameSi: 'රැහැන් රහිත මූසිකය', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.16, cost: 41.37, stock: 25, reorder: 36, max: 280, storeId: 'S001' },
-    { sku: 'TOY-P0010', name: 'Action Figure Toy', nameSi: 'ක්‍රියාදාමී රූපයන්', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.36, cost: 41.52, stock: 95, reorder: 38, max: 290, storeId: 'S001' },
-    { sku: 'FUR-P0011', name: 'Study Desk', nameSi: 'අධ්‍යයන මේසය', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 56.43, cost: 42.32, stock: 100, reorder: 40, max: 300, storeId: 'S002' },
-    { sku: 'CLO-P0012', name: 'Denim Jeans', nameSi: 'ඩෙනිම් ජීන්ස්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.96, cost: 41.22, stock: 105, reorder: 42, max: 310, storeId: 'S002' },
-    { sku: 'TOY-P0013', name: 'Puzzle Game Set', nameSi: 'ප්‍රහේලිකා ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.06, cost: 41.3, stock: 110, reorder: 44, max: 320, storeId: 'S001' },
-    { sku: 'CLO-P0014', name: 'Sports Jacket', nameSi: 'ක්‍රීඩා ජැකට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.76, cost: 41.82, stock: 115, reorder: 46, max: 330, storeId: 'S001' },
-    { sku: 'CLO-P0015', name: 'Running Shoes', nameSi: 'ධාවන සපත්තු', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.77, cost: 41.08, stock: 120, reorder: 48, max: 340, storeId: 'S002' },
-    { sku: 'ELE-P0016', name: 'USB Flash Drive 32GB', nameSi: 'යූඑස්බී ෆ්ලෑෂ් ඩ්‍රයිව් 32GB', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 54.83, cost: 41.12, stock: 125, reorder: 50, max: 350, storeId: 'S002' },
-    { sku: 'TOY-P0017', name: 'Toy Racing Car', nameSi: 'සෙල්ලම් ධාවන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.65, cost: 40.99, stock: 130, reorder: 52, max: 360, storeId: 'S001' },
-    { sku: 'CLO-P0018', name: 'Casual Shirt', nameSi: 'සාමාන්‍ය කමිසය', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.82, cost: 41.12, stock: 135, reorder: 54, max: 370, storeId: 'S001' },
-    { sku: 'CLO-P0019', name: 'Formal Trousers', nameSi: 'විධිමත් කලිසම', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.08, cost: 41.31, stock: 140, reorder: 56, max: 380, storeId: 'S002' },
-    { sku: 'TOY-P0020', name: 'Educational Board Game', nameSi: 'අධ්‍යාපනික මේස ක්‍රීඩාව', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.52, cost: 41.64, stock: 145, reorder: 58, max: 390, storeId: 'S002' },
+    { sku: 'GRO-PROD001', name: 'Basmati Rice 5kg', nameSi: 'බාස්මති සහල් 5kg', category: 'Groceries', categorySi: 'ආහාර', price: 54.55, cost: 40.91, stock: 420, reorder: 180, max: 900 },
+    { sku: 'TOY-PROD002', name: 'Building Blocks Set', nameSi: 'ගොඩනැගීමේ කුට්ටි කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.27, cost: 41.45, stock: 85, reorder: 180, max: 900 },
+    { sku: 'TOY-PROD003', name: 'Remote Control Car', nameSi: 'දුරස්ථ පාලන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.89, cost: 41.17, stock: 510, reorder: 200, max: 950 },
+    { sku: 'TOY-PROD004', name: 'Board Game Set', nameSi: 'මේස ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.54, cost: 41.66, stock: 480, reorder: 190, max: 900 },
+    { sku: 'ELE-PROD005', name: 'Bluetooth Speaker', nameSi: 'බ්ලූටූත් ශබ්ද විකාශක', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.02, cost: 41.27, stock: 110, reorder: 200, max: 900 },
+    { sku: 'GRO-PROD006', name: 'Fresh Milk 1L', nameSi: 'නැවුම් කිරි 1L', category: 'Groceries', categorySi: 'ආහාර', price: 54.77, cost: 41.08, stock: 650, reorder: 220, max: 1000 },
+    { sku: 'FUR-PROD007', name: 'Office Chair', nameSi: 'කාර්යාල පුටුව', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 54.92, cost: 41.19, stock: 390, reorder: 170, max: 850 },
+    { sku: 'CLO-PROD008', name: 'Cotton T-Shirt', nameSi: 'කපු ටී ෂර්ට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.35, cost: 41.51, stock: 560, reorder: 210, max: 950 },
+    { sku: 'ELE-PROD009', name: 'Wireless Mouse', nameSi: 'රැහැන් රහිත මූසිකය', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.16, cost: 41.37, stock: 140, reorder: 190, max: 900 },
+    { sku: 'TOY-PROD010', name: 'Action Figure Toy', nameSi: 'ක්‍රියාදාමී රූපයන්', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.36, cost: 41.52, stock: 470, reorder: 185, max: 900 },
+    { sku: 'FUR-PROD011', name: 'Study Desk', nameSi: 'අධ්‍යයන මේසය', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 56.43, cost: 42.32, stock: 430, reorder: 175, max: 850 },
+    { sku: 'CLO-PROD012', name: 'Denim Jeans', nameSi: 'ඩෙනිම් ජීන්ස්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.96, cost: 41.22, stock: 500, reorder: 195, max: 950 },
+    { sku: 'TOY-PROD013', name: 'Puzzle Game Set', nameSi: 'ප්‍රහේලිකා ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.06, cost: 41.3, stock: 540, reorder: 200, max: 950 },
+    { sku: 'CLO-PROD014', name: 'Sports Jacket', nameSi: 'ක්‍රීඩා ජැකට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.76, cost: 41.82, stock: 460, reorder: 180, max: 900 },
+    { sku: 'CLO-PROD015', name: 'Running Shoes', nameSi: 'ධාවන සපත්තු', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.77, cost: 41.08, stock: 610, reorder: 210, max: 1000 },
+    { sku: 'ELE-PROD016', name: 'USB Flash Drive 32GB', nameSi: 'යූඑස්බී ෆ්ලෑෂ් ඩ්‍රයිව් 32GB', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 54.83, cost: 41.12, stock: 490, reorder: 195, max: 950 },
+    { sku: 'TOY-PROD017', name: 'Toy Racing Car', nameSi: 'සෙල්ලම් ධාවන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.65, cost: 40.99, stock: 520, reorder: 200, max: 950 },
+    { sku: 'CLO-PROD018', name: 'Casual Shirt', nameSi: 'සාමාන්‍ය කමිසය', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.82, cost: 41.12, stock: 440, reorder: 175, max: 900 },
+    { sku: 'CLO-PROD019', name: 'Formal Trousers', nameSi: 'විධිමත් කලිසම', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.08, cost: 41.31, stock: 580, reorder: 215, max: 1000 },
+    { sku: 'TOY-PROD020', name: 'Educational Board Game', nameSi: 'අධ්‍යාපනික මේස ක්‍රීඩාව', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.52, cost: 41.64, stock: 530, reorder: 200, max: 950 },
   ];
 
   const products = await Promise.all(
     productData.map((p, idx) => {
-      const productId = `P${String(idx + 1).padStart(4, '0')}`;
+      const productId = `PROD${String(idx + 1).padStart(3, '0')}`;
       const productData = {
         sku: p.sku,
         barcode: `890${String(idx + 1).padStart(10, '0')}`,
@@ -92,7 +52,6 @@ async function main() {
         categorySi: p.categorySi,
         price: p.price,
         cost: p.cost,
-        storeId: p.storeId,
         currentStock: p.stock,
         reorderLevel: p.reorder,
         maxStock: p.max,
@@ -129,7 +88,6 @@ async function main() {
         name: c.name,
         email: c.email,
         phone: c.phone,
-        storeId: idx % 2 === 0 ? 'S001' : 'S002',
         segment: c.segment,
         rfmRecency: c.rfm[0],
         rfmFrequency: c.rfm[1],
@@ -150,28 +108,33 @@ async function main() {
   );
   console.log(`✅ ${customers.length} customers created/updated`);
 
-  // Create Sales transactions (90 days history for ML training)
+  // Create Sales transactions (30 days history)
   console.log('📊 Creating sales history...');
-  // Check if sales already exist
   const existingSalesCount = await prisma.sale.count();
   if (existingSalesCount > 0) {
     console.log(`⏭️  Skipping sales - ${existingSalesCount} transactions already exist`);
   } else {
-    const salesData = [];
-    for (let day = 0; day < 90; day++) {
-      const txCount = Math.floor(Math.random() * 15) + 10; // 10-25 transactions per day
+    // Build sale rows and item rows separately for batch inserts (2 queries instead of N)
+    const saleRows: any[] = [];
+    const itemRows: any[] = [];
+
+    for (let day = 0; day < 30; day++) {
+      const txCount = Math.floor(Math.random() * 5) + 3;
       for (let tx = 0; tx < txCount; tx++) {
         const timestamp = new Date(Date.now() - day * 24 * 60 * 60 * 1000 + Math.random() * 24 * 60 * 60 * 1000);
-        const itemCount = Math.floor(Math.random() * 3) + 1; // 1-3 items per transaction
+        const itemCount = Math.floor(Math.random() * 3) + 1;
+        const saleId = `SAL-${day}-${tx}-${Date.now()}`;
         let totalAmount = 0;
-        const items = [];
 
         for (let i = 0; i < itemCount; i++) {
           const product = products[Math.floor(Math.random() * products.length)];
           const quantity = Math.floor(Math.random() * 3) + 1;
           const revenue = product.price * quantity;
           const cost = product.cost * quantity;
-          items.push({
+          totalAmount += revenue;
+          itemRows.push({
+            id: `${saleId}-item-${i}`,
+            saleId,
             productId: product.id,
             quantity,
             unitPrice: product.price,
@@ -179,31 +142,26 @@ async function main() {
             cost,
             profit: revenue - cost,
           });
-          totalAmount += revenue;
         }
 
         const discount = Math.random() < 0.3 ? totalAmount * 0.1 : 0;
-        const txnNumber = (89 - day) * 100 + tx;
-        const storeId = Math.random() < 0.5 ? 'S001' : 'S002';
-        const storeCustomers = customers.filter(c => c.storeId === storeId);
-        salesData.push({
+        const txnNumber = (29 - day) * 100 + tx;
+        saleRows.push({
+          id: saleId,
           transactionId: `TXN-${new Date(timestamp).toISOString().split('T')[0]}-${String(txnNumber).padStart(6, '0')}`,
-          storeId,
-          customerId: Math.random() < 0.7 ? storeCustomers[Math.floor(Math.random() * storeCustomers.length)].id : null,
+          customerId: Math.random() < 0.7 ? customers[Math.floor(Math.random() * customers.length)].id : null,
           totalAmount,
           discount,
           finalAmount: totalAmount - discount,
-          paymentMethod: ['CASH', 'CARD', 'MOBILE'][Math.floor(Math.random() * 3)] as any,
+          paymentMethod: (['CASH', 'CARD', 'MOBILE'] as const)[Math.floor(Math.random() * 3)],
           timestamp,
-          items: { create: items },
         });
       }
     }
 
-    for (const saleData of salesData) {
-      await prisma.sale.create({ data: saleData });
-    }
-    console.log(`✅ ${salesData.length} sales transactions created`);
+    await prisma.sale.createMany({ data: saleRows });
+    await prisma.saleItem.createMany({ data: itemRows });
+    console.log(`✅ ${saleRows.length} sales transactions created (${itemRows.length} items)`);
   }
 
   // NOTE: Alerts are NOT seeded - they are generated dynamically by the ML service
@@ -214,7 +172,6 @@ async function main() {
   const promotionData = {
     name: 'Weekend Special',
     nameSi: 'සති අන්ත විශේෂය',
-    storeId: 'S001',
     discount: 15,
     startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     endDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
@@ -237,9 +194,9 @@ async function main() {
   
   await prisma.promotionProduct.createMany({
     data: [
-      { promotionId: promotion.id, productId: 'P0001' },
-      { promotionId: promotion.id, productId: 'P0002' },
-      { promotionId: promotion.id, productId: 'P0005' },
+      { promotionId: promotion.id, productId: 'PROD001' },
+      { promotionId: promotion.id, productId: 'PROD002' },
+      { promotionId: promotion.id, productId: 'PROD005' },
     ],
   });
   console.log('✅ Promotion created/updated');

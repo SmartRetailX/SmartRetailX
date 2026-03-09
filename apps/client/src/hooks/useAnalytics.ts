@@ -6,26 +6,24 @@ import { DashboardMetrics, ApiResponse } from '@/types/api'
 // Query keys
 export const analyticsKeys = {
   all: ['analytics'] as const,
-  dashboard: (period?: string, storeId?: string) =>
-    [...analyticsKeys.all, 'dashboard', period, storeId] as const,
+  dashboard: (period?: string) =>
+    [...analyticsKeys.all, 'dashboard', period] as const,
 }
 
 interface DashboardParams {
   period?: 'day' | 'week' | 'month' | 'year'
-  storeId?: string
 }
 
 // Get dashboard KPIs and metrics
-export function useDashboard({ period = 'month', storeId }: DashboardParams = {}) {
+export function useDashboard({ period = 'month' }: DashboardParams = {}) {
   return useQuery({
-    queryKey: analyticsKeys.dashboard(period, storeId),
+    queryKey: analyticsKeys.dashboard(period),
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<DashboardMetrics>>(
         API_ENDPOINTS.ANALYTICS.DASHBOARD,
         {
           params: {
             period,
-            storeId,
           },
         }
       )

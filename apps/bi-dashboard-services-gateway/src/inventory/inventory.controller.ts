@@ -22,13 +22,6 @@ export class InventoryController {
     description:
       'Retrieve current inventory status with stock levels, reorder alerts, and value metrics for all products.',
   })
-  @ApiQuery({
-    name: 'storeId',
-    required: false,
-    type: String,
-    example: 'S001',
-    description: 'Filter by store ID',
-  })
   @ApiResponse({
     status: 200,
     description: 'Inventory status retrieved successfully',
@@ -45,9 +38,8 @@ export class InventoryController {
           },
           items: [
             {
-              productId: 'P0001',
+              productId: 'PROD001',
               productName: 'Basmati Rice 5kg',
-              storeId: 'S001',
               currentStock: 50,
               reorderLevel: 20,
               status: 'in_stock',
@@ -73,8 +65,7 @@ export class InventoryController {
   @ApiBody({
     schema: {
       example: {
-        productId: 'P0001',
-        storeId: 'S001',
+        productId: 'PROD001',
         quantity: 100,
         cost: 4091.0,
         supplier: 'ABC Distributors',
@@ -90,7 +81,7 @@ export class InventoryController {
         success: true,
         data: {
           restockId: 'rst_1733318400000',
-          productId: 'P0001',
+          productId: 'PROD001',
           newStock: 150,
           timestamp: '2025-12-04T10:00:00Z',
         },

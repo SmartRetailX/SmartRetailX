@@ -16,11 +16,6 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/bi/users/${id}`,
   },
 
-  // Stores
-  STORES: {
-    LIST: '/api/bi/stores',
-  },
-
   // Products
   PRODUCTS: {
     LIST: '/api/bi/products',

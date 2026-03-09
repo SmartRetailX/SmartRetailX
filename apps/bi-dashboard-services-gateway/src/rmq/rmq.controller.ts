@@ -8,7 +8,6 @@ import { InventoryService } from '../inventory/inventory.service';
 import { ProductsService } from '../products/products.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { SalesService } from '../sales/sales.service';
-import { StoresService } from '../stores/stores.service';
 import { VoiceService } from '../voice/voice.service';
 import { XaiService } from '../xai/xai.module';
 
@@ -22,7 +21,6 @@ export class RmqController {
     private readonly alertsService: AlertsService,
     private readonly promotionsService: PromotionsService,
     private readonly inventoryService: InventoryService,
-    private readonly storesService: StoresService,
     private readonly analyticsService: AnalyticsService,
     private readonly forecastsService: ForecastsService,
     private readonly xaiService: XaiService,
@@ -163,10 +161,9 @@ export class RmqController {
 
   @MessagePattern('bi.post.alerts.generate')
   async generateAlerts(@Payload() data: any) {
-    const storeId = data.query?.storeId;
-    this.logger.debug('RMQ: generateAlerts', storeId);
+    this.logger.debug('RMQ: generateAlerts');
     try {
-      return await this.alertsService.generateAlerts(storeId);
+      return await this.alertsService.generateAlerts();
     } catch (error) {
       this.logger.error('generateAlerts failed:', error.message, error.stack);
       return { statusCode: 500, success: false, error: error.message };
@@ -253,19 +250,6 @@ export class RmqController {
       return await this.inventoryService.restock(data.body);
     } catch (error) {
       this.logger.error('restockInventory failed:', error.message, error.stack);
-      return { statusCode: 500, success: false, error: error.message };
-    }
-  }
-
-  // ============ Stores ============
-
-  @MessagePattern('bi.get.stores')
-  async getStores(@Payload() data: any) {
-    this.logger.debug('RMQ: getStores', data.query);
-    try {
-      return await this.storesService.getStores(data.query || {});
-    } catch (error) {
-      this.logger.error('getStores failed:', error.message, error.stack);
       return { statusCode: 500, success: false, error: error.message };
     }
   }

@@ -7,22 +7,10 @@ export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
   async getStatus(query: any) {
-    const { storeId } = query;
     const where: any = {};
-    if (storeId && storeId !== 'undefined') {
-      where.storeId = storeId;
-    }
 
     const products = await this.prisma.product.findMany({
       where,
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
     });
 
     const summary = {
@@ -41,8 +29,6 @@ export class InventoryService {
           productId: p.id,
           productName: p.name,
           productNameSi: p.nameSi,
-          storeId: p.storeId,
-          storeName: p.store.name,
           currentStock: p.currentStock,
           reorderLevel: p.reorderLevel,
           status: p.status.toLowerCase(),
@@ -54,7 +40,7 @@ export class InventoryService {
   }
 
   async restock(restockDto: any) {
-    const { productId, storeId, quantity, cost, supplier, invoiceNumber } = restockDto;
+    const { productId, quantity, cost, supplier, invoiceNumber } = restockDto;
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -79,7 +65,6 @@ export class InventoryService {
     await this.prisma.inventoryMovement.create({
       data: {
         productId,
-        storeId,
         type: 'RESTOCK',
         quantity,
         previousStock,

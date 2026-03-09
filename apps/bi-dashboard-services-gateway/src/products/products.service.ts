@@ -10,7 +10,6 @@ export class ProductsService {
     const {
       page = 1,
       limit = 50,
-      storeId,
       category,
       status,
       search,
@@ -33,7 +32,6 @@ export class ProductsService {
     // }
 
     // Only add filters if they are actually provided (not undefined or string "undefined")
-    if (storeId && storeId !== 'undefined') where.storeId = storeId;
     if (category && category !== 'undefined') where.category = category;
     if (status && status !== 'undefined') where.status = status.toUpperCase();
     if (search && search !== 'undefined') {
@@ -67,7 +65,6 @@ export class ProductsService {
           categorySi: p.categorySi,
           price: p.price,
           cost: p.cost,
-          storeId: p.storeId,
           currentStock: p.currentStock,
           reorderLevel: p.reorderLevel,
           maxStock: p.maxStock,
@@ -114,7 +111,6 @@ export class ProductsService {
         categorySi: product.categorySi,
         price: product.price,
         cost: product.cost,
-        storeId: product.storeId,
         currentStock: product.currentStock,
         reorderLevel: product.reorderLevel,
         maxStock: product.maxStock,

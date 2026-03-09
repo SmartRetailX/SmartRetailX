@@ -28,14 +28,13 @@ class ForecastsService {
   }
 
   async getForecasts(query: any) {
-    const { productId, storeId, horizon = 30, lang = 'en' } = query;
+    const { productId, horizon = 30, lang = 'en' } = query;
 
     try {
       // Call Python ML service for real predictions
       const response = await firstValueFrom(
         this.httpService.post(`${this.mlServiceUrl}/api/v1/forecast`, {
           productId,
-          storeId,
           horizon: Number(horizon),
           lang,
         }),
@@ -46,14 +45,13 @@ class ForecastsService {
       // Save forecasts to database
       await this.saveForecastsToDb(
         productId,
-        storeId,
         mlData.forecasts,
         mlData.modelType,
         mlData.confidence,
       );
 
       // Save drivers to database
-      await this.saveDriversToDb(productId, storeId, mlData.drivers);
+      await this.saveDriversToDb(productId, mlData.drivers);
 
       return {
         success: true,
@@ -63,7 +61,7 @@ class ForecastsService {
       console.error('ML Service error:', error.message);
 
       // Fallback: Try to get cached forecasts from database
-      const cachedForecasts = await this.getCachedForecasts(productId, storeId, horizon);
+      const cachedForecasts = await this.getCachedForecasts(productId, horizon);
       if (cachedForecasts) {
         return { success: true, data: cachedForecasts };
       }
@@ -77,20 +75,18 @@ class ForecastsService {
 
   async saveForecastsToDb(
     productId: string,
-    storeId: string,
     forecasts: any[],
     modelType: string,
     confidence: number,
   ) {
-    // Delete old forecasts for this product/store
+    // Delete old forecasts for this product
     await this.prisma.forecast.deleteMany({
-      where: { productId, storeId },
+      where: { productId },
     });
 
     // Insert new forecasts
     const forecastRecords = forecasts.map((f) => ({
       productId,
-      storeId,
       date: new Date(f.date),
       predictedSales: f.predictedSales,
       confidenceLower: f.confidenceLower,
@@ -106,16 +102,15 @@ class ForecastsService {
     });
   }
 
-  async saveDriversToDb(productId: string, storeId: string, drivers: any[]) {
+  async saveDriversToDb(productId: string, drivers: any[]) {
     // Delete old drivers
     await this.prisma.forecastDriver.deleteMany({
-      where: { productId, storeId },
+      where: { productId },
     });
 
     // Insert new drivers
     const driverRecords = drivers.map((d) => ({
       productId,
-      storeId,
       name: d.name,
       nameSi: d.nameSi,
       impact: d.impact,
@@ -128,9 +123,9 @@ class ForecastsService {
     });
   }
 
-  async getCachedForecasts(productId: string, storeId: string, horizon: number) {
+  async getCachedForecasts(productId: string, horizon: number) {
     const forecasts = await this.prisma.forecast.findMany({
-      where: { productId, storeId },
+      where: { productId },
       take: Number(horizon),
       orderBy: { date: 'asc' },
     });
@@ -138,12 +133,11 @@ class ForecastsService {
     if (forecasts.length === 0) return null;
 
     const drivers = await this.prisma.forecastDriver.findMany({
-      where: { productId, storeId },
+      where: { productId },
     });
 
     return {
       productId,
-      storeId,
       modelType: forecasts[0]?.modelType || 'Prophet',
       confidence: forecasts[0]?.confidence || 0.87,
       generatedAt: forecasts[0]?.generatedAt.toISOString(),
@@ -182,14 +176,7 @@ class ForecastsController {
     required: true,
     type: String,
     description: 'Product ID',
-    example: 'P0001',
-  })
-  @ApiQuery({
-    name: 'storeId',
-    required: true,
-    type: String,
-    description: 'Store ID',
-    example: 'S001',
+    example: 'PROD001',
   })
   @ApiQuery({
     name: 'horizon',
@@ -205,7 +192,7 @@ class ForecastsController {
       example: {
         success: true,
         data: {
-          productId: 'P0001',
+          productId: 'PROD001',
           storeId: 'S001',
           modelType: 'Prophet',
           confidence: 0.87,

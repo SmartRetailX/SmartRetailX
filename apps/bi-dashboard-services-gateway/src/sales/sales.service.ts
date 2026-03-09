@@ -27,7 +27,7 @@ export class SalesService {
   constructor(private prisma: PrismaService) {}
 
   async getSales(query: any, user: any) {
-    const { startDate, endDate, storeId, productId, page = 1, limit = 100 } = query;
+    const { startDate, endDate, productId, page = 1, limit = 100 } = query;
 
     if (!startDate || !endDate) {
       throw new BadRequestException({
@@ -43,8 +43,6 @@ export class SalesService {
         lte: new Date(endDate),
       },
     };
-
-    if (storeId) where.storeId = storeId;
 
     const [sales, total] = await Promise.all([
       this.prisma.sale.findMany({
@@ -88,7 +86,6 @@ export class SalesService {
         sales: sales.map((s) => ({
           id: s.id,
           transactionId: s.transactionId,
-          storeId: s.storeId,
           productId: s.items[0]?.productId,
           quantity: s.items.reduce((sum, item) => sum + item.quantity, 0),
           unitPrice: s.items[0]?.unitPrice,
@@ -118,7 +115,7 @@ export class SalesService {
   }
 
   async createSale(createSaleDto: any, user: any) {
-    const { storeId, items, customerId, paymentMethod, discount = 0, promotionId } = createSaleDto;
+    const { items, customerId, paymentMethod, discount = 0, promotionId } = createSaleDto;
 
     let totalAmount = 0;
     const saleItems = [];
@@ -177,7 +174,6 @@ export class SalesService {
     const sale = await this.prisma.sale.create({
       data: {
         transactionId,
-        storeId,
         customerId,
         totalAmount,
         discount,
@@ -203,7 +199,7 @@ export class SalesService {
   }
 
   async getAggregate(query: any, user: any) {
-    const { startDate, endDate, storeId, groupBy = 'day' } = query;
+    const { startDate, endDate, groupBy = 'day' } = query;
 
     if (!startDate || !endDate) {
       throw new BadRequestException({
@@ -218,8 +214,6 @@ export class SalesService {
         lte: new Date(endDate),
       },
     };
-
-    if (storeId) where.storeId = storeId;
 
     const sales = await this.prisma.sale.findMany({
       where,

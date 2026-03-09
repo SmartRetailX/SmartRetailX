@@ -1,5 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { execSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -21,10 +26,10 @@ async function main() {
   try {
     // Step 1: Clean database
     console.log('📍 Step 1/2: Cleaning database...\n');
-    execSync('npm run prisma:clean', { stdio: 'inherit' });
+    execSync('pnpm prisma:clean', { stdio: 'inherit', cwd: resolve(__dirname, '../../..') });
 
     console.log('\n📍 Step 2/2: Seeding database...\n');
-    execSync('npm run prisma:seed', { stdio: 'inherit' });
+    execSync('pnpm prisma:seed', { stdio: 'inherit', cwd: resolve(__dirname, '../../..') });
 
     console.log('\n' + '='.repeat(60));
     console.log('✅ Database reset completed successfully!');

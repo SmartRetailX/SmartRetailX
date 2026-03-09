@@ -60,7 +60,7 @@ export class AlertsController {
               id: 'ALT0001',
               type: 'restock',
               urgency: 'high',
-              productId: 'P0001',
+              productId: 'PROD001',
               productName: 'Basmati Rice 5kg',
               productNameSi: 'බාස්මති සහල් 5kg',
               storeId: 'S001',
@@ -127,13 +127,6 @@ export class AlertsController {
     description:
       'Trigger ML service to analyze inventory and generate restock alerts. This syncs AI-generated alerts into the database.',
   })
-  @ApiQuery({
-    name: 'storeId',
-    required: false,
-    type: String,
-    example: 'S001',
-    description: 'Generate alerts for specific store',
-  })
   @ApiResponse({
     status: 201,
     description: 'Alerts generated successfully',
@@ -147,8 +140,7 @@ export class AlertsController {
               id: 'ALT0001',
               type: 'RESTOCK',
               urgency: 'HIGH',
-              productId: 'P0003',
-              storeId: 'S001',
+              productId: 'PROD003',
               currentStock: 15,
               recommendedQuantity: 50,
               reason:
@@ -161,8 +153,8 @@ export class AlertsController {
   })
   @ApiResponse({ status: 500, description: 'Failed to generate alerts' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async generateAlerts(@Query('storeId') storeId?: string) {
-    return this.alertsService.generateAlerts(storeId);
+  async generateAlerts() {
+    return this.alertsService.generateAlerts();
   }
 
   @Post('auto-dismiss')
