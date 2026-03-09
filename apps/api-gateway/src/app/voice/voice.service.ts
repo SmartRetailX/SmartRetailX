@@ -17,19 +17,24 @@ import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
 import { VoiceChatRepository } from './voice-chat.repository';
 
-type CatalogSearchMatch = {
+/** Shape returned by core-service `catalog_search`. */
+type CatalogSearchRaw = {
   productId: string;
-  productUuid: string;
-  sku: string | null;
-  nameEn: string;
+  sku: string;
+  name: string;
   nameSi: string | null;
-  categoryEn: string;
+  baseProduct: string | null;
+  baseProductSi: string | null;
+  category: string | null;
   categorySi: string | null;
-  brandSi: string | null;
   price: number;
   currentStock: number;
-  status: string;
-  storeId: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+};
+
+/** Enriched match with locally-computed scoring. */
+type CatalogSearchMatch = CatalogSearchRaw & {
   tokenHits: number;
   exactHit: boolean;
   prefixHit: boolean;
@@ -39,7 +44,7 @@ type CatalogSearchMatch = {
 type CatalogSearchResponse = {
   success: boolean;
   term: string;
-  matches: CatalogSearchMatch[];
+  matches: CatalogSearchRaw[];
 };
 
 @Injectable()
@@ -104,45 +109,75 @@ export class VoiceService {
       transcriptText: dto.transcriptText,
     };
 
-    const directCatalogResult = await this.tryCatalogResponse(dto.transcriptText, language, sessionId);
-    if (directCatalogResult) {
-      return await this.persistAndReturn(directCatalogResult, channel, payload, userId);
-    }
-
     const transportMode = (this.configService.get<string>('AGENT_VOICE_TRANSPORT', 'http-first') ||
       'http-first') as 'http-only' | 'http-first' | 'tcp-first';
 
     try {
-      if (transportMode === 'http-only') {
-        const result = await this.forwardViaHttp(audioFile, payload);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
-      }
+      let result: VoiceChatResponseDto;
 
-      if (transportMode === 'http-first') {
+      if (transportMode === 'http-only') {
+        result = await this.forwardViaHttp(audioFile, payload);
+      } else if (transportMode === 'http-first') {
         try {
-          const result = await this.forwardViaHttp(audioFile, payload);
-          return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+          result = await this.forwardViaHttp(audioFile, payload);
         } catch (httpError) {
           this.logger.warn(
             `HTTP agent request failed (${httpError?.message ?? httpError}). Trying TCP fallback...`,
           );
-          const result = await this.forwardViaTcp(payload, language, sessionId);
-          return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+          result = await this.forwardViaTcp(payload, language, sessionId);
+        }
+      } else {
+        try {
+          result = await this.forwardViaTcp(payload, language, sessionId);
+        } catch (tcpError) {
+          this.logger.warn(
+            `TCP agent request failed (${tcpError?.message ?? tcpError}). Trying HTTP fallback...`,
+          );
+          result = await this.forwardViaHttp(audioFile, payload);
         }
       }
 
-      try {
-        const result = await this.forwardViaTcp(payload, language, sessionId);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
-      } catch (tcpError) {
-        this.logger.warn(
-          `TCP agent request failed (${tcpError?.message ?? tcpError}). Trying HTTP fallback...`,
+      // If the agent gave a meaningful response, use it directly.
+      // For catalog-style questions (prices/products), prefer factual catalog response
+      // even when the agent generated generic text.
+      const effectiveTranscript = result.transcription || payload.transcriptText;
+      if (this.isCatalogStyleQuestion(effectiveTranscript)) {
+        const factualResult = await this.tryCatalogResponse(
+          effectiveTranscript,
+          result.language || payload.language,
+          result.sessionId || sessionId,
         );
-        const result = await this.forwardViaHttp(audioFile, payload);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+
+        if (factualResult) {
+          return await this.persistAndReturn(
+            {
+              ...factualResult,
+              transcription: effectiveTranscript,
+              language: result.language,
+              sessionId: result.sessionId || sessionId,
+            },
+            channel,
+            payload,
+            userId,
+          );
+        }
       }
+
+      if (result.success && result.response?.trim()) {
+        return await this.persistAndReturn(result, channel, payload, userId);
+      }
+
+      return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
     } catch (error) {
       this.logger.error(`Voice chat failed: ${error?.message ?? error}`, error?.stack);
+
+      // Last resort: try catalog search when the agent is completely unavailable.
+      const catalogFallback = await this.tryCatalogResponse(dto.transcriptText, language, sessionId);
+      if (catalogFallback) {
+        this.logger.log('Agent unavailable – serving catalog fallback response');
+        return await this.persistAndReturn(catalogFallback, channel, payload, userId);
+      }
+
       throw new ServiceUnavailableException({
         success: false,
         transcription: '',
@@ -212,7 +247,8 @@ export class VoiceService {
         return null;
       }
 
-      const selectedMatches = this.selectCatalogMatches(queryText, result.matches);
+      const scoredMatches = this.scoreCatalogMatches(queryText, result.matches);
+      const selectedMatches = this.selectCatalogMatches(queryText, scoredMatches);
       if (selectedMatches.length === 0) {
         return null;
       }
@@ -230,6 +266,44 @@ export class VoiceService {
       this.logger.warn(`Catalog lookup failed (${error?.message ?? error}). Falling back to agent.`);
       return null;
     }
+  }
+
+  /**
+   * Compute scoring fields locally because the core-service search
+   * returns plain product rows without match metadata.
+   */
+  private scoreCatalogMatches(queryText: string, rawMatches: CatalogSearchRaw[]): CatalogSearchMatch[] {
+    const normalized = normalizeCatalogQuery(queryText);
+    const queryTokens = buildCatalogQueryTokens(normalized);
+
+    return rawMatches.map((raw) => {
+      const nameLower = (raw.name || '').toLowerCase();
+      const nameSiLower = (raw.nameSi || '').toLowerCase();
+      const baseLower = (raw.baseProduct || '').toLowerCase();
+      const baseSiLower = (raw.baseProductSi || '').toLowerCase();
+      const catLower = (raw.category || '').toLowerCase();
+      const catSiLower = (raw.categorySi || '').toLowerCase();
+      const skuLower = (raw.sku || '').toLowerCase();
+
+      const searchable = [nameLower, nameSiLower, baseLower, baseSiLower, catLower, catSiLower, skuLower];
+
+      const exactHit = nameLower === normalized || nameSiLower === normalized;
+      const prefixHit = nameLower.startsWith(normalized) || nameSiLower.startsWith(normalized);
+
+      let tokenHits = 0;
+      for (const token of queryTokens) {
+        if (searchable.some((field) => field.includes(token))) {
+          tokenHits += 1;
+        }
+      }
+
+      let matchScore = 0;
+      if (exactHit) matchScore = 100;
+      else if (prefixHit) matchScore = 80;
+      else if (queryTokens.length > 0) matchScore = Math.round((tokenHits / queryTokens.length) * 70);
+
+      return { ...raw, tokenHits, exactHit, prefixHit, matchScore };
+    });
   }
 
   private selectCatalogMatches(queryText: string, matches: CatalogSearchMatch[]): CatalogSearchMatch[] {
@@ -282,16 +356,18 @@ export class VoiceService {
       return `${index + 1}. ${this.formatCompactCatalogMatch(product)}`;
     });
 
-    return ['### Matching Products', ...lines, '_Tip: ask with brand, size, or variant for an exact single match._'].join('\n');
+    return ['### ගැලපෙන නිෂ්පාදන', ...lines, '_තවත් නිවැරදි ප්‍රතිඵල සඳහා වෙළඳ නාමය හෝ ප්‍රභේදය සඳහන් කරන්න._'].join(
+      '\n',
+    );
   }
 
   private formatSingleCatalogMatch(product: CatalogSearchMatch): string {
     return [
-      '### Product Match',
-      `- **Name:** ${this.getDisplayName(product)}`,
-      `- **Category:** ${this.getDisplayCategory(product)}`,
-      `- **Price:** ${this.formatPrice(product.price)}`,
-      `- **Stock:** ${this.formatStockLabel(product.currentStock)}`,
+      '### නිෂ්පාදන තොරතුරු',
+      `- **නම:** ${this.getDisplayName(product)}`,
+      `- **වර්ගය:** ${this.getDisplayCategory(product)}`,
+      `- **මිල:** ${this.formatPrice(product.price)}`,
+      `- **තොගය:** ${this.formatStockLabel(product.currentStock)}`,
     ].join('\n');
   }
 
@@ -300,19 +376,48 @@ export class VoiceService {
   }
 
   private getDisplayName(product: CatalogSearchMatch): string {
-    return (product.nameSi || product.nameEn || '').trim();
+    return (product.nameSi || product.name || '').trim();
   }
 
   private getDisplayCategory(product: CatalogSearchMatch): string {
-    return (product.categorySi || product.categoryEn || 'N/A').trim() || 'N/A';
+    return (product.categorySi || product.category || 'N/A').trim() || 'N/A';
   }
 
   private formatPrice(price: number): string {
-    return `LKR ${Number(price).toFixed(2)}`;
+    return `රු. ${Number(price).toFixed(2)}`;
   }
 
   private formatStockLabel(stock: number): string {
-    return stock > 0 ? `${stock} available` : 'Out of stock';
+    return stock > 0 ? `${stock} ක් ඇත` : 'තොග නැත';
+  }
+
+  private isCatalogStyleQuestion(text: string | undefined): boolean {
+    const normalized = normalizeCatalogQuery(text || '');
+    if (!normalized) {
+      return false;
+    }
+
+    const catalogTerms = [
+      'මිල',
+      'කීය',
+      'කීයද',
+      'නිෂ්පාදන',
+      'භාණ්ඩ',
+      'product',
+      'products',
+      'price',
+      'cost',
+      'available',
+      'show',
+      'find',
+      'search',
+    ];
+
+    if (catalogTerms.some((term) => normalized.includes(term))) {
+      return true;
+    }
+
+    return buildCatalogQueryTokens(normalized).length > 0;
   }
 
   private async persistAndReturn(

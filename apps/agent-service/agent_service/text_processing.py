@@ -4,6 +4,45 @@ from typing import Any
 
 from .config import DEFAULT_INTENTS
 
+_ENTITY_NOISE_WORDS = {
+    "කීය",
+    "කීයද",
+    "මොන",
+    "මොනවා",
+    "මොනවාද",
+    "මොනවද",
+    "what",
+    "which",
+    "how",
+    "much",
+    "ද",
+}
+
+_ENTITY_TRIM_WORDS = {
+    "වල",
+    "වර්ග",
+    "වර්ගයේ",
+    "මිල",
+    "නිෂ්පාදන",
+    "භාණ්ඩ",
+    "product",
+    "products",
+    "of",
+}
+
+_ENTITY_LEADING_FILLERS = {
+    "මට",
+    "මිලදී",
+    "ගත",
+    "හැකි",
+    "ඔබට",
+    "අවශ්‍ය",
+    "please",
+    "show",
+    "find",
+    "search",
+}
+
 
 def is_prompt_echo(transcript: str, prompt: str | None) -> bool:
     if not transcript:
@@ -87,22 +126,55 @@ def normalize_transcript(text: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text or "")).strip()
 
 
+def _sanitize_entity_candidate(candidate: str) -> str | None:
+    value = re.sub(r"\s+", " ", (candidate or "").strip(" .,!?:;\"'")).strip()
+    if not value:
+        return None
+
+    tokens = [tok for tok in value.split(" ") if tok]
+    if not tokens:
+        return None
+
+    while tokens and tokens[0].lower() in _ENTITY_LEADING_FILLERS:
+        tokens.pop(0)
+    while tokens and tokens[-1].lower() in _ENTITY_TRIM_WORDS:
+        tokens.pop()
+    while tokens and tokens[-1].lower() in _ENTITY_NOISE_WORDS:
+        tokens.pop()
+
+    if not tokens:
+        return None
+
+    cleaned = " ".join(tokens).strip()
+    if not cleaned:
+        return None
+
+    cleaned_lower = cleaned.lower()
+    if cleaned_lower in _ENTITY_NOISE_WORDS or cleaned_lower in _ENTITY_TRIM_WORDS:
+        return None
+
+    return cleaned
+
+
 def _extract_product_hint(text: str) -> str | None:
     normalized = text.strip()
     quoted = re.findall(r'"([^"]+)"|\'([^\']+)\'', normalized)
     for pair in quoted:
-        value = (pair[0] or pair[1]).strip()
+        value = _sanitize_entity_candidate(pair[0] or pair[1])
         if value:
             return value
 
     patterns = [
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන)\s+([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})",
+        r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+වල\s+මිල",
+        r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+මිල\s+කීයද",
+        r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+නිෂ්පාදන",
     ]
     for pattern in patterns:
         match = re.search(pattern, normalized, re.IGNORECASE)
         if match:
-            value = (match.group(1) or "").strip(" .,!?:;")
+            value = _sanitize_entity_candidate(match.group(1) or "")
             if value:
                 return value
     return None

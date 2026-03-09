@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@smart-retail-x/config';
-import { normalizeCatalogQuery } from '@smart-retail-x/shared-types';
+import { buildCatalogQueryTokens, normalizeCatalogQuery } from '@smart-retail-x/shared-types';
 import { Pool } from 'pg';
 
 type CatalogMatch = {
@@ -115,6 +115,8 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
     }
 
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 20)) : 5;
+    const queryTokens = buildCatalogQueryTokens(normalizedTerm);
+    const searchTokens = queryTokens.length > 0 ? queryTokens : [normalizedTerm];
 
     const result = await this.pool.query<{
       id: string;
@@ -129,27 +131,70 @@ export class CatalogService implements OnModuleInit, OnModuleDestroy {
       stock_quantity: number;
       image_url: string | null;
       is_active: boolean;
+      token_hits: number;
+      exact_hit: boolean;
+      prefix_hit: boolean;
     }>(
       `
-      SELECT id, sku, name, name_si, base_product, base_product_si, category, category_si, price, stock_quantity, image_url, is_active
+      SELECT
+        id,
+        sku,
+        name,
+        name_si,
+        base_product,
+        base_product_si,
+        category,
+        category_si,
+        price,
+        stock_quantity,
+        image_url,
+        is_active,
+        (
+          SELECT count(*)::int
+          FROM unnest($1::text[]) AS token
+          WHERE
+            lower(coalesce(name, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(name_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(base_product, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(base_product_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(category, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(category_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(sku, '')) LIKE '%' || token || '%'
+        ) AS token_hits,
+        (
+          lower(coalesce(name, '')) = $2
+          OR lower(coalesce(name_si, '')) = $2
+          OR lower(coalesce(base_product, '')) = $2
+          OR lower(coalesce(base_product_si, '')) = $2
+        ) AS exact_hit,
+        (
+          lower(coalesce(name, '')) LIKE $2 || '%'
+          OR lower(coalesce(name_si, '')) LIKE $2 || '%'
+          OR lower(coalesce(base_product, '')) LIKE $2 || '%'
+          OR lower(coalesce(base_product_si, '')) LIKE $2 || '%'
+        ) AS prefix_hit
       FROM products
       WHERE is_active = true
-        AND (
-          lower(coalesce(name, '')) LIKE '%' || $1 || '%'
-          OR lower(coalesce(name_si, '')) LIKE '%' || $1 || '%'
-          OR lower(coalesce(base_product, '')) LIKE '%' || $1 || '%'
-          OR lower(coalesce(base_product_si, '')) LIKE '%' || $1 || '%'
-          OR lower(coalesce(category, '')) LIKE '%' || $1 || '%'
-          OR lower(coalesce(category_si, '')) LIKE '%' || $1 || '%'
-          OR lower(sku) LIKE '%' || $1 || '%'
+        AND EXISTS (
+          SELECT 1
+          FROM unnest($1::text[]) AS token
+          WHERE
+            lower(coalesce(name, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(name_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(base_product, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(base_product_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(category, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(category_si, '')) LIKE '%' || token || '%'
+            OR lower(coalesce(sku, '')) LIKE '%' || token || '%'
         )
       ORDER BY
-        CASE WHEN lower(name) = $1 OR lower(name_si) = $1 THEN 0 ELSE 1 END,
-        CASE WHEN lower(name) LIKE $1 || '%' OR lower(name_si) LIKE $1 || '%' THEN 0 ELSE 1 END,
+        exact_hit DESC,
+        prefix_hit DESC,
+        token_hits DESC,
         name ASC
-      LIMIT $2
+      LIMIT $3
       `,
-      [normalizedTerm, safeLimit],
+      [searchTokens, normalizedTerm, safeLimit],
     );
 
     const matches: CatalogMatch[] = result.rows.map((row) => ({
