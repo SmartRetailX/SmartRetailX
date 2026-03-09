@@ -11,6 +11,15 @@ export interface ProductItem {
   price: number
 }
 
+export interface XaiReason {
+  feature: string
+  label: string
+  formattedValue: string
+  contribution: number
+  importance: number
+  strength: number  // 0–1 for progress bar
+}
+
 export interface CustomerTarget {
   customerId: string
   customerName: string
@@ -20,6 +29,7 @@ export interface CustomerTarget {
   cfScore: number
   hybridScore: number
   targetingMethod: string
+  reasons: XaiReason[]
 }
 
 export interface CampaignSummary {

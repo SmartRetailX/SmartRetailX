@@ -55,6 +55,9 @@ export default function PromotionsPage() {
   const [abMaxCustomers, setAbMaxCustomers] = useState(100)
   const [abResult, setAbResult] = useState<ABTestResult | null>(null)
 
+  // XAI expanded row
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null)
+
   // API hooks
   const { data: healthData } = usePromotionEngineHealth()
   const isMLReady = healthData?.models_loaded === true
@@ -472,13 +475,20 @@ export default function PromotionsPage() {
                             <th className="text-right py-3 px-3 font-medium text-gray-500">CF Score</th>
                             <th className="text-right py-3 px-3 font-medium text-gray-500">Hybrid Score</th>
                             <th className="text-left py-3 px-3 font-medium text-gray-500">Method</th>
+                            <th className="py-3 px-3" />
                           </tr>
                         </thead>
                         <tbody>
                           {targets.map((target, index) => (
+                            <>
                             <tr
                               key={target.customerId}
-                              className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                              onClick={() => setExpandedCustomer(prev => prev === target.customerId ? null : target.customerId)}
+                              className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors ${
+                                expandedCustomer === target.customerId
+                                  ? 'bg-violet-50 dark:bg-violet-900/10'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              }`}
                             >
                               <td className="py-2.5 px-3 text-gray-400">{index + 1}</td>
                               <td className="py-2.5 px-3 font-medium">{target.customerName}</td>
@@ -512,7 +522,49 @@ export default function PromotionsPage() {
                               <td className="py-2.5 px-3">
                                 <span className="text-xs text-gray-500">{target.targetingMethod}</span>
                               </td>
+                              <td className="py-2.5 px-3 text-gray-400">
+                                <ChevronRight className={`h-4 w-4 transition-transform ${
+                                  expandedCustomer === target.customerId ? 'rotate-90 text-violet-500' : ''
+                                }`} />
+                              </td>
                             </tr>
+                            {expandedCustomer === target.customerId && (
+                              <tr key={`${target.customerId}-xai`} className="bg-violet-50 dark:bg-violet-900/10 border-b border-violet-100 dark:border-violet-800">
+                                <td colSpan={9} className="px-4 py-3">
+                                  <div className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-2">
+                                      🔍 Why {target.customerName} was selected
+                                    </p>
+                                    {target.reasons && target.reasons.length > 0 ? (
+                                      <div className="grid gap-2 sm:grid-cols-3">
+                                        {target.reasons.map((r) => (
+                                          <div key={r.feature} className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-violet-100 dark:border-violet-800">
+                                            <div className="flex items-center justify-between mb-1">
+                                              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{r.label}</span>
+                                              <span className="text-xs font-bold text-violet-700 dark:text-violet-300">{r.formattedValue}</span>
+                                            </div>
+                                            <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                              <div
+                                                className="h-full rounded-full bg-violet-400 dark:bg-violet-500 transition-all"
+                                                style={{ width: `${Math.round(r.strength * 100)}%` }}
+                                              />
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                              {r.contribution > 0
+                                                ? `Above peer avg — boosts promotion suitability`
+                                                : `Below peer avg — included via CF signal`}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-400 italic">No feature breakdown available for this customer.</p>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </>
                           ))}
                         </tbody>
                       </table>
