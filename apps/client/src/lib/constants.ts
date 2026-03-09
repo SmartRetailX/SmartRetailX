@@ -82,6 +82,8 @@ export const API_ENDPOINTS = {
     CATEGORIES: '/api/promotion-engine/products/categories',
     GENERATE: '/api/promotion-engine/campaigns/generate',
     HEALTH: '/api/promotion-engine/health',
+    CAMPAIGNS: '/api/promotion-engine/campaigns',
+    CAMPAIGN_DETAIL: (id: number) => `/api/promotion-engine/campaigns/${id}`,
   },
 
   // Audit Logs

@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from api.database import save_campaign, get_campaigns, get_campaign_by_id
+
 router = APIRouter()
 
 
@@ -177,6 +179,15 @@ async def generate_campaign(request: GenerateCampaignRequest):
             costSavingsVsBroadcast=round(savings, 2),
         )
 
+        # Persist campaign to database
+        try:
+            save_campaign(
+                campaign_data=summary.model_dump(),
+                targets_list=[t.model_dump() for t in target_list],
+            )
+        except Exception as db_err:
+            print(f"[WARN] Could not save campaign to DB: {db_err}")
+
         return GenerateCampaignResponse(
             success=True, campaign=summary, targets=target_list
         )
@@ -187,3 +198,81 @@ async def generate_campaign(request: GenerateCampaignRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f"Campaign generation failed: {str(e)}")
+
+
+# ── Campaign History ───────────────────────────────────────
+
+class CampaignHistoryItem(BaseModel):
+    id: int
+    product_id: str
+    product_name: str
+    product_category: str
+    product_price: float
+    discount_percent: float
+    total_targeted: int
+    avg_purchase_probability: float
+    expected_conversions: int
+    expected_revenue: float
+    expected_cost: float
+    expected_profit: float
+    cost_savings_vs_broadcast: float
+    created_at: str
+
+
+@router.get("/campaigns")
+async def list_campaigns(limit: int = 50):
+    """Return recent campaign history (no ML required)."""
+    try:
+        rows = get_campaigns(limit=limit)
+        items = []
+        for r in rows:
+            items.append({
+                "id": r["id"],
+                "productId": r["product_id"],
+                "productName": r["product_name"],
+                "productCategory": r["product_category"],
+                "productPrice": float(r["product_price"]),
+                "discountPercent": float(r["discount_percent"]),
+                "totalTargeted": int(r["total_targeted"]),
+                "avgPurchaseProbability": float(r["avg_purchase_probability"] or 0),
+                "expectedConversions": int(r["expected_conversions"] or 0),
+                "expectedRevenue": float(r["expected_revenue"] or 0),
+                "expectedCost": float(r["expected_cost"] or 0),
+                "expectedProfit": float(r["expected_profit"] or 0),
+                "costSavingsVsBroadcast": float(r["cost_savings_vs_broadcast"] or 0),
+                "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], 'isoformat') else str(r["created_at"]),
+            })
+        return {"success": True, "campaigns": items, "total": len(items)}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch campaigns: {str(e)}")
+
+
+@router.get("/campaigns/{campaign_id}")
+async def get_campaign(campaign_id: int):
+    """Return a single campaign with full target list."""
+    try:
+        row = get_campaign_by_id(campaign_id)
+        if row is None:
+            raise HTTPException(404, f"Campaign {campaign_id} not found")
+        return {
+            "success": True,
+            "id": row["id"],
+            "productId": row["product_id"],
+            "productName": row["product_name"],
+            "productCategory": row["product_category"],
+            "productPrice": float(row["product_price"]),
+            "discountPercent": float(row["discount_percent"]),
+            "totalTargeted": int(row["total_targeted"]),
+            "avgPurchaseProbability": float(row["avg_purchase_probability"] or 0),
+            "expectedConversions": int(row["expected_conversions"] or 0),
+            "expectedRevenue": float(row["expected_revenue"] or 0),
+            "expectedCost": float(row["expected_cost"] or 0),
+            "expectedProfit": float(row["expected_profit"] or 0),
+            "costSavingsVsBroadcast": float(row["cost_savings_vs_broadcast"] or 0),
+            "targets": row["targets_json"] or [],
+            "createdAt": row["created_at"].isoformat() if hasattr(row["created_at"], 'isoformat') else str(row["created_at"]),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch campaign: {str(e)}")

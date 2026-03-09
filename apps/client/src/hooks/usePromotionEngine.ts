@@ -43,9 +43,30 @@ export interface GenerateCampaignResponse {
   targets: CustomerTarget[]
 }
 
+export interface CampaignHistoryItem {
+  id: number
+  productId: string
+  productName: string
+  productCategory: string
+  productPrice: number
+  discountPercent: number
+  totalTargeted: number
+  avgPurchaseProbability: number
+  expectedConversions: number
+  expectedRevenue: number
+  expectedCost: number
+  expectedProfit: number
+  costSavingsVsBroadcast: number
+  createdAt: string
+}
+
+export interface CampaignDetail extends CampaignHistoryItem {
+  targets: CustomerTarget[]
+}
+
 // ── Hooks ─────────────────────────────────────────────────
 
-export function usePromotionProducts(category?: string) {
+export function usePromotionProducts(category?: string, enabled = true) {
   return useQuery({
     queryKey: ['promotion-products', category],
     queryFn: async () => {
@@ -55,16 +76,18 @@ export function usePromotionProducts(category?: string) {
       const { data } = await api.get(`${API_ENDPOINTS.PROMOTION_ENGINE.PRODUCTS}${qs}`)
       return data as { success: boolean; products: ProductItem[]; total: number }
     },
+    enabled,
   })
 }
 
-export function useProductCategories() {
+export function useProductCategories(enabled = true) {
   return useQuery({
     queryKey: ['promotion-categories'],
     queryFn: async () => {
       const { data } = await api.get(API_ENDPOINTS.PROMOTION_ENGINE.CATEGORIES)
       return data.categories as string[]
     },
+    enabled,
   })
 }
 
@@ -88,6 +111,28 @@ export function usePromotionEngineHealth() {
       const { data } = await api.get(API_ENDPOINTS.PROMOTION_ENGINE.HEALTH)
       return data as { status: string; models_loaded: boolean }
     },
-    refetchInterval: 10000,
+    refetchInterval: (query) =>
+      query.state.data?.models_loaded ? 30000 : 3000,
+  })
+}
+
+export function useCampaignHistory(limit = 50) {
+  return useQuery({
+    queryKey: ['campaign-history', limit],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_ENDPOINTS.PROMOTION_ENGINE.CAMPAIGNS}?limit=${limit}`)
+      return data as { success: boolean; campaigns: CampaignHistoryItem[]; total: number }
+    },
+  })
+}
+
+export function useCampaignDetail(id: number | null) {
+  return useQuery({
+    queryKey: ['campaign-detail', id],
+    queryFn: async () => {
+      const { data } = await api.get(API_ENDPOINTS.PROMOTION_ENGINE.CAMPAIGN_DETAIL(id!))
+      return data as CampaignDetail
+    },
+    enabled: id !== null,
   })
 }
