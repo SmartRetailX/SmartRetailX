@@ -22,9 +22,10 @@ interface PromotionNotification {
 
 interface PromotionsResponse {
   success: boolean
-  promotions: PromotionNotification[]
+  promotions: PromotionNotification[] | null
   total: number
   unread: number
+  error?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -44,19 +45,40 @@ function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
 }
 
+// ── Shared page wrapper (always shows header skeleton while loading) ──
+
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-6 p-6 max-w-3xl mx-auto">{children}</div>
+}
+
+function PageHeader() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
+        <Tag className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+      </div>
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">My Promotions</h1>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────
 
 export default function MyPromotionsPage() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  // Fetch
-  const { data, isLoading, isError } = useQuery<PromotionsResponse>({
+  // Fetch — NestJS always returns HTTP 200 (never throws), so we detect
+  // service-down via data.success === false / data.promotions === null
+  const { data, isLoading } = useQuery<PromotionsResponse>({
     queryKey: ['my-promotions'],
     queryFn: async () => {
       const res = await apiClient.get<PromotionsResponse>(API_ENDPOINTS.MY_PROMOTIONS.LIST)
       return res.data
     },
+    retry: false,
     refetchOnWindowFocus: false,
   })
 
@@ -76,32 +98,41 @@ export default function MyPromotionsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-promotions'] }),
   })
 
-  const promotions = data?.promotions ?? []
-  const unread     = data?.unread ?? 0
+  // ── Loading ───────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <PageWrapper>
+        <PageHeader />
+        <div className="flex h-48 items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  // ── Service-down or null promotions ───────────────────────
+  const serviceDown = !data || data.success === false || data.promotions === null
+  if (serviceDown) {
+    return (
+      <PageWrapper>
+        <PageHeader />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 py-16 text-center">
+          <PackageOpen className="h-10 w-10 text-gray-300" />
+          <p className="font-medium text-gray-500 dark:text-gray-400">Promotion service is offline</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            Your personalised offers will appear here once the service is back online.
+          </p>
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  const promotions: PromotionNotification[] = data.promotions
+  const unread = data.unread ?? 0
 
   const visible = filter === 'unread'
     ? promotions.filter(p => !p.is_read)
     : promotions
-
-  // ── Render ───────────────────────────────────────────────
-
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
-        <PackageOpen className="h-10 w-10 text-gray-300" />
-        <p className="text-sm text-gray-500">Could not load your promotions right now.</p>
-        <p className="text-xs text-gray-400">Make sure the promotion engine service is running.</p>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6 p-6 max-w-3xl mx-auto">
