@@ -27,6 +27,7 @@ import {
   useCampaignHistory,
   useCampaignDetail,
   useCompareAB,
+  useProductBundles,
   type CustomerTarget,
   type CampaignSummary,
   type ABTestResult,
@@ -67,6 +68,9 @@ export default function PromotionsPage() {
   const { data: campaignDetail, isLoading: detailLoading } = useCampaignDetail(selectedCampaignId)
   const { data: allProductsData } = usePromotionProducts(undefined, isMLReady)
   const compareMutation = useCompareAB()
+  const { data: bundlesData, isFetching: bundlesFetching } = useProductBundles(
+    selectedProduct || null
+  )
 
   const handleCompare = async () => {
     if (!abProduct) return
@@ -391,6 +395,54 @@ export default function PromotionsPage() {
                         <p className="text-lg font-bold text-emerald-600">Rs. {campaign.costSavingsVsBroadcast.toLocaleString()}</p>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Suggested Bundles card */}
+              {selectedProduct && (bundlesFetching || (bundlesData?.bundles && bundlesData.bundles.length > 0)) && (
+                <Card className="border-amber-200 dark:border-amber-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <span>🛒</span>
+                      Frequently Bought Together
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Market basket analysis from purchase history — consider bundling these to boost basket size
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {bundlesFetching ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analysing co-purchase patterns...
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {bundlesData!.bundles.map((b) => (
+                          <div
+                            key={b.productId}
+                            className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800"
+                          >
+                            <div className="mt-0.5 flex-shrink-0 h-8 w-8 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-amber-700 dark:text-amber-200 text-sm font-bold">
+                              {b.support.toFixed(0)}%
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium leading-tight truncate">{b.productName}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{b.category} · Rs. {b.price.toLocaleString()}</p>
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                                {b.coPurchaseCount} shared buyers · {b.support.toFixed(1)}% support
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!bundlesFetching && bundlesData?.bundles && bundlesData.bundles.length > 0 && (
+                      <p className="mt-3 text-xs text-gray-400 italic">
+                        💡 Tip: Use these in a bundle campaign — e.g. &quot;{bundlesData.productName} + {bundlesData.bundles[0]?.productName}&quot; at a combined discount to increase order value.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}

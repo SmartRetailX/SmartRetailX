@@ -137,6 +137,36 @@ export function useCampaignDetail(id: number | null) {
   })
 }
 
+// ── Bundle Recommendation Types & Hook ───────────────────
+
+export interface BundleProduct {
+  productId: string
+  productName: string
+  category: string
+  price: number
+  coPurchaseCount: number
+  support: number  // % of buyers who also bought this
+}
+
+export interface BundleResult {
+  success: boolean
+  productId: string
+  productName: string
+  bundles: BundleProduct[]
+}
+
+export function useProductBundles(productId: string | null) {
+  return useQuery({
+    queryKey: ['bundles', productId],
+    queryFn: async () => {
+      const { data } = await api.get(API_ENDPOINTS.PROMOTION_ENGINE.BUNDLES(productId!))
+      return data as BundleResult
+    },
+    enabled: !!productId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── A/B Test Types & Hook ─────────────────────────────────
 
 export interface ABTestSide {

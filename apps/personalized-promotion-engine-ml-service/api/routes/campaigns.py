@@ -110,6 +110,54 @@ async def list_categories():
     return {"success": True, "categories": categories}
 
 
+@router.get("/products/{product_id}/bundles")
+async def get_product_bundles(product_id: str, min_support: float = 0.05, limit: int = 6):
+    """
+    Market basket analysis: products frequently bought together with product_id.
+    Uses the trained Collaborative Filtering model's co-purchase counts.
+    """
+    engine, preprocessor = _get_state()
+
+    if engine.cf_model is None:
+        raise HTTPException(503, "CF model not loaded")
+
+    # Validate product exists
+    products_df = preprocessor.products
+    product_row = products_df[products_df['ProductID'].astype(str) == str(product_id)]
+    if product_row.empty:
+        raise HTTPException(404, f"Product '{product_id}' not found")
+
+    co_purchased = engine.cf_model.find_co_purchased_products(
+        product_id, min_support=min_support
+    )
+
+    # Enrich with product metadata
+    bundles = []
+    for item in co_purchased[:limit]:
+        pid = str(item["ProductID"])
+        meta = products_df[products_df['ProductID'].astype(str) == pid]
+        if meta.empty:
+            continue
+        row = meta.iloc[0]
+        bundles.append({
+            "productId": pid,
+            "productName": str(row["ProductName"]),
+            "category": str(row["Category"]),
+            "price": float(row["Price"]),
+            "coPurchaseCount": int(item["co_purchase_count"]),
+            "support": round(float(item["support"]) * 100, 1),  # as %
+        })
+
+    anchor = product_row.iloc[0]
+    return {
+        "success": True,
+        "productId": product_id,
+        "productName": str(anchor["ProductName"]),
+        "totalBuyers": len(bundles),
+        "bundles": bundles,
+    }
+
+
 @router.post("/campaigns/generate", response_model=GenerateCampaignResponse)
 async def generate_campaign(request: GenerateCampaignRequest):
     """

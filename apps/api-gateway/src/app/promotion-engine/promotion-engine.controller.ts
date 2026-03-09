@@ -96,6 +96,24 @@ export class PromotionEngineController {
     }
   }
 
+  @Get('products/:productId/bundles')
+  async getProductBundles(
+    @Param('productId') productId: string,
+    @Query('min_support') minSupport?: string,
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      const params = new URLSearchParams();
+      if (minSupport) params.set('min_support', minSupport);
+      if (limit) params.set('limit', limit);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${this.baseUrl}/api/products/${productId}/bundles${qs}`);
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
   @Post('campaigns/compare')
   async compareCampaigns(@Body() body: any) {
     try {

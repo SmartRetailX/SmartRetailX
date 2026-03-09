@@ -85,6 +85,7 @@ export const API_ENDPOINTS = {
     CAMPAIGNS: '/api/promotion-engine/campaigns',
     CAMPAIGN_DETAIL: (id: number) => `/api/promotion-engine/campaigns/${id}`,
     COMPARE: '/api/promotion-engine/campaigns/compare',
+    BUNDLES: (productId: string) => `/api/promotion-engine/products/${productId}/bundles`,
   },
 
   // Audit Logs
