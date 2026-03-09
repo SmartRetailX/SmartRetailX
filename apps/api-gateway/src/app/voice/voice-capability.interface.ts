@@ -1,0 +1,18 @@
+import type { VoiceChatResponseDto, VoiceChatTcpPayload } from '@smart-retail-x/shared-types';
+
+export type VoiceCapabilityMode = 'primary' | 'fallback' | 'recovery';
+
+export type VoiceCapabilityContext = {
+  transcriptText: string | undefined;
+  language: VoiceChatTcpPayload['language'];
+  sessionId: string;
+  userId: string;
+};
+
+export interface VoiceCapability {
+  readonly id: string;
+  readonly priority: number;
+  handle(context: VoiceCapabilityContext, mode: VoiceCapabilityMode): Promise<VoiceChatResponseDto | null>;
+}
+
+export const VOICE_CAPABILITIES = Symbol('VOICE_CAPABILITIES');

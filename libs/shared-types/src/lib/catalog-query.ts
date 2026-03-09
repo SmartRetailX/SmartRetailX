@@ -33,6 +33,20 @@ const DEFAULT_STOP_WORDS = [
   'එක',
   'ගේ',
   'ගැන',
+  'වර්ග',
+  'වර්ගයේ',
+  'කීය',
+  'කීයද',
+  'මොන',
+  'මොනවා',
+  'මොනවාද',
+  'මොනවද',
+  'ද',
+  'නිෂ්පාදන',
+  'භාණ්ඩ',
+  'මිලදී',
+  'ගත',
+  'හැකි',
 ] as const;
 
 const CATALOG_STOP_WORDS = new Set<string>(DEFAULT_STOP_WORDS);

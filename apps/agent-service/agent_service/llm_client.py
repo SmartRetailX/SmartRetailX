@@ -11,7 +11,9 @@ from .config import (
 from .logging_setup import logger
 
 
-def _fallback_response(text: str, intent_name: str, entities: dict[str, Any] | None) -> str:
+def _fallback_response(
+    text: str, intent_name: str, entities: dict[str, Any] | None
+) -> str:
     product = (entities or {}).get("product")
     if intent_name == "offers":
         return "ඔබට ලබාගත හැකි නවතම offers බලලා කෙටි සාරාංශයක් දෙනවා."
@@ -44,7 +46,9 @@ async def generate_sinhala_response(
     role = (user_context or {}).get("role", "guest")
 
     if not OPENAI_API_KEY:
-        logger.warning("OPENAI_API_KEY missing for response generation; using deterministic fallback")
+        logger.warning(
+            "OPENAI_API_KEY missing for response generation; using deterministic fallback"
+        )
         return _fallback_response(text, intent_name, entities)
 
     system_prompt = (
@@ -55,6 +59,13 @@ async def generate_sinhala_response(
         "If required detail is missing, ask one short clarification question in Sinhala."
     )
 
+    intent_guidance = ""
+    if intent_name == "order_history":
+        intent_guidance = (
+            "For order-history queries, do NOT ask for an order id by default. "
+            "Assume backend can resolve the latest order using authenticated user context."
+        )
+
     user_prompt = (
         f"User role: {role}\n"
         f"Session: {session_id}\n"
@@ -64,6 +75,7 @@ async def generate_sinhala_response(
         f"Intent confidence: {intent_confidence:.2f}\n"
         f"Allowed intents: {', '.join(intents or [intent_name])}\n"
         f"Extracted entities: {entities or {}}\n"
+        f"Intent-specific guidance: {intent_guidance or 'N/A'}\n"
         f"User transcript: {text}\n\n"
         "Reply only with final Sinhala response text."
     )
@@ -95,10 +107,7 @@ async def generate_sinhala_response(
             data = response.json()
 
         content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-            .strip()
+            data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         )
 
         if not content:

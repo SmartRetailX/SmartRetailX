@@ -1,10 +1,5 @@
-import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { ConfigService } from '@smart-retail-x/config';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import {
-  VOICE_CHAT_PATTERN,
-  buildCatalogQueryTokens,
-  normalizeCatalogQuery,
   type VoiceAssistantIntent,
   type VoiceChatInputMode,
   type VoiceChatDto,
@@ -13,44 +8,22 @@ import {
   type VoiceChatTcpPayload,
   type VoiceUserContext,
 } from '@smart-retail-x/shared-types';
-import { catchError, defaultIfEmpty, firstValueFrom, timeout } from 'rxjs';
 
+import { VoiceAgentTransportService } from './voice-agent-transport.service';
+import { type VoiceCapabilityContext } from './voice-capability.interface';
+import { VoiceCapabilityDispatcherService } from './voice-capability-dispatcher.service';
 import { VoiceChatRepository } from './voice-chat.repository';
-
-type CatalogSearchMatch = {
-  productId: string;
-  productUuid: string;
-  sku: string | null;
-  nameEn: string;
-  nameSi: string | null;
-  categoryEn: string;
-  categorySi: string | null;
-  brandSi: string | null;
-  price: number;
-  currentStock: number;
-  status: string;
-  storeId: string | null;
-  tokenHits: number;
-  exactHit: boolean;
-  prefixHit: boolean;
-  matchScore: number;
-};
-
-type CatalogSearchResponse = {
-  success: boolean;
-  term: string;
-  matches: CatalogSearchMatch[];
-};
+import { VoiceTranscriptRefinerService } from './voice-transcript-refiner.service';
 
 @Injectable()
 export class VoiceService {
   private readonly logger = new Logger(VoiceService.name);
 
   constructor(
-    @Inject('AGENT_SERVICE') private readonly agentClient: ClientProxy,
-    @Inject('CORE_SERVICE') private readonly coreClient: ClientProxy,
-    private readonly configService: ConfigService,
+    private readonly voiceAgentTransportService: VoiceAgentTransportService,
+    private readonly voiceCapabilityDispatcherService: VoiceCapabilityDispatcherService,
     private readonly voiceChatRepository: VoiceChatRepository,
+    private readonly voiceTranscriptRefinerService: VoiceTranscriptRefinerService,
   ) {}
 
   async chatWithAudio(
@@ -74,6 +47,7 @@ export class VoiceService {
       ...dto,
       transcriptText: text.trim(),
     };
+
     return this.chatInternal('text', undefined, textPayload, userId, userContext, intents);
   }
 
@@ -101,48 +75,94 @@ export class VoiceService {
       userId,
       userContext,
       intents,
-      transcriptText: dto.transcriptText,
+      transcriptText: this.refineTranscript(dto.transcriptText),
     };
 
-    const directCatalogResult = await this.tryCatalogResponse(dto.transcriptText, language, sessionId);
-    if (directCatalogResult) {
-      return await this.persistAndReturn(directCatalogResult, channel, payload, userId);
-    }
-
-    const transportMode = (this.configService.get<string>('AGENT_VOICE_TRANSPORT', 'http-first') ||
-      'http-first') as 'http-only' | 'http-first' | 'tcp-first';
-
     try {
-      if (transportMode === 'http-only') {
-        const result = await this.forwardViaHttp(audioFile, payload);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+      const transportResult = await this.voiceAgentTransportService.request(audioFile, payload);
+      const refinedAgentTranscription = this.refineTranscript(transportResult.transcription);
+      const result: VoiceChatResponseDto = {
+        ...transportResult,
+        transcription: refinedAgentTranscription || payload.transcriptText || transportResult.transcription,
+      };
+
+      const capabilityTranscript = this.resolveCapabilityTranscript(channel, payload.transcriptText, result.transcription);
+      const capabilityLanguage = result.language || payload.language;
+      const capabilitySessionId = result.sessionId || sessionId;
+      const isDbGroundedQuery = this.isDatabaseGroundedQuery(
+        capabilityTranscript || payload.transcriptText || result.transcription,
+      );
+
+      const primaryCapabilityResult = await this.voiceCapabilityDispatcherService.dispatch(
+        this.buildCapabilityContext(
+          capabilityTranscript,
+          capabilityLanguage,
+          capabilitySessionId,
+          userId,
+        ),
+        'primary',
+      );
+
+      if (primaryCapabilityResult) {
+        return await this.persistAndReturn(primaryCapabilityResult, channel, payload, userId);
       }
 
-      if (transportMode === 'http-first') {
-        try {
-          const result = await this.forwardViaHttp(audioFile, payload);
-          return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
-        } catch (httpError) {
-          this.logger.warn(
-            `HTTP agent request failed (${httpError?.message ?? httpError}). Trying TCP fallback...`,
-          );
-          const result = await this.forwardViaTcp(payload, language, sessionId);
-          return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+      if (isDbGroundedQuery) {
+        const refinedValidatedResult = await this.tryDbValidatedRefinedCapability(
+          capabilityTranscript,
+          payload.transcriptText,
+          result.transcription,
+          capabilityLanguage,
+          capabilitySessionId,
+          userId,
+        );
+
+        if (refinedValidatedResult) {
+          return await this.persistAndReturn(refinedValidatedResult, channel, payload, userId);
         }
       }
 
-      try {
-        const result = await this.forwardViaTcp(payload, language, sessionId);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
-      } catch (tcpError) {
-        this.logger.warn(
-          `TCP agent request failed (${tcpError?.message ?? tcpError}). Trying HTTP fallback...`,
-        );
-        const result = await this.forwardViaHttp(audioFile, payload);
-        return await this.persistWithCatalogFallback(result, channel, payload, userId, sessionId);
+      if (result.success && result.response?.trim()) {
+        // For DB-grounded user questions, avoid returning free-form generated answers.
+        if (isDbGroundedQuery) {
+          const fallbackCapabilityResult = await this.voiceCapabilityDispatcherService.dispatch(
+            this.buildCapabilityContext(
+              capabilityTranscript,
+              capabilityLanguage,
+              capabilitySessionId,
+              userId,
+            ),
+            'fallback',
+          );
+
+          if (fallbackCapabilityResult) {
+            return await this.persistAndReturn(fallbackCapabilityResult, channel, payload, userId);
+          }
+
+          return await this.persistAndReturn(
+            this.buildDatabaseSafetyResponse(capabilityTranscript, capabilityLanguage, capabilitySessionId),
+            channel,
+            payload,
+            userId,
+          );
+        }
+
+        return await this.persistAndReturn(result, channel, payload, userId);
       }
+
+      return await this.persistWithCapabilityRecovery(result, channel, payload, userId, sessionId);
     } catch (error) {
       this.logger.error(`Voice chat failed: ${error?.message ?? error}`, error?.stack);
+
+      const fallbackResult = await this.voiceCapabilityDispatcherService.dispatch(
+        this.buildCapabilityContext(this.refineTranscript(dto.transcriptText), language, sessionId, userId),
+        'fallback',
+      );
+      if (fallbackResult) {
+        this.logger.log('Agent unavailable - serving capability fallback response');
+        return await this.persistAndReturn(fallbackResult, channel, payload, userId);
+      }
+
       throw new ServiceUnavailableException({
         success: false,
         transcription: '',
@@ -155,25 +175,31 @@ export class VoiceService {
     }
   }
 
-  private async persistWithCatalogFallback(
+  private async persistWithCapabilityRecovery(
     result: VoiceChatResponseDto,
     channel: VoiceChatInputMode,
     payload: VoiceChatTcpPayload,
     userId: string,
     sessionId: string,
   ): Promise<VoiceChatResponseDto> {
-    const factualResult = await this.tryCatalogResponse(
-      result.transcription || payload.transcriptText,
-      result.language || payload.language,
-      result.sessionId || sessionId,
+    const recoveryTranscript = this.resolveCapabilityTranscript(channel, payload.transcriptText, result.transcription);
+
+    const recoveryResult = await this.voiceCapabilityDispatcherService.dispatch(
+      this.buildCapabilityContext(
+        recoveryTranscript,
+        result.language || payload.language,
+        result.sessionId || sessionId,
+        userId,
+      ),
+      'recovery',
     );
 
-    if (factualResult) {
+    if (recoveryResult) {
       return await this.persistAndReturn(
         {
-          ...factualResult,
-          transcription: result.transcription || factualResult.transcription,
-          language: result.language,
+          ...recoveryResult,
+          transcription: result.transcription || recoveryResult.transcription,
+          language: result.language || recoveryResult.language,
           sessionId: result.sessionId || sessionId,
         },
         channel,
@@ -185,134 +211,157 @@ export class VoiceService {
     return await this.persistAndReturn(result, channel, payload, userId);
   }
 
-  private async tryCatalogResponse(
+  private buildCapabilityContext(
     transcriptText: string | undefined,
     language: VoiceChatTcpPayload['language'],
     sessionId: string,
+    userId: string,
+  ): VoiceCapabilityContext {
+    return {
+      transcriptText,
+      language,
+      sessionId,
+      userId,
+    };
+  }
+
+  private resolveCapabilityTranscript(
+    channel: VoiceChatInputMode,
+    originalText: string | undefined,
+    agentTranscription: string | undefined,
+  ): string | undefined {
+    const sourceText = this.refineTranscript(originalText);
+    const transcribedText = this.refineTranscript(agentTranscription);
+
+    // For text requests, keep capability matching anchored to the exact user text.
+    if (channel === 'text') {
+      return sourceText || transcribedText;
+    }
+
+    return transcribedText || sourceText;
+  }
+
+  private refineTranscript(text: string | undefined): string | undefined {
+    return this.voiceTranscriptRefinerService.refine(text);
+  }
+
+  private async tryDbValidatedRefinedCapability(
+    alreadyTriedTranscript: string | undefined,
+    sourceTranscript: string | undefined,
+    agentTranscription: string | undefined,
+    language: VoiceChatTcpPayload['language'],
+    sessionId: string,
+    userId: string,
   ): Promise<VoiceChatResponseDto | null> {
-    const queryText = transcriptText?.trim();
-    if (!queryText) {
-      return null;
+    const candidates = this.buildRefinementCandidates(alreadyTriedTranscript, sourceTranscript, agentTranscription);
+    for (const candidate of candidates) {
+      const validated = await this.voiceCapabilityDispatcherService.dispatch(
+        this.buildCapabilityContext(candidate, language, sessionId, userId),
+        'primary',
+      );
+
+      if (validated) {
+        this.logger.log('DB-validated response selected using AI-refined transcript candidate');
+        return validated;
+      }
     }
 
-    const timeoutMs = Number(this.configService.get<string | number>('CORE_CATALOG_TIMEOUT_MS', 3_000));
-
-    try {
-      const result = (await firstValueFrom(
-        this.coreClient.send({ cmd: 'catalog_search' }, { term: queryText, limit: 3 }).pipe(
-          timeout(timeoutMs),
-          defaultIfEmpty({ success: false, term: queryText, matches: [] } satisfies CatalogSearchResponse),
-          catchError((error) => {
-            throw error;
-          }),
-        ),
-      )) as CatalogSearchResponse;
-
-      if (!result?.success || !Array.isArray(result.matches) || result.matches.length === 0) {
-        return null;
-      }
-
-      const selectedMatches = this.selectCatalogMatches(queryText, result.matches);
-      if (selectedMatches.length === 0) {
-        return null;
-      }
-
-      return {
-        success: true,
-        transcription: queryText,
-        response: this.buildCatalogResponse(selectedMatches),
-        language,
-        sessionId,
-        messages: [],
-        model: 'core-catalog',
-      };
-    } catch (error) {
-      this.logger.warn(`Catalog lookup failed (${error?.message ?? error}). Falling back to agent.`);
-      return null;
-    }
+    return null;
   }
 
-  private selectCatalogMatches(queryText: string, matches: CatalogSearchMatch[]): CatalogSearchMatch[] {
-    const queryTokens = buildCatalogQueryTokens(normalizeCatalogQuery(queryText));
+  private buildRefinementCandidates(
+    alreadyTriedTranscript: string | undefined,
+    sourceTranscript: string | undefined,
+    agentTranscription: string | undefined,
+  ): string[] {
+    const seen = new Set<string>();
+    const tried = this.normalizeForComparison(alreadyTriedTranscript);
 
-    const relevantMatches = matches
-      .filter((match) => this.isConfidentCatalogMatch(match, queryTokens))
-      .sort((a, b) => b.matchScore - a.matchScore);
-
-    if (relevantMatches.length === 0) {
-      return [];
+    if (tried) {
+      seen.add(tried);
     }
 
-    const [top, second] = relevantMatches;
-    const hasStrongTop = top.exactHit || top.prefixHit || top.matchScore >= 90;
-    const clearLead = !second || top.matchScore - second.matchScore >= 24;
+    const rawCandidates = [agentTranscription, sourceTranscript]
+      .map((value) => this.refineTranscript(value))
+      .filter((value): value is string => Boolean(value?.trim()));
 
-    if (hasStrongTop && clearLead) {
-      return [top];
+    const candidates: string[] = [];
+    for (const candidate of rawCandidates) {
+      const normalized = this.normalizeForComparison(candidate);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      candidates.push(candidate);
     }
 
-    return relevantMatches.slice(0, 3);
+    return candidates;
   }
 
-  private isConfidentCatalogMatch(match: CatalogSearchMatch, queryTokens: string[]): boolean {
-    if (match.exactHit || match.prefixHit) {
-      return true;
-    }
+  private normalizeForComparison(text: string | undefined): string {
+    return (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
 
-    if (queryTokens.length >= 2) {
-      return match.tokenHits >= 2;
-    }
-
-    const singleToken = queryTokens[0] ?? '';
-    if (singleToken.length <= 3) {
+  private isDatabaseGroundedQuery(text: string | undefined): boolean {
+    const normalized = (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized) {
       return false;
     }
 
-    return match.tokenHits >= 1;
+    const dbTerms = [
+      'order',
+      'orders',
+      'history',
+      'status',
+      'offer',
+      'offers',
+      'promotion',
+      'discount',
+      'price',
+      'stock',
+      'product',
+      'products',
+      'catalog',
+      'search',
+      'recommend',
+      'suggest',
+      'shopping list',
+      'buying list',
+      'ඇණවු',
+      'ඔර්ඩ',
+      'ඕඩ',
+      'ඔෆර්',
+      'වට්ටම්',
+      'ප්‍රවර්ධන',
+      'දීමනා',
+      'මිල',
+      'තොග',
+      'ලැයිස්තුව',
+      'නිර්දේශ',
+      'යෝජනා',
+      'භාණ්ඩ',
+      'නිෂ්පාදන',
+    ];
+
+    return dbTerms.some((term) => normalized.includes(term.toLowerCase()));
   }
 
-  private buildCatalogResponse(matches: CatalogSearchMatch[]): string {
-    const topMatches = matches.slice(0, 3);
-
-    if (topMatches.length === 1) {
-      return this.formatSingleCatalogMatch(topMatches[0]);
-    }
-
-    const lines = topMatches.map((product, index) => {
-      return `${index + 1}. ${this.formatCompactCatalogMatch(product)}`;
-    });
-
-    return ['### Matching Products', ...lines, '_Tip: ask with brand, size, or variant for an exact single match._'].join('\n');
-  }
-
-  private formatSingleCatalogMatch(product: CatalogSearchMatch): string {
-    return [
-      '### Product Match',
-      `- **Name:** ${this.getDisplayName(product)}`,
-      `- **Category:** ${this.getDisplayCategory(product)}`,
-      `- **Price:** ${this.formatPrice(product.price)}`,
-      `- **Stock:** ${this.formatStockLabel(product.currentStock)}`,
-    ].join('\n');
-  }
-
-  private formatCompactCatalogMatch(product: CatalogSearchMatch): string {
-    return `**${this.getDisplayName(product)}** - ${this.formatPrice(product.price)} | ${this.formatStockLabel(product.currentStock)} | ${this.getDisplayCategory(product)}`;
-  }
-
-  private getDisplayName(product: CatalogSearchMatch): string {
-    return (product.nameSi || product.nameEn || '').trim();
-  }
-
-  private getDisplayCategory(product: CatalogSearchMatch): string {
-    return (product.categorySi || product.categoryEn || 'N/A').trim() || 'N/A';
-  }
-
-  private formatPrice(price: number): string {
-    return `LKR ${Number(price).toFixed(2)}`;
-  }
-
-  private formatStockLabel(stock: number): string {
-    return stock > 0 ? `${stock} available` : 'Out of stock';
+  private buildDatabaseSafetyResponse(
+    transcription: string | undefined,
+    language: VoiceChatTcpPayload['language'],
+    sessionId: string,
+  ): VoiceChatResponseDto {
+    return {
+      success: true,
+      transcription: transcription?.trim() || '',
+      response:
+        'මට database මත පදනම් වූ නිවැරදි දත්ත පමණක් ලබාදිය හැක. කරුණාකර order number, product name, offer, price, stock වගේ විස්තරාත්මක එකක් නැවත අහන්න.',
+      language,
+      sessionId,
+      messages: [],
+      model: 'db-grounded-safety',
+    };
   }
 
   private async persistAndReturn(
@@ -333,76 +382,4 @@ export class VoiceService {
     return result;
   }
 
-  private async forwardViaTcp(
-    payload: VoiceChatTcpPayload,
-    language: VoiceChatTcpPayload['language'],
-    sessionId: string,
-  ): Promise<VoiceChatResponseDto> {
-    const tcpTimeoutMs = Number(this.configService.get<string | number>('AGENT_TCP_TIMEOUT_MS', 10_000));
-    return await firstValueFrom(
-      this.agentClient.send(VOICE_CHAT_PATTERN, payload).pipe(
-        timeout(tcpTimeoutMs),
-        defaultIfEmpty({
-          success: false,
-          transcription: '',
-          response: '',
-          language,
-          sessionId,
-          messages: [],
-          error: 'No response from agent service',
-        } satisfies VoiceChatResponseDto),
-        catchError((error) => {
-          throw error;
-        }),
-      ),
-    );
-  }
-
-  private async forwardViaHttp(
-    audioFile: { buffer: Buffer; mimetype?: string } | undefined,
-    payload: VoiceChatTcpPayload,
-  ): Promise<VoiceChatResponseDto> {
-    const endpoint = this.configService.get<string>(
-      'AGENT_HTTP_VOICE_URL',
-      'http://127.0.0.1:8010/api/v1/voice/chat',
-    );
-
-    const formData = new FormData();
-    if (audioFile?.buffer?.length) {
-      const mimeType = audioFile.mimetype || payload.mimeType || 'audio/webm';
-      const arrayBuffer = new ArrayBuffer(audioFile.buffer.byteLength);
-      new Uint8Array(arrayBuffer).set(audioFile.buffer);
-      const blob = new Blob([arrayBuffer], { type: mimeType });
-      formData.append('audio', blob, `voice-${Date.now()}.webm`);
-    }
-    formData.append('language', payload.language);
-    formData.append('sessionId', payload.sessionId);
-    if (payload.userId) formData.append('userId', payload.userId);
-    if (payload.userContext?.role) formData.append('userRole', payload.userContext.role);
-    if (payload.intents?.length) formData.append('intents', payload.intents.join(','));
-    if (payload.transcriptText?.trim()) formData.append('transcriptText', payload.transcriptText.trim());
-
-    const httpTimeoutMs = Number(
-      this.configService.get<string | number>('AGENT_HTTP_TIMEOUT_MS', 180_000),
-    );
-    const abortController = new AbortController();
-    const timeoutHandle = setTimeout(() => abortController.abort(), httpTimeoutMs);
-    let response: Response;
-    try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData,
-        signal: abortController.signal,
-      });
-    } finally {
-      clearTimeout(timeoutHandle);
-    }
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`HTTP fallback failed (${response.status}): ${body}`);
-    }
-
-    return (await response.json()) as VoiceChatResponseDto;
-  }
 }
