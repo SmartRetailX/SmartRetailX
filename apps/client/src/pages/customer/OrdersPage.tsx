@@ -4,7 +4,9 @@ import { Calendar, ChevronRight, Loader2, Package, ShoppingBag } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useOrders, type Order } from '@/hooks/useOrders'
+import { useLanguageStore } from '@/stores/appStore'
 import { cn, formatCurrency } from '@/lib/utils'
+import type { Language } from '@/types/api'
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: 'bg-accent', text: 'text-accent-foreground', label: 'Pending' },
@@ -31,7 +33,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, language }: { order: Order; language: Language }) {
   const createdAt = new Date(order.createdAt).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -59,7 +61,7 @@ function OrderCard({ order }: { order: Order }) {
             {(order.items || []).slice(0, 2).map((item) => (
               <div key={item.id} className="flex items-center justify-between text-sm">
                 <span className="flex-1 truncate text-foreground">
-                  {item.quantity}x {item.productNameSi || item.productName}
+                  {item.quantity}x {language === 'si' && item.productNameSi ? item.productNameSi : item.productName}
                 </span>
                 <span className="text-muted-foreground">{formatCurrency(item.totalPrice)}</span>
               </div>
@@ -87,6 +89,7 @@ function OrderCard({ order }: { order: Order }) {
 
 export default function OrdersPage() {
   const { data, isLoading, error } = useOrders()
+  const { language } = useLanguageStore()
 
   if (isLoading) {
     return (
@@ -154,7 +157,7 @@ export default function OrdersPage() {
       {hasOrders && (
         <div className="grid gap-4 sm:grid-cols-2">
           {ordersList.map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderCard key={order.id} order={order} language={language} />
           ))}
         </div>
       )}

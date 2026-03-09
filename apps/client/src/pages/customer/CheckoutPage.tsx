@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCart } from '@/hooks/useCart'
 import { useCreateOrder } from '@/hooks/useOrders'
+import { useLanguageStore } from '@/stores/appStore'
 import { formatCurrency } from '@/lib/utils'
 
 type ShippingForm = {
@@ -24,6 +25,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate()
   const { data: cart, isLoading: cartLoading } = useCart()
   const createOrder = useCreateOrder()
+  const { language } = useLanguageStore()
 
   const [form, setForm] = useState<ShippingForm>({
     fullName: '',
@@ -219,7 +221,9 @@ export default function CheckoutPage() {
                 {cart.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between text-sm">
                     <div className="flex-1 pr-2">
-                      <p className="truncate font-medium">{item.productNameSi || item.productName}</p>
+                      <p className="truncate font-medium">
+                        {language === 'si' && item.productNameSi ? item.productNameSi : item.productName}
+                      </p>
                       <p className="text-muted-foreground">Qty: {item.quantity}</p>
                     </div>
                     <p>{formatCurrency(item.totalPrice)}</p>

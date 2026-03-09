@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { LogOut, Package, Settings, ShoppingBag, ShoppingCart } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import AgentChatWidget from '@/components/chat/AgentChatWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCart } from '@/hooks/useCart'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/appStore'
+import { useLanguageStore, useThemeStore } from '@/stores/appStore'
 
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -18,11 +19,25 @@ export default function MainLayout() {
   const { isCustomer, logout, user } = useAuth()
   const { data: cart } = useCart()
   const { theme } = useThemeStore()
+  const { i18n } = useTranslation()
+  const { language, setLanguage } = useLanguageStore()
 
   useEffect(() => {
     document.documentElement.classList.remove('light', 'dark')
     document.documentElement.classList.add(isCustomer ? 'light' : theme)
   }, [isCustomer, theme])
+
+  useEffect(() => {
+    const nextLanguage = language === 'si' ? 'si' : 'en'
+    if (i18n.language !== nextLanguage) {
+      void i18n.changeLanguage(nextLanguage)
+    }
+  }, [i18n, language])
+
+  const handleLanguageChange = (nextLanguage: 'en' | 'si') => {
+    setLanguage(nextLanguage)
+    void i18n.changeLanguage(nextLanguage)
+  }
 
   if (isCustomer) {
     const customerNavItems = [
@@ -70,6 +85,35 @@ export default function MainLayout() {
             </nav>
 
             <div className="flex items-center gap-2">
+              <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleLanguageChange('en')}
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-xs font-semibold transition-colors',
+                    language === 'en'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  aria-label="Switch language to English"
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLanguageChange('si')}
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-xs font-semibold transition-colors',
+                    language === 'si'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  aria-label="Switch language to Sinhala"
+                >
+                  SI
+                </button>
+              </div>
+
               {/* Cart button */}
               <Button variant="ghost" size="sm" asChild className="relative">
                 <Link to="/cart">
