@@ -216,6 +216,13 @@ export class VoiceProductService implements VoiceCapability {
       'තියෙනවාද',
       'තියෙන්නෙ',
       'හොයන්න',
+      'ලබා ගත හැකි',
+      'ලබා ගත හැකිද',
+      'ලබාගත හැකි',
+      'ලබාගත හැකිද',
+      'ගන්න පුලුවන්ද',
+      'ගන්න පුළුවන්ද',
+      'in stock',
     ];
 
     return catalogTerms.some((term) => normalized.includes(term));

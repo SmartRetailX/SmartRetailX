@@ -241,41 +241,45 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
   }
 
   private buildOfferListResponse(promotions: ActivePromotionItem[]): string {
-    const hasActive = promotions.some((promotion) => promotion.offerStatus === 'active');
-    const hasUpcoming = promotions.some((promotion) => promotion.offerStatus === 'upcoming');
+    const topPromotions = promotions.slice(0, 5);
+    const active = topPromotions.filter((promotion) => promotion.offerStatus === 'active');
+    const upcoming = topPromotions.filter((promotion) => promotion.offerStatus === 'upcoming');
+    const expired = topPromotions.filter((promotion) => promotion.offerStatus === 'expired');
 
-    const header = hasActive
-      ? '### දැනට පවතින Offers'
-      : hasUpcoming
-      ? '### දැනට active offers නැහැ. ඉදිරියේ එන offers'
-      : '### දැනට active offers නැහැ. අවසන් වූ offers';
+    const sections: string[] = [];
 
-    const lines = promotions.slice(0, 5).map((promotion, index) => {
+    if (active.length > 0) {
+      sections.push('### දැනට පවතින Offers', ...this.buildOfferLines(active));
+    }
+
+    if (upcoming.length > 0) {
+      sections.push('### ඉදිරියේ එන Offers', ...this.buildOfferLines(upcoming));
+    }
+
+    if (expired.length > 0) {
+      if (active.length === 0 && upcoming.length === 0) {
+        sections.push('### දැනට active offers නැහැ');
+      }
+      sections.push('### අවසන් වූ Offers', ...this.buildOfferLines(expired));
+    }
+
+    if (sections.length === 0) {
+      return '### දැනට active promotions කිසිවක් නොපෙන්වයි.';
+    }
+
+    return sections.join('\n');
+  }
+
+  private buildOfferLines(promotions: ActivePromotionItem[]): string[] {
+    return promotions.map((promotion, index) => {
       const product = (promotion.productName || promotion.productId || 'Unknown product').trim();
       const discount = this.formatDiscount(promotion.discountPercentage);
       const typeLabel = promotion.promotionType ? ` | ${promotion.promotionType}` : '';
       const audience = promotion.targetedPromotion ? ' | targeted' : '';
       const validity = this.formatDateRange(promotion.startDate, promotion.endDate);
-      const status = this.formatStatusLabel(promotion.offerStatus);
 
-      return `${index + 1}. **${product}** - ${discount}${status}${typeLabel}${audience}${validity}`;
+      return `${index + 1}. **${product}** - ${discount}${typeLabel}${audience}${validity}`;
     });
-
-    return [header, ...lines].join('\n');
-  }
-
-  private formatStatusLabel(status: ActivePromotionItem['offerStatus']): string {
-    if (status === 'active') {
-      return ' | active';
-    }
-    if (status === 'upcoming') {
-      return ' | upcoming';
-    }
-    if (status === 'expired') {
-      return ' | expired';
-    }
-
-    return '';
   }
 
   private formatDiscount(discountPercentage: number | undefined): string {

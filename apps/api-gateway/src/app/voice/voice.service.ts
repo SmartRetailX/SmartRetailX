@@ -17,6 +17,10 @@ import { VoiceChatRepository } from './voice-chat.repository';
 @Injectable()
 export class VoiceService {
   private readonly logger = new Logger(VoiceService.name);
+  private readonly secondOpinionModels = new Set([
+    'db-offers-empty',
+    'offer-fallback',
+  ]);
 
   constructor(
     private readonly voiceAgentTransportService: VoiceAgentTransportService,
@@ -78,19 +82,23 @@ export class VoiceService {
 
     try {
       const result = await this.voiceAgentTransportService.request(audioFile, payload);
+      const capabilityTranscript = this.resolveCapabilityTranscript(channel, payload.transcriptText, result.transcription);
+      const capabilityLanguage = result.language || payload.language;
+      const capabilitySessionId = result.sessionId || sessionId;
 
       const primaryCapabilityResult = await this.voiceCapabilityDispatcherService.dispatch(
         this.buildCapabilityContext(
-          result.transcription || payload.transcriptText,
-          result.language || payload.language,
-          result.sessionId || sessionId,
+          capabilityTranscript,
+          capabilityLanguage,
+          capabilitySessionId,
           userId,
         ),
         'primary',
       );
 
       if (primaryCapabilityResult) {
-        return await this.persistAndReturn(primaryCapabilityResult, channel, payload, userId);
+        const rechecked = this.tryAgentSecondOpinion(primaryCapabilityResult, result, payload, sessionId);
+        return await this.persistAndReturn(rechecked || primaryCapabilityResult, channel, payload, userId);
       }
 
       if (result.success && result.response?.trim()) {
@@ -129,9 +137,11 @@ export class VoiceService {
     userId: string,
     sessionId: string,
   ): Promise<VoiceChatResponseDto> {
+    const recoveryTranscript = this.resolveCapabilityTranscript(channel, payload.transcriptText, result.transcription);
+
     const recoveryResult = await this.voiceCapabilityDispatcherService.dispatch(
       this.buildCapabilityContext(
-        result.transcription || payload.transcriptText,
+        recoveryTranscript,
         result.language || payload.language,
         result.sessionId || sessionId,
         userId,
@@ -170,6 +180,22 @@ export class VoiceService {
     };
   }
 
+  private resolveCapabilityTranscript(
+    channel: VoiceChatInputMode,
+    originalText: string | undefined,
+    agentTranscription: string | undefined,
+  ): string | undefined {
+    const sourceText = originalText?.trim();
+    const transcribedText = agentTranscription?.trim();
+
+    // For text requests, keep capability matching anchored to the exact user text.
+    if (channel === 'text') {
+      return sourceText || transcribedText;
+    }
+
+    return transcribedText || sourceText;
+  }
+
   private async persistAndReturn(
     result: VoiceChatResponseDto,
     channel: VoiceChatInputMode,
@@ -186,5 +212,95 @@ export class VoiceService {
     });
 
     return result;
+  }
+
+  private tryAgentSecondOpinion(
+    capabilityResult: VoiceChatResponseDto,
+    agentResult: VoiceChatResponseDto,
+    payload: VoiceChatTcpPayload,
+    sessionId: string,
+  ): VoiceChatResponseDto | null {
+    const capabilityModel = (capabilityResult.model || '').trim();
+    if (!this.secondOpinionModels.has(capabilityModel)) {
+      return null;
+    }
+
+    const agentText = (agentResult.response || '').trim();
+    if (!agentResult.success || !agentText) {
+      return null;
+    }
+
+    if (this.isWeakSecondOpinion(agentText, capabilityResult.response || '', payload.transcriptText || '')) {
+      return null;
+    }
+
+    this.logger.log(`AI second-opinion override applied for model: ${capabilityModel}`);
+
+    return {
+      ...agentResult,
+      transcription: agentResult.transcription || capabilityResult.transcription || payload.transcriptText || '',
+      language: agentResult.language || capabilityResult.language,
+      sessionId: agentResult.sessionId || capabilityResult.sessionId || sessionId,
+      model: `${agentResult.model || 'agent'}-second-opinion`,
+    };
+  }
+
+  private isWeakSecondOpinion(agentText: string, capabilityText: string, sourceText: string): boolean {
+    const normalizedAgent = agentText.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedCapability = (capabilityText || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedSource = (sourceText || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+    if (!normalizedAgent) {
+      return true;
+    }
+
+    if (normalizedAgent === normalizedCapability) {
+      return true;
+    }
+
+    if (normalizedAgent.endsWith('?') || /\?|\u061f/u.test(normalizedAgent)) {
+      return true;
+    }
+
+    if (this.isLikelyParaphrase(normalizedAgent, normalizedSource)) {
+      return true;
+    }
+
+    const weakPhrases = [
+      'agent service unavailable',
+      'i do not have access',
+      'cannot access',
+      'දැනට offers සේවාවට සම්බන්ධතාවයේ ගැටලුවක්',
+      'ඔබ සෙවූ භාණ්ඩය දැනට',
+    ];
+
+    return weakPhrases.some((phrase) => normalizedAgent.includes(phrase.toLowerCase()));
+  }
+
+  private isLikelyParaphrase(candidate: string, source: string): boolean {
+    if (!candidate || !source) {
+      return false;
+    }
+
+    const candidateTokens = this.tokenizeText(candidate);
+    const sourceTokens = this.tokenizeText(source);
+    if (candidateTokens.length < 3 || sourceTokens.length < 3) {
+      return false;
+    }
+
+    const sourceSet = new Set(sourceTokens);
+    const overlap = candidateTokens.filter((token) => sourceSet.has(token)).length;
+    return overlap / candidateTokens.length >= 0.7;
+  }
+
+  private tokenizeText(text: string): string[] {
+    return Array.from(
+      new Set(
+        text
+          .split(/\s+/)
+          .map((token) => token.replace(/^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu, ''))
+          .filter((token) => token.length >= 2),
+      ),
+    );
   }
 }
