@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { LogOut, Package, Settings, ShoppingBag, ShoppingCart } from 'lucide-react'
+import { Award, LogOut, Package, Settings, ShoppingBag, ShoppingCart } from 'lucide-react'
 
 import AgentChatWidget from '@/components/chat/AgentChatWidget'
 import { useAuth } from '@/contexts/AuthContext'
@@ -38,6 +38,12 @@ export default function MainLayout() {
       {
         href: '/customer-settings',
         label: 'Account',
+      },
+
+      {
+        href: '/customer-settings',
+        label: 'Account',
+
       },
     ]
 
@@ -79,6 +85,12 @@ export default function MainLayout() {
                       {cartItemCount > 9 ? '9+' : cartItemCount}
                     </span>
                   )}
+                </Link>
+              </Button>
+
+              <Button variant="ghost" size="sm" asChild className="relative">
+                <Link to="/customer-loyalty">
+                  <Award className="h-5 w-5" />
                 </Link>
               </Button>
 
