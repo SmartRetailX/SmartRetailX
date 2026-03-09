@@ -178,7 +178,7 @@ export default function PromotionsPage() {
                 id="max-customers-slider"
                 type="range"
                 min={10}
-                max={200}
+                max={500}
                 step={10}
                 value={maxCustomers}
                 onChange={(e) => setMaxCustomers(Number(e.target.value))}
@@ -186,7 +186,7 @@ export default function PromotionsPage() {
               />
               <div className="flex justify-between text-xs text-gray-400 mt-1">
                 <span>10</span>
-                <span>200</span>
+                <span>500</span>
               </div>
             </div>
 
