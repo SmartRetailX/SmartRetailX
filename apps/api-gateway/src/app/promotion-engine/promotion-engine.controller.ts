@@ -1,6 +1,5 @@
-import { Controller, Get, Post, Body, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
 
 /**
  * Proxies requests to the Python FastAPI Promotion Engine ML service.
@@ -62,6 +61,52 @@ export class PromotionEngineController {
       const data = await res.json();
       if (!res.ok) {
         return { success: false, error: data.detail || 'Campaign generation failed' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  @Get('campaigns')
+  async listCampaigns(@Query('limit') limit?: string) {
+    try {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', limit);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${this.baseUrl}/api/campaigns${qs}`);
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  @Get('campaigns/:id')
+  async getCampaign(@Param('id') id: string) {
+    try {
+      const upstream = await fetch(`${this.baseUrl}/api/campaigns/${id}`);
+      const data = await upstream.json();
+      if (!upstream.ok) {
+        throw new HttpException(data, upstream.status);
+      }
+      return data;
+    } catch (e) {
+      if (e instanceof HttpException) throw e;
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  @Post('campaigns/compare')
+  async compareCampaigns(@Body() body: any) {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/campaigns/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.detail || 'Comparison failed' };
       }
       return data;
     } catch {
