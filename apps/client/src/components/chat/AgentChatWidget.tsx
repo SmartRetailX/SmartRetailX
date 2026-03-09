@@ -18,7 +18,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 
     if (part.startsWith('_') && part.endsWith('_')) {
       return (
-        <em key={`md-em-${index}`} className="italic text-gray-500 dark:text-gray-400">
+        <em key={`md-em-${index}`} className="italic text-muted-foreground">
           {part.slice(1, -1)}
         </em>
       )
@@ -42,7 +42,7 @@ function AssistantMarkdownMessage({ text }: { text: string }) {
         const headingMatch = line.match(/^###\s+(.+)$/)
         if (headingMatch) {
           return (
-            <p key={`md-h-${index}`} className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p key={`md-h-${index}`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {renderInlineMarkdown(headingMatch[1])}
             </p>
           )
@@ -52,7 +52,7 @@ function AssistantMarkdownMessage({ text }: { text: string }) {
         if (orderedMatch) {
           return (
             <p key={`md-ol-${index}`} className="pl-0.5">
-              <span className="mr-1 font-medium text-gray-600 dark:text-gray-300">{orderedMatch[1]}.</span>
+              <span className="mr-1 font-medium text-muted-foreground">{orderedMatch[1]}.</span>
               {renderInlineMarkdown(orderedMatch[2])}
             </p>
           )
@@ -62,7 +62,7 @@ function AssistantMarkdownMessage({ text }: { text: string }) {
         if (bulletMatch) {
           return (
             <p key={`md-ul-${index}`} className="pl-0.5">
-              <span className="mr-1 font-medium text-gray-600 dark:text-gray-300">•</span>
+              <span className="mr-1 font-medium text-muted-foreground">•</span>
               {renderInlineMarkdown(bulletMatch[1])}
             </p>
           )
@@ -158,16 +158,16 @@ export default function AgentChatWidget() {
   return (
     <>
       {open ? (
-        <div className="fixed bottom-24 right-6 z-50 flex h-[32rem] w-[22rem] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="fixed bottom-24 right-6 z-50 flex h-[32rem] w-[22rem] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-sm font-semibold">AI Voice and Text Assistant</p>
-              <p className="text-xs text-gray-500">Use voice or text in one secure thread</p>
+              <p className="text-xs text-muted-foreground">Use voice or text in one secure thread</p>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               aria-label="Close chat"
             >
               <X className="h-4 w-4" />
@@ -176,14 +176,14 @@ export default function AgentChatWidget() {
 
           <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
             {isLoadingSession ? (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>Loading chat history...</span>
               </div>
             ) : null}
 
             {!isLoadingSession && messages.length === 0 ? (
-              <div className="rounded-md border border-dashed border-gray-300 p-3 text-xs text-gray-500 dark:border-gray-700">
+              <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
                 Start with text or voice. Voice messages are stored with transcript.
               </div>
             ) : null}
@@ -196,7 +196,7 @@ export default function AgentChatWidget() {
                     className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${
                       isUser
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
+                        : 'bg-muted text-foreground'
                     }`}
                   >
                     {isUser ? message.text : <AssistantMarkdownMessage text={message.text} />}
@@ -207,20 +207,20 @@ export default function AgentChatWidget() {
           </div>
 
           {liveTranscript ? (
-            <div className="border-t border-gray-200 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">
+            <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
               Live: {liveTranscript}
             </div>
           ) : null}
-          {error ? <div className="px-3 pb-2 text-xs text-red-600">{error}</div> : null}
+          {error ? <div className="px-3 pb-2 text-xs text-destructive">{error}</div> : null}
 
-          <div className="border-t border-gray-200 p-3 dark:border-gray-700">
+          <div className="border-t border-border p-3">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={toggleRecording}
                 disabled={isRunning}
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-primary/90'
+                  isRecording ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'
                 }`}
                 aria-label={isRecording ? 'Stop voice recording' : 'Start voice recording'}
               >
@@ -232,7 +232,7 @@ export default function AgentChatWidget() {
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => void handleKeyDown(event)}
                 placeholder="Type a message..."
-                className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-primary dark:border-gray-600 dark:bg-gray-800"
+                className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
                 disabled={isRunning}
               />
 

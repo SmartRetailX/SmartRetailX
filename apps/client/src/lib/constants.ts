@@ -30,6 +30,36 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/bi/products/${id}`,
   },
 
+  // Core catalog (customer storefront)
+  CORE_CATALOG: {
+    PRODUCTS: '/api/core/products',
+    CATEGORIES: '/api/core/categories',
+  },
+
+  // Cart (customer)
+  CART: {
+    GET: '/api/core/cart',
+    ADD_ITEM: '/api/core/cart/items',
+    UPDATE_ITEM: (productId: string) => `/api/core/cart/items/${productId}`,
+    REMOVE_ITEM: (productId: string) => `/api/core/cart/items/${productId}`,
+    CLEAR: '/api/core/cart',
+  },
+
+  // Orders (customer)
+  ORDERS: {
+    LIST: '/api/core/orders',
+    CREATE: '/api/core/orders',
+    GET: (orderId: string) => `/api/core/orders/${orderId}`,
+    CANCEL: (orderId: string) => `/api/core/orders/${orderId}/cancel`,
+  },
+
+  // Orders (admin)
+  ADMIN_ORDERS: {
+    LIST: '/api/core/admin/orders',
+    GET: (orderId: string) => `/api/core/admin/orders/${orderId}`,
+    UPDATE_STATUS: (orderId: string) => `/api/core/admin/orders/${orderId}/status`,
+  },
+
   // Sales
   SALES: {
     LIST: '/api/bi/sales',
@@ -85,6 +115,7 @@ export const API_ENDPOINTS = {
     CAMPAIGNS: '/api/promotion-engine/campaigns',
     CAMPAIGN_DETAIL: (id: number) => `/api/promotion-engine/campaigns/${id}`,
     COMPARE: '/api/promotion-engine/campaigns/compare',
+    BUNDLES: (productId: string) => `/api/promotion-engine/products/${productId}/bundles`,
   },
 
   // Audit Logs
@@ -108,5 +139,42 @@ export const API_ENDPOINTS = {
   // Health
   HEALTH: {
     CHECK: '/api/bi/health',
+  },
+} as const
+
+// Core service endpoints
+export const CORE_SERVICE_ENDPOINTS = {
+  CATALOG: {
+    PRODUCTS: '/api/core/products',
+    CATEGORIES: '/api/core/categories',
+  },
+
+  CART: {
+    GET: '/api/core/cart',
+    ADD_ITEM: '/api/core/cart/items',
+    UPDATE_ITEM: (productId: string) => `/api/core/cart/items/${productId}`,
+    REMOVE_ITEM: (productId: string) => `/api/core/cart/items/${productId}`,
+    CLEAR: '/api/core/cart',
+  },
+
+  ORDERS: {
+    LIST: '/api/core/orders',
+    CREATE: '/api/core/orders',
+    GET: (orderId: string) => `/api/core/orders/${orderId}`,
+    CANCEL: (orderId: string) => `/api/core/orders/${orderId}/cancel`,
+  },
+
+  ADMIN_ORDERS: {
+    LIST: '/api/core/admin/orders',
+    GET: (orderId: string) => `/api/core/admin/orders/${orderId}`,
+    UPDATE_STATUS: (orderId: string) => `/api/core/admin/orders/${orderId}/status`,
+  },
+
+  ADMIN_PRODUCTS: {
+    LIST: '/api/core/admin/products',
+    GET: (productId: string) => `/api/core/admin/products/${productId}`,
+    CREATE: '/api/core/admin/products',
+    UPDATE: (productId: string) => `/api/core/admin/products/${productId}`,
+    DELETE: (productId: string) => `/api/core/admin/products/${productId}`,
   },
 } as const

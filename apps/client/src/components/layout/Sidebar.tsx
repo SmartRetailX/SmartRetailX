@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Layers, 
+  Box,
   DollarSign, 
   Package, 
   TrendingUp, 
@@ -14,7 +15,8 @@ import {
   ChevronRight,
   LayoutDashboard,
   Target,
-  Award
+  Award,
+  ShoppingBag
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -40,6 +42,8 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
         { name: t('nav.dashboard'), href: PATHS.DASHBOARD, icon: LayoutDashboard },
         { name: t('nav.revenue'), href: PATHS.REVENUE, icon: DollarSign },
         { name: t('nav.inventory'), href: PATHS.INVENTORY, icon: Package },
+        { name: 'Products', href: PATHS.PRODUCTS, icon: Box },
+        { name: 'Orders', href: PATHS.ADMIN_ORDERS, icon: ShoppingBag },
         { name: t('nav.forecasting'), href: PATHS.FORECASTING, icon: TrendingUp },
         { name: t('nav.customers'), href: PATHS.CUSTOMERS, icon: Users },
         { name: t('nav.tiers'), href: PATHS.TIERS, icon: Layers },
