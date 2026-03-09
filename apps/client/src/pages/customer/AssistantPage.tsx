@@ -1,5 +1,5 @@
 import { Check, Copy, Loader2, Mic, MicOff, Plus, RefreshCcw, Send } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -93,6 +93,7 @@ export default function AssistantPage() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const messageEndRef = useRef<HTMLDivElement | null>(null)
+  const shouldStickToBottomRef = useRef(true)
 
   const role = user?.role?.toLowerCase()
   const intents = useMemo(
@@ -127,14 +128,34 @@ export default function AssistantPage() {
     intents,
   })
 
+  const updateStickToBottom = useCallback(() => {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0
+    const viewportHeight = window.innerHeight
+    const fullHeight = document.documentElement.scrollHeight
+    const distanceFromBottom = fullHeight - (scrollTop + viewportHeight)
+    shouldStickToBottomRef.current = distanceFromBottom <= 160
+  }, [])
+
   useEffect(() => {
+    updateStickToBottom()
+    window.addEventListener('scroll', updateStickToBottom, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', updateStickToBottom)
+    }
+  }, [updateStickToBottom])
+
+  useEffect(() => {
+    if (!shouldStickToBottomRef.current) {
+      return
+    }
+
     const target = messageEndRef.current
     if (!target) {
       return
     }
 
-    target.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, liveTranscript])
+    target.scrollIntoView({ behavior: 'auto', block: 'end' })
+  }, [messages.length, isRunning])
 
   const handleSend = async () => {
     const value = input.trim()
@@ -266,6 +287,15 @@ export default function AssistantPage() {
             </div>
           )
         })}
+
+        {isRunning ? (
+          <div className="flex items-start">
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-2 text-sm text-muted-foreground shadow-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Assistant is thinking...</span>
+            </div>
+          </div>
+        ) : null}
 
         <div ref={messageEndRef} />
       </div>

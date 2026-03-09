@@ -47,6 +47,66 @@ type CatalogSearchResponse = {
   matches: CatalogSearchRaw[];
 };
 
+type OrderListItem = {
+  id: string;
+  orderNumber: string;
+  userId: string;
+  status: string;
+  itemCount: number;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type OrderListResponse = {
+  success: boolean;
+  data?: {
+    orders: OrderListItem[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+  message?: string;
+};
+
+type OrderDetailItem = {
+  id: string;
+  productId: string;
+  productName: string;
+  productNameSi: string | null;
+  productSku: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+type OrderDetail = {
+  id: string;
+  orderNumber: string;
+  userId: string;
+  status: string;
+  items: OrderDetailItem[];
+  itemCount: number;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type OrderDetailResponse = {
+  success: boolean;
+  data?: OrderDetail;
+  message?: string;
+};
+
 @Injectable()
 export class VoiceService {
   private readonly logger = new Logger(VoiceService.name);
@@ -138,6 +198,16 @@ export class VoiceService {
       }
 
       // If the agent gave a meaningful response, use it directly.
+      const orderAwareResult = await this.tryOrderAwareResponse(
+        result.transcription || payload.transcriptText,
+        result.language || payload.language,
+        result.sessionId || sessionId,
+        userId,
+      );
+      if (orderAwareResult) {
+        return await this.persistAndReturn(orderAwareResult, channel, payload, userId);
+      }
+
       // For catalog-style questions (prices/products), prefer factual catalog response
       // even when the agent generated generic text.
       const effectiveTranscript = result.transcription || payload.transcriptText;
@@ -188,6 +258,54 @@ export class VoiceService {
         error: 'Agent service unavailable',
       } satisfies VoiceChatResponseDto);
     }
+  }
+
+  private async tryOrderAwareResponse(
+    transcriptText: string | undefined,
+    language: VoiceChatTcpPayload['language'],
+    sessionId: string,
+    userId: string,
+  ): Promise<VoiceChatResponseDto | null> {
+    const queryText = transcriptText?.trim();
+    if (!queryText) {
+      return null;
+    }
+
+    if (this.isRecommendationStyleQuestion(queryText)) {
+      const responseText = await this.buildRecommendationsFromLastOrder(userId);
+      if (!responseText) {
+        return null;
+      }
+
+      return {
+        success: true,
+        transcription: queryText,
+        response: responseText,
+        language,
+        sessionId,
+        messages: [],
+        model: 'core-order-recommendations',
+      };
+    }
+
+    if (!this.isOrderStyleQuestion(queryText)) {
+      return null;
+    }
+
+    const responseText = await this.buildOrderResponse(queryText, userId);
+    if (!responseText) {
+      return null;
+    }
+
+    return {
+      success: true,
+      transcription: queryText,
+      response: responseText,
+      language,
+      sessionId,
+      messages: [],
+      model: 'core-order-history',
+    };
   }
 
   private async persistWithCatalogFallback(
@@ -266,6 +384,204 @@ export class VoiceService {
       this.logger.warn(`Catalog lookup failed (${error?.message ?? error}). Falling back to agent.`);
       return null;
     }
+  }
+
+  private async buildOrderResponse(queryText: string, userId: string): Promise<string | null> {
+    const orderNumber = this.extractOrderNumber(queryText);
+    const order =
+      orderNumber !== null
+        ? await this.fetchOrderByNumber(userId, orderNumber)
+        : await this.fetchLatestOrder(userId);
+
+    if (!order) {
+      return 'ඔබගේ ඇණවුම් ඉතිහාසයේ දත්ත හමු නොවුණා. පළමුව ඇණවුමක් place කළ පසු විස්තර ලබා දෙන්න පුළුවන්.';
+    }
+
+    return this.formatOrderDetail(order);
+  }
+
+  private async buildRecommendationsFromLastOrder(userId: string): Promise<string | null> {
+    const lastOrder = await this.fetchLatestOrder(userId);
+    if (!lastOrder || !Array.isArray(lastOrder.items) || lastOrder.items.length === 0) {
+      return 'නිර්දේශ ලබා දීමට ඔබගේ පෙර ඇණවුම් දත්ත හමු නොවුණා.';
+    }
+
+    const topItems = [...lastOrder.items].sort((a, b) => b.quantity - a.quantity).slice(0, 4);
+
+    const suggestions = await Promise.all(
+      topItems.map(async (item) => {
+        const searchTerm = (item.productNameSi || item.productName || '').trim();
+        if (!searchTerm) {
+          return null;
+        }
+
+        const catalog = await this.searchCatalog(searchTerm, 4);
+        if (!catalog?.success || !Array.isArray(catalog.matches) || catalog.matches.length === 0) {
+          return null;
+        }
+
+        const best = catalog.matches.find((m) => m.productId === item.productId) || catalog.matches[0];
+        if (!best) {
+          return null;
+        }
+
+        return `- **${this.getDisplayName(best as CatalogSearchMatch)}** - ${this.formatPrice(best.price)} | ${this.formatStockLabel(best.currentStock)}`;
+      }),
+    );
+
+    const lines = suggestions.filter((line): line is string => Boolean(line)).slice(0, 5);
+    if (lines.length === 0) {
+      return 'ඔබගේ අවසන් ඇණවුම අනුව නිර්දේශ සකස් කළා, නමුත් දැනට ගැලපෙන stock items හමු නොවුණා.';
+    }
+
+    return [
+      '### ඔබට නිර්දේශිත ලැයිස්තුව',
+      `- **මූලාශ්‍රය:** ඔබගේ අවසන් ඇණවුම (${lastOrder.orderNumber})`,
+      ...lines,
+      '_අවශ්‍ය නම් මේ ලැයිස්තුවෙන් items cart එකට දාන්න කියන්න._',
+    ].join('\n');
+  }
+
+  private async fetchLatestOrder(userId: string): Promise<OrderDetail | null> {
+    const list = await this.fetchOrders(userId, 1);
+    const latest = list?.data?.orders?.[0];
+    if (!latest?.id) {
+      return null;
+    }
+
+    return await this.fetchOrderById(userId, latest.id);
+  }
+
+  private async fetchOrderById(userId: string, orderId: string): Promise<OrderDetail | null> {
+    try {
+      const timeoutMs = Number(this.configService.get<string | number>('CORE_ORDER_TIMEOUT_MS', 3_000));
+      const result = (await firstValueFrom(
+        this.coreClient.send({ cmd: 'order_get' }, { userId, orderId }).pipe(
+          timeout(timeoutMs),
+          defaultIfEmpty({ success: false } satisfies OrderDetailResponse),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+      )) as OrderDetailResponse;
+
+      if (!result?.success || !result.data) {
+        return null;
+      }
+
+      return result.data;
+    } catch (error) {
+      this.logger.warn(`Order detail lookup failed (${error?.message ?? error})`);
+      return null;
+    }
+  }
+
+  private async fetchOrderByNumber(userId: string, orderNumber: string): Promise<OrderDetail | null> {
+    try {
+      const timeoutMs = Number(this.configService.get<string | number>('CORE_ORDER_TIMEOUT_MS', 3_000));
+      const result = (await firstValueFrom(
+        this.coreClient.send({ cmd: 'order_get_by_number' }, { userId, orderNumber }).pipe(
+          timeout(timeoutMs),
+          defaultIfEmpty({ success: false } satisfies OrderDetailResponse),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+      )) as OrderDetailResponse;
+
+      if (!result?.success || !result.data) {
+        return null;
+      }
+
+      return result.data;
+    } catch (error) {
+      this.logger.warn(`Order number lookup failed (${error?.message ?? error})`);
+      return null;
+    }
+  }
+
+  private async fetchOrders(userId: string, limit = 5): Promise<OrderListResponse | null> {
+    try {
+      const timeoutMs = Number(this.configService.get<string | number>('CORE_ORDER_TIMEOUT_MS', 3_000));
+      const result = (await firstValueFrom(
+        this.coreClient.send({ cmd: 'order_list' }, { userId, page: 1, limit }).pipe(
+          timeout(timeoutMs),
+          defaultIfEmpty({ success: false } satisfies OrderListResponse),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+      )) as OrderListResponse;
+
+      return result;
+    } catch (error) {
+      this.logger.warn(`Order list lookup failed (${error?.message ?? error})`);
+      return null;
+    }
+  }
+
+  private async searchCatalog(term: string, limit = 4): Promise<CatalogSearchResponse | null> {
+    try {
+      const timeoutMs = Number(this.configService.get<string | number>('CORE_CATALOG_TIMEOUT_MS', 3_000));
+      const result = (await firstValueFrom(
+        this.coreClient.send({ cmd: 'catalog_search' }, { term, limit }).pipe(
+          timeout(timeoutMs),
+          defaultIfEmpty({ success: false, term, matches: [] } satisfies CatalogSearchResponse),
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+      )) as CatalogSearchResponse;
+
+      return result;
+    } catch (error) {
+      this.logger.warn(`Catalog query failed during recommendations (${error?.message ?? error})`);
+      return null;
+    }
+  }
+
+  private formatOrderDetail(order: OrderDetail): string {
+    const createdAt = this.formatDate(order.createdAt);
+    const items = (order.items || []).slice(0, 5).map((item, index) => {
+      const itemName = (item.productNameSi || item.productName || '').trim() || 'නම නොමැති නිෂ්පාදනය';
+      return `${index + 1}. ${itemName} x${item.quantity} - ${this.formatPrice(item.totalPrice)}`;
+    });
+
+    return [
+      '### අවසන් ඇණවුමේ විස්තර',
+      `- **Order No:** ${order.orderNumber}`,
+      `- **දිනය:** ${createdAt}`,
+      `- **තත්වය:** ${this.formatOrderStatus(order.status)}`,
+      `- **මුළු මුදල:** ${this.formatPrice(order.total)}`,
+      `- **භාණ්ඩ ගණන:** ${order.itemCount}`,
+      '### අයිතම',
+      ...(items.length > 0 ? items : ['- අයිතම නොමැත']),
+    ].join('\n');
+  }
+
+  private formatDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  private formatOrderStatus(status: string): string {
+    const normalized = (status || '').toLowerCase();
+    if (normalized === 'pending') return 'Pending';
+    if (normalized === 'confirmed') return 'Confirmed';
+    if (normalized === 'processing') return 'Processing';
+    if (normalized === 'shipped') return 'Shipped';
+    if (normalized === 'delivered') return 'Delivered';
+    if (normalized === 'cancelled') return 'Cancelled';
+    return status || 'Unknown';
   }
 
   /**
@@ -418,6 +734,49 @@ export class VoiceService {
     }
 
     return buildCatalogQueryTokens(normalized).length > 0;
+  }
+
+  private isOrderStyleQuestion(text: string): boolean {
+    const normalized = normalizeCatalogQuery(text);
+    const orderTerms = [
+      'order',
+      'orders',
+      'ඔර්ඩර්',
+      'ඕඩර්',
+      'ඇණවුම',
+      'ඇණවුම්',
+      'order history',
+      'last order',
+      'අවසන්',
+      'විස්තර',
+    ];
+    return orderTerms.some((term) => normalized.includes(term));
+  }
+
+  private isRecommendationStyleQuestion(text: string): boolean {
+    const normalized = normalizeCatalogQuery(text);
+    const recommendationTerms = [
+      'recommend',
+      'recommendation',
+      'suggest',
+      'suggestion',
+      'නිර්දේශ',
+      'යෝජනා',
+      'මොනවා ගන්න',
+      'what should i buy',
+    ];
+    return recommendationTerms.some((term) => normalized.includes(term));
+  }
+
+  private extractOrderNumber(text: string): string | null {
+    const match = text.match(/(ORD[-\s]?\d{8}[-\s]?[A-Za-z0-9]{4,10})/i);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const compact = match[1].replace(/\s+/g, '').toUpperCase();
+    const normalized = compact.includes('-') ? compact : compact.replace(/^ORD(\d{8})([A-Z0-9]{4,10})$/, 'ORD-$1-$2');
+    return normalized;
   }
 
   private async persistAndReturn(

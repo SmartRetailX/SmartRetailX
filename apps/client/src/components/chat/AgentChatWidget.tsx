@@ -1,5 +1,5 @@
 import { Check, Copy, Expand, Loader2, MessageCircle, Mic, MicOff, Send, X } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/contexts/AuthContext'
@@ -92,6 +92,7 @@ export default function AgentChatWidget() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const messageListRef = useRef<HTMLDivElement | null>(null)
+  const shouldStickToBottomRef = useRef(true)
 
   if (!isCustomer) {
     return null
@@ -129,8 +130,26 @@ export default function AgentChatWidget() {
     intents,
   })
 
+  const updateStickToBottom = useCallback(() => {
+    const target = messageListRef.current
+    if (!target) {
+      return
+    }
+
+    const distanceFromBottom = target.scrollHeight - (target.scrollTop + target.clientHeight)
+    shouldStickToBottomRef.current = distanceFromBottom <= 80
+  }, [])
+
   useEffect(() => {
     if (!open) {
+      return
+    }
+
+    updateStickToBottom()
+  }, [open, updateStickToBottom])
+
+  useEffect(() => {
+    if (!open || !shouldStickToBottomRef.current) {
       return
     }
 
@@ -139,8 +158,8 @@ export default function AgentChatWidget() {
       return
     }
 
-    target.scrollTop = target.scrollHeight
-  }, [messages, open])
+    target.scrollTo({ top: target.scrollHeight, behavior: 'auto' })
+  }, [messages.length, isRunning, open])
 
   const handleSend = async () => {
     const value = input.trim()
@@ -234,7 +253,11 @@ export default function AgentChatWidget() {
             </div>
           </div>
 
-          <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+          <div
+            ref={messageListRef}
+            className="flex-1 space-y-3 overflow-y-auto px-3 py-3"
+            onScroll={updateStickToBottom}
+          >
             {isLoadingSession ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -286,6 +309,15 @@ export default function AgentChatWidget() {
                 </div>
               )
             })}
+
+            {isRunning ? (
+              <div className="flex items-start">
+                <div className="inline-flex items-center gap-2 rounded-2xl bg-muted px-3 py-2 text-xs text-muted-foreground shadow-sm">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Assistant is thinking...</span>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {liveTranscript ? (
