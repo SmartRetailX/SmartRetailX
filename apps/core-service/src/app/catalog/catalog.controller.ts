@@ -11,4 +11,77 @@ export class CatalogController {
   async searchCatalog(data: { term?: string; limit?: number }) {
     return this.catalogService.search(data?.term ?? '', data?.limit ?? 5);
   }
+
+  @MessagePattern({ cmd: 'catalog_products' })
+  async listProducts(data: {
+    search?: string;
+    category?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortDir?: string;
+    activeOnly?: boolean;
+  }) {
+    return this.catalogService.listProducts(data || {});
+  }
+
+  @MessagePattern({ cmd: 'catalog_categories' })
+  async listCategories(data: { limit?: number }) {
+    return this.catalogService.listCategories(data?.limit ?? 200);
+  }
+
+  @MessagePattern({ cmd: 'catalog_get_product' })
+  async getProduct(data: { productId: string }) {
+    return this.catalogService.getProduct(data.productId);
+  }
+
+  @MessagePattern({ cmd: 'catalog_create_product' })
+  async createProduct(data: {
+    sku: string;
+    name: string;
+    nameSi?: string;
+    baseProduct?: string;
+    baseProductSi?: string;
+    description?: string;
+    descriptionSi?: string;
+    category?: string;
+    categorySi?: string;
+    price: number;
+    stockQuantity: number;
+    imageUrl?: string;
+    isActive?: boolean;
+    createdBy?: string;
+  }) {
+    return this.catalogService.createProduct(data);
+  }
+
+  @MessagePattern({ cmd: 'catalog_update_product' })
+  async updateProduct(data: {
+    productId: string;
+    name?: string;
+    nameSi?: string;
+    baseProduct?: string;
+    baseProductSi?: string;
+    description?: string;
+    descriptionSi?: string;
+    category?: string;
+    categorySi?: string;
+    price?: number;
+    stockQuantity?: number;
+    imageUrl?: string;
+    isActive?: boolean;
+  }) {
+    const { productId, ...input } = data;
+    return this.catalogService.updateProduct(productId, input);
+  }
+
+  @MessagePattern({ cmd: 'catalog_delete_product' })
+  async deleteProduct(data?: { productId?: string }) {
+    const productId = data?.productId;
+    if (!productId) {
+      return { success: false, message: 'Product id is required' };
+    }
+
+    return this.catalogService.deleteProduct(productId);
+  }
 }

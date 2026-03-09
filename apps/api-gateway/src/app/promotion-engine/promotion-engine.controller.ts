@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Body, Query, Param, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Query, Param, Req, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Request } from 'express';
 
 /**
  * Proxies requests to the Python FastAPI Promotion Engine ML service.
@@ -96,6 +97,24 @@ export class PromotionEngineController {
     }
   }
 
+  @Get('products/:productId/bundles')
+  async getProductBundles(
+    @Param('productId') productId: string,
+    @Query('min_support') minSupport?: string,
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      const params = new URLSearchParams();
+      if (minSupport) params.set('min_support', minSupport);
+      if (limit) params.set('limit', limit);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${this.baseUrl}/api/products/${productId}/bundles${qs}`);
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
   @Post('campaigns/compare')
   async compareCampaigns(@Body() body: any) {
     try {
@@ -109,6 +128,66 @@ export class PromotionEngineController {
         return { success: false, error: data.detail || 'Comparison failed' };
       }
       return data;
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  // ── Customer promotion inbox ────────────────────────────────────────────
+  // These endpoints are auth-protected (global guard). The authenticated
+  // user's email is forwarded to the Python service which resolves the
+  // pe_customers.customer_id via email match — no user-table migration needed.
+
+  /** Must come before /:id/read so NestJS doesn't treat 'read-all' as an id. */
+  @Patch('my-promotions/read-all')
+  async markAllPromotionsRead(
+    @Req() req: Request & { user?: { email?: string } },
+  ) {
+    const email = req.user?.email;
+    if (!email) throw new HttpException('Unauthorized', 401);
+    try {
+      const params = new URLSearchParams({ email });
+      const res = await fetch(
+        `${this.baseUrl}/api/customer-promotions/read-all?${params.toString()}`,
+        { method: 'PATCH' },
+      );
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  @Get('my-promotions')
+  async getMyPromotions(
+    @Req() req: Request & { user?: { email?: string } },
+  ) {
+    const email = req.user?.email;
+    if (!email) throw new HttpException('Unauthorized', 401);
+    try {
+      const params = new URLSearchParams({ email });
+      const res = await fetch(
+        `${this.baseUrl}/api/customer-promotions?${params.toString()}`,
+      );
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
+
+  @Patch('my-promotions/:id/read')
+  async markPromotionRead(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { email?: string } },
+  ) {
+    const email = req.user?.email;
+    if (!email) throw new HttpException('Unauthorized', 401);
+    try {
+      const params = new URLSearchParams({ email });
+      const res = await fetch(
+        `${this.baseUrl}/api/customer-promotions/${id}/read?${params.toString()}`,
+        { method: 'PATCH' },
+      );
+      return res.json();
     } catch {
       return { success: false, error: 'ML service is not running' };
     }

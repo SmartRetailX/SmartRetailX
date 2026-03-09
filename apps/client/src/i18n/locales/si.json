@@ -67,7 +67,8 @@
     "voice": "හඬ සහායක",
     "admin": "පරිපාලක පුවරුව",
     "settings": "සැකසීම්",
-    "profile": "පැතිකඩ"
+    "profile": "පැතිකඩ",
+    "myloyalty": "මගේ Loyalty"
   },
   "dashboard": {
     "title": "උපකරණ පුවරු දළ විශ්ලේෂණය",
@@ -218,6 +219,23 @@
     "thisMonth": "මෙම මාසය",
     "avgPerOrder": "ඇණවුමකට සාමාන්‍ය",
     "savedWithCoupons": "කූපන් සමඟ ඉතිරි කළ"
+  },
+  "loyalty": {
+    "title": "මගේ Loyalty",
+    "welcomeMessage": "{{name}}, ඔබගේ loyalty තොරතුරු මෙන්න.",
+    "totalPurchases": "මුළු මිලදී ගැනීම්",
+    "totalSpent": "මුළු වියදම",
+    "currentTier": "වර්තමාන Tier",
+    "memberSince": "සාමාජික වූ දිනය",
+    "yourTier": "ඔබගේ Loyalty Tier",
+    "behaviorMetrics": "පාරිභෝගික හැසිරීම් මිනුම්",
+    "behaviorMetricsDesc": "ඔබගේ සම්බන්ධතාවය හා මිලදී ගැනීමේ හැසිරීම් විශ්ලේෂණය",
+    "customerSegment": "පාරිභෝගික කණ්ඩායම",
+    "customerSegmentDesc": "ඔබගේ මිලදී ගැනීමේ රටාව අනුව නිර්මාණය කළ කණ්ඩායම",
+    "nextTier": "ඊළඟ Tier",
+    "nextTierDesc": "ඊළඟ tier එකට පැමිණ තවත් ප්‍රතිලාභ ලබාගන්න",
+    "membershipInfo": "සාමාජික තොරතුරු",
+    "lastPurchase": "අවසාන මිලදී ගැනීම"
   },
   "customerSettings": {
     "title": "සැකසීම්",

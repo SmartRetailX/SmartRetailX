@@ -216,6 +216,124 @@ def get_campaign_by_id(campaign_id: int) -> dict | None:
         return None
     return dict(zip(columns, row))
 
+# ── Customer Promotion Notifications ──────────────────────
+
+def _ensure_customer_promotions_table():
+    """Create pe_customer_promotions if it doesn't exist."""
+    ddl = """
+    CREATE TABLE IF NOT EXISTS pe_customer_promotions (
+        id               SERIAL PRIMARY KEY,
+        customer_id      TEXT NOT NULL,
+        campaign_id      INTEGER,
+        product_id       TEXT NOT NULL,
+        product_name     TEXT NOT NULL,
+        product_category TEXT NOT NULL,
+        discount_percent DOUBLE PRECISION NOT NULL,
+        message          TEXT NOT NULL,
+        is_read          BOOLEAN DEFAULT FALSE,
+        expires_at       TIMESTAMP,
+        created_at       TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_pe_cp_customer ON pe_customer_promotions(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_pe_cp_unread ON pe_customer_promotions(customer_id, is_read);
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(ddl)
+        conn.commit()
+
+
+def save_customer_promotions(campaign_id: int, campaign_data: dict, targets_list: list):
+    """Fan-out a campaign to per-customer notification rows in pe_customer_promotions."""
+    _ensure_customer_promotions_table()
+    import datetime
+    expires = datetime.datetime.now() + datetime.timedelta(days=30)
+    product_name = campaign_data['productName']
+    discount = campaign_data['discountPercent']
+    category = campaign_data['productCategory']
+    product_id = campaign_data['productId']
+
+    sql = """
+    INSERT INTO pe_customer_promotions
+        (customer_id, campaign_id, product_id, product_name, product_category,
+         discount_percent, message, expires_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    rows = [
+        (
+            str(t['customerId']),
+            campaign_id,
+            str(product_id),
+            product_name,
+            category,
+            discount,
+            f"You have a {discount:.0f}% discount on {product_name}! Limited time offer.",
+            expires,
+        )
+        for t in targets_list
+    ]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(sql, rows)
+        conn.commit()
+
+
+def get_customer_promotions_by_email(email: str) -> list:
+    """Look up customer_id by email, then return their active promotions."""
+    _ensure_customer_promotions_table()
+    sql = """
+    SELECT cp.id, cp.customer_id, cp.campaign_id, cp.product_id, cp.product_name,
+           cp.product_category, cp.discount_percent, cp.message,
+           cp.is_read, cp.expires_at, cp.created_at
+    FROM pe_customer_promotions cp
+    JOIN pe_customers c ON c.customer_id = cp.customer_id
+    WHERE LOWER(c.email) = LOWER(%s)
+      AND (cp.expires_at IS NULL OR cp.expires_at > NOW())
+    ORDER BY cp.is_read ASC, cp.created_at DESC
+    LIMIT 100;
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (email,))
+            columns = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+    return [dict(zip(columns, r)) for r in rows]
+
+
+def mark_promotion_read(notification_id: int, email: str) -> bool:
+    """Mark a single notification as read, scoped to the authenticated user's email."""
+    sql = """
+    UPDATE pe_customer_promotions cp
+    SET is_read = TRUE
+    FROM pe_customers c
+    WHERE cp.id = %s
+      AND c.customer_id = cp.customer_id
+      AND LOWER(c.email) = LOWER(%s);
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (notification_id, email))
+            updated = cur.rowcount
+        conn.commit()
+    return updated > 0
+
+
+def mark_all_promotions_read(email: str) -> int:
+    """Mark all unread notifications for the given user as read."""
+    sql = """
+    UPDATE pe_customer_promotions cp
+    SET is_read = TRUE
+    FROM pe_customers c
+    WHERE c.customer_id = cp.customer_id
+      AND LOWER(c.email) = LOWER(%s)
+      AND cp.is_read = FALSE;
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (email,))
+            updated = cur.rowcount
+        conn.commit()
+    return updated
 
 if __name__ == "__main__":
     print("Testing database connection...")

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.database import save_campaign, get_campaigns, get_campaign_by_id
+from api.database import save_campaign, get_campaigns, get_campaign_by_id, save_customer_promotions
 
 router = APIRouter()
 
@@ -24,6 +24,98 @@ class GenerateCampaignRequest(BaseModel):
     maxCustomers: int = 50
 
 
+# ── XAI helper ─────────────────────────────────────────────
+
+# Human-readable labels and display format for each feature.
+# (feature_col, label, format_str, lower_is_better)
+_XAI_FEATURES = [
+    ('customer_purchase_frequency',  'Purchase Frequency',   '{:.0f} purchases',          False),
+    ('customer_avg_transaction',     'Avg. Spend',           'Rs. {:.0f} per transaction', False),
+    ('customer_recency',             'Recency',              '{:.0f} days since last buy',  True),   # lower = more recent = better
+    ('customer_promo_response_rate', 'Promo Response Rate',  '{:.0%} response rate',        False),
+    ('category_affinity',            'Category Affinity',    '{:.2f} affinity score',       False),
+    ('category_purchase_count',      'Category Purchases',   '{:.0f} purchases here',       False),
+]
+
+
+def _build_xai_reasons(targets_df, purchase_model, top_k: int = 3):
+    """
+    Compute per-customer XAI explanations using:
+        contribution = feature_importance × z_score
+
+    A positive contribution means the customer is above-average on an
+    important feature (or below-average on a lower-is-better feature),
+    which pushes their purchase probability higher.
+
+    Returns: dict  { customer_id -> list[{feature, label, formattedValue, strength}] }
+    """
+    if purchase_model is None or purchase_model.feature_importance is None:
+        return {}
+
+    # Build importance lookup  {feature: importance_value}
+    fi = dict(zip(
+        purchase_model.feature_importance['feature'],
+        purchase_model.feature_importance['importance'],
+    ))
+
+    # Population stats across the targeted set (their peer group)
+    pop_stats = {}
+    for feat, *_ in _XAI_FEATURES:
+        if feat not in targets_df.columns:
+            continue
+        std = targets_df[feat].std()
+        pop_stats[feat] = {
+            'mean': float(targets_df[feat].mean()),
+            'std': float(std) if std > 1e-6 else 1.0,
+        }
+
+    result = {}
+    for _, row in targets_df.iterrows():
+        reasons = []
+        for feat, label, fmt, lower_is_better in _XAI_FEATURES:
+            if feat not in pop_stats:
+                continue
+            importance = fi.get(feat, 0.0)
+            if importance < 0.03:
+                continue  # Skip near-zero importance features
+            value = float(row.get(feat, 0))
+            z = (value - pop_stats[feat]['mean']) / pop_stats[feat]['std']
+            if lower_is_better:
+                z = -z
+            contribution = importance * z
+            reasons.append({
+                'feature': feat,
+                'label': label,
+                'formattedValue': fmt.format(value),
+                'contribution': round(float(contribution), 4),
+                'importance': round(float(importance), 4),
+            })
+
+        # Sort by contribution descending, keep top positive ones
+        reasons.sort(key=lambda x: x['contribution'], reverse=True)
+        top = [r for r in reasons if r['contribution'] > 0][:top_k]
+        if not top:
+            top = reasons[:top_k]  # Fallback: just show highest importance
+
+        # Normalise to 0-1 strength for frontend progress bars
+        max_c = max((abs(r['contribution']) for r in top), default=1.0) or 1.0
+        for r in top:
+            r['strength'] = round(min(abs(r['contribution']) / max_c, 1.0), 3)
+
+        result[str(row['CustomerID'])] = top
+
+    return result
+
+
+class XaiReason(BaseModel):
+    feature: str
+    label: str
+    formattedValue: str
+    contribution: float
+    importance: float
+    strength: float   # 0-1, for frontend progress bar
+
+
 class CustomerTarget(BaseModel):
     customerId: str
     customerName: str
@@ -33,6 +125,7 @@ class CustomerTarget(BaseModel):
     cfScore: float
     hybridScore: float
     targetingMethod: str
+    reasons: list[XaiReason] = []
 
 
 class CampaignSummary(BaseModel):
@@ -110,6 +203,54 @@ async def list_categories():
     return {"success": True, "categories": categories}
 
 
+@router.get("/products/{product_id}/bundles")
+async def get_product_bundles(product_id: str, min_support: float = 0.05, limit: int = 6):
+    """
+    Market basket analysis: products frequently bought together with product_id.
+    Uses the trained Collaborative Filtering model's co-purchase counts.
+    """
+    engine, preprocessor = _get_state()
+
+    if engine.cf_model is None:
+        raise HTTPException(503, "CF model not loaded")
+
+    # Validate product exists
+    products_df = preprocessor.products
+    product_row = products_df[products_df['ProductID'].astype(str) == str(product_id)]
+    if product_row.empty:
+        raise HTTPException(404, f"Product '{product_id}' not found")
+
+    co_purchased = engine.cf_model.find_co_purchased_products(
+        product_id, min_support=min_support
+    )
+
+    # Enrich with product metadata
+    bundles = []
+    for item in co_purchased[:limit]:
+        pid = str(item["ProductID"])
+        meta = products_df[products_df['ProductID'].astype(str) == pid]
+        if meta.empty:
+            continue
+        row = meta.iloc[0]
+        bundles.append({
+            "productId": pid,
+            "productName": str(row["ProductName"]),
+            "category": str(row["Category"]),
+            "price": float(row["Price"]),
+            "coPurchaseCount": int(item["co_purchase_count"]),
+            "support": round(float(item["support"]) * 100, 1),  # as %
+        })
+
+    anchor = product_row.iloc[0]
+    return {
+        "success": True,
+        "productId": product_id,
+        "productName": str(anchor["ProductName"]),
+        "totalBuyers": len(bundles),
+        "bundles": bundles,
+    }
+
+
 @router.post("/campaigns/generate", response_model=GenerateCampaignResponse)
 async def generate_campaign(request: GenerateCampaignRequest):
     """
@@ -137,6 +278,7 @@ async def generate_campaign(request: GenerateCampaignRequest):
             raise HTTPException(404, "No suitable customers found for this product.")
 
         # Build response
+        xai_map = _build_xai_reasons(targets_df, engine.purchase_model)
         target_list = []
         for _, row in targets_df.iterrows():
             cid = row['CustomerID']
@@ -151,6 +293,7 @@ async def generate_campaign(request: GenerateCampaignRequest):
                 cfScore=float(row.get('cf_score', 0)),
                 hybridScore=float(row.get('hybrid_score', 0)),
                 targetingMethod=str(row.get('targeting_method', 'hybrid')),
+                reasons=xai_map.get(str(cid), []),
             ))
 
         # Campaign stats
@@ -179,9 +322,14 @@ async def generate_campaign(request: GenerateCampaignRequest):
             costSavingsVsBroadcast=round(savings, 2),
         )
 
-        # Persist campaign to database
+        # Persist campaign to database and fan-out per-customer notifications
         try:
-            save_campaign(
+            campaign_id = save_campaign(
+                campaign_data=summary.model_dump(),
+                targets_list=[t.model_dump() for t in target_list],
+            )
+            save_customer_promotions(
+                campaign_id=campaign_id,
                 campaign_data=summary.model_dump(),
                 targets_list=[t.model_dump() for t in target_list],
             )

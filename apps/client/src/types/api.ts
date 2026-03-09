@@ -88,13 +88,16 @@ export interface Product {
   costPrice?: number
   currentStock: number
   stock?: number // Legacy field
-  reorderLevel: number
+  storeId?: string
+  reorderLevel?: number
   maxStock?: number
   status: StockStatus | 'in_stock' | 'low_stock' | 'out_of_stock'
   unit?: string
   description?: string
+  descriptionSi?: string
   image?: string
   imageUrl?: string
+  isActive?: boolean
   supplier?: string
   lastRestocked?: string
   expiryDate?: string
