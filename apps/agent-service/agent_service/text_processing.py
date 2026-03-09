@@ -60,7 +60,10 @@ def is_prompt_echo(transcript: str, prompt: str | None) -> bool:
     if normalized_transcript == normalized_prompt:
         return True
 
-    return normalized_prompt in normalized_transcript and len(normalized_transcript) <= len(normalized_prompt) + 20
+    return (
+        normalized_prompt in normalized_transcript
+        and len(normalized_transcript) <= len(normalized_prompt) + 20
+    )
 
 
 def looks_hallucinated_transcript(transcript: str, audio_size: int) -> bool:
@@ -68,7 +71,11 @@ def looks_hallucinated_transcript(transcript: str, audio_size: int) -> bool:
     if not normalized:
         return True
 
-    sentences = [s.strip() for s in normalized.replace("!", ".").replace("?", ".").split(".") if s.strip()]
+    sentences = [
+        s.strip()
+        for s in normalized.replace("!", ".").replace("?", ".").split(".")
+        if s.strip()
+    ]
     if len(sentences) >= 2 and len(set(sentences)) == 1:
         return True
 
@@ -82,7 +89,9 @@ def looks_hallucinated_transcript(transcript: str, audio_size: int) -> bool:
                 continue
             phrase = tokens[:n]
             chunks = [tokens[i : i + n] for i in range(0, len(tokens) - n + 1, n)]
-            if len(chunks) >= 3 and all(chunk == phrase for chunk in chunks[: min(len(chunks), 5)]):
+            if len(chunks) >= 3 and all(
+                chunk == phrase for chunk in chunks[: min(len(chunks), 5)]
+            ):
                 return True
 
     return False
@@ -115,11 +124,21 @@ def is_low_confidence_whisper(data: dict[str, Any]) -> bool:
     for segment in segments:
         if not isinstance(segment, dict):
             continue
-        max_no_speech_prob = max(max_no_speech_prob, float(segment.get("no_speech_prob", 0.0) or 0.0))
-        min_avg_logprob = min(min_avg_logprob, float(segment.get("avg_logprob", 0.0) or 0.0))
-        max_compression_ratio = max(max_compression_ratio, float(segment.get("compression_ratio", 0.0) or 0.0))
+        max_no_speech_prob = max(
+            max_no_speech_prob, float(segment.get("no_speech_prob", 0.0) or 0.0)
+        )
+        min_avg_logprob = min(
+            min_avg_logprob, float(segment.get("avg_logprob", 0.0) or 0.0)
+        )
+        max_compression_ratio = max(
+            max_compression_ratio, float(segment.get("compression_ratio", 0.0) or 0.0)
+        )
 
-    return max_no_speech_prob >= 0.60 or min_avg_logprob <= -1.2 or max_compression_ratio >= 2.8
+    return (
+        max_no_speech_prob >= 0.60
+        or min_avg_logprob <= -1.2
+        or max_compression_ratio >= 2.8
+    )
 
 
 def normalize_transcript(text: str) -> str:
@@ -180,17 +199,83 @@ def _extract_product_hint(text: str) -> str | None:
     return None
 
 
-def detect_intent_and_entities(text: str, allowed_intents: list[str] | None) -> tuple[str, float, dict[str, Any], str | None]:
+def detect_intent_and_entities(
+    text: str, allowed_intents: list[str] | None
+) -> tuple[str, float, dict[str, Any], str | None]:
     lowered = text.lower()
-    intents = set(allowed_intents or DEFAULT_INTENTS)
+    # Preserve configured intent order for deterministic tie-breaking.
+    intents = list(dict.fromkeys(allowed_intents or DEFAULT_INTENTS))
     scores: dict[str, int] = {intent: 0 for intent in intents}
 
     keywords: dict[str, list[str]] = {
-        "offers": ["offer", "promotion", "discount", "deal", "special", "වට්ටම්", "offer එක", "promotions"],
-        "order_history": ["order history", "past order", "previous order", "orders", "ඇණවුම්", "පෙර ඇණවුම්"],
-        "buying_suggestions": ["suggest", "recommend", "buy", "what should i buy", "නිර්දේශ", "සැජෙස්ට්", "අදහස"],
+        "offers": [
+            "offer",
+            "promotion",
+            "discount",
+            "deal",
+            "special",
+            "වට්ටම්",
+            "offer එක",
+            "promotions",
+        ],
+        "order_history": [
+            "order history",
+            "order status",
+            "order details",
+            "past order",
+            "previous order",
+            "last order",
+            "latest order",
+            "recent order",
+            "orders",
+            "purchase history",
+            "latest purchase",
+            "recent purchase",
+            "previous purchase",
+            "past purchase",
+            "purchases",
+            "ඇණවුම",
+            "ඇණවුම්",
+            "ඇනවුම",
+            "ඇනවුම්",
+            "පෙර ඇණවුම්",
+            "අවසාන ඇණවුම",
+            "අලුත්ම ඇණවුම",
+            "අන්තිම ඇණවුම",
+            "ඇණවුම් ඉතිහාස",
+            "පෙර මිලදී ගැනීම්",
+            "මගේ මිලදී ගැනීම්",
+            "මිලදී ගත්",
+            "ඔර්ඩර්",
+            "ඔර්ඩර්ස්",
+            "ඕඩර්",
+            "ඕඩර්ස්",
+            "ඔඩර්",
+            "ඔඩර්ස්",
+            "ඕඩර",
+            "ඕඩරස්",
+            "ඔඩර",
+            "ඔඩරස්",
+        ],
+        "buying_suggestions": [
+            "suggest",
+            "recommend",
+            "buy",
+            "what should i buy",
+            "නිර්දේශ",
+            "සැජෙස්ට්",
+            "අදහස",
+        ],
         "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද"],
-        "product_search": ["search", "find", "show product", "product", "භාණ්ඩ", "නිෂ්පාදන", "හොයන්න"],
+        "product_search": [
+            "search",
+            "find",
+            "show product",
+            "product",
+            "භාණ්ඩ",
+            "නිෂ්පාදන",
+            "හොයන්න",
+        ],
         "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්"],
     }
 
@@ -201,7 +286,20 @@ def detect_intent_and_entities(text: str, allowed_intents: list[str] | None) -> 
             if word in lowered:
                 scores[intent] += 1
 
-    best_intent = max(scores, key=scores.get) if scores else "general"
+    if scores:
+        best_score = max(scores.values())
+        if best_score <= 0:
+            if "general" in scores:
+                best_intent = "general"
+            else:
+                best_intent = intents[0] if intents else "general"
+        else:
+            best_candidates = [
+                intent for intent in intents if scores[intent] == best_score
+            ]
+            best_intent = best_candidates[0]
+    else:
+        best_intent = "general"
     best_score = scores.get(best_intent, 0)
     confidence = min(0.95, 0.4 + (best_score * 0.18)) if best_score > 0 else 0.35
 

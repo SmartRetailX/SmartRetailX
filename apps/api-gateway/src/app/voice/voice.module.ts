@@ -3,8 +3,15 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@smart-retail-x/config';
 
 import { CoreModule } from '../core/app.module';
+import { VoiceAgentTransportService } from './voice-agent-transport.service';
+import { VoiceCapabilityDispatcherService } from './voice-capability-dispatcher.service';
+import { VOICE_CAPABILITIES } from './voice-capability.interface';
 import { VoiceController } from './voice.controller';
 import { VoiceChatRepository } from './voice-chat.repository';
+import { VoiceOfferService } from './voice-offer.service';
+import { VoiceRecommendationService } from './voice-recommendation.service';
+import { VoiceOrderService } from './voice-order.service';
+import { VoiceProductService } from './voice-product.service';
 import { VoiceService } from './voice.service';
 
 @Module({
@@ -27,6 +34,25 @@ import { VoiceService } from './voice.service';
     ]),
   ],
   controllers: [VoiceController],
-  providers: [VoiceService, VoiceChatRepository],
+  providers: [
+    VoiceService,
+    VoiceChatRepository,
+    VoiceAgentTransportService,
+    VoiceProductService,
+    VoiceOrderService,
+    VoiceRecommendationService,
+    VoiceOfferService,
+    VoiceCapabilityDispatcherService,
+    {
+      provide: VOICE_CAPABILITIES,
+      inject: [VoiceRecommendationService, VoiceOrderService, VoiceOfferService, VoiceProductService],
+      useFactory: (
+        recommendation: VoiceRecommendationService,
+        order: VoiceOrderService,
+        offer: VoiceOfferService,
+        product: VoiceProductService,
+      ) => [recommendation, order, offer, product],
+    },
+  ],
 })
 export class VoiceModule {}
