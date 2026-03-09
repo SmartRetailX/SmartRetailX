@@ -18,6 +18,7 @@ export const PATHS = {
   DASHBOARD:   '/',
   REVENUE:     '/revenue',
   INVENTORY:   '/inventory',
+  PRODUCTS:    '/products',
   FORECASTING: '/forecasting',
   CUSTOMERS:   '/customers',
   TIERS:       '/tiers',
@@ -27,6 +28,14 @@ export const PATHS = {
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
+  ASSISTANT: '/assistant',
+  CUSTOMER_LOYALTY:   '/customer-loyalty',
+  // Customer shopping
+  CART:        '/cart',
+  CHECKOUT:    '/checkout',
+  ORDERS:      '/orders',
+  // Admin orders
+  ADMIN_ORDERS: '/admin-orders',
 } as const
 
 // ── Pages (lazy-loaded) ───────────────────────────────────────────────
@@ -38,6 +47,7 @@ const CustomerDashboard = lazy(() => import('@/pages/customer/CustomerDashboard'
 const CustomerSettings  = lazy(() => import('@/pages/customer/CustomerSettingsPage'))
 const RevenuePage       = lazy(() => import('@/pages/admin/RevenuePage'))
 const InventoryPage     = lazy(() => import('@/pages/admin/InventoryPage'))
+const ProductsPage      = lazy(() => import('@/pages/admin/ProductsPage'))
 const ForecastingPage   = lazy(() => import('@/pages/admin/ForecastingPage'))
 const CustomersPage     = lazy(() => import('@/pages/admin/CustomersPage'))
 const TiersPage         = lazy(() => import('@/pages/admin/TiersPage'))
@@ -46,6 +56,17 @@ const LoyaltyPage       = lazy(() => import('@/pages/admin/LoyaltyPage'))
 const VoicePage         = lazy(() => import('@/pages/admin/VoicePage'))
 const SettingsPage      = lazy(() => import('@/pages/admin/SettingsPage'))
 const PromotionsPage    = lazy(() => import('@/pages/admin/PromotionsPage'))
+const CustomerLoyalty    = lazy(() => import('@/pages/customer/CustomerLoyalty'))
+
+// Customer shopping pages
+const CartPage          = lazy(() => import('@/pages/customer/CartPage'))
+const CheckoutPage      = lazy(() => import('@/pages/customer/CheckoutPage'))
+const OrdersPage        = lazy(() => import('@/pages/customer/OrdersPage'))
+const OrderDetailPage   = lazy(() => import('@/pages/customer/OrderDetailPage'))
+const AssistantPage     = lazy(() => import('@/pages/customer/AssistantPage'))
+
+// Admin order management
+const OrderManagementPage = lazy(() => import('@/pages/admin/OrderManagementPage'))
 const MyPromotionsPage  = lazy(() => import('@/pages/customer/MyPromotionsPage'))
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -104,6 +125,7 @@ export const appRoutes: RouteObject[] = [
         // Admin
         { path: 'revenue',     element: adminOnly(RevenuePage) },
         { path: 'inventory',   element: adminOnly(InventoryPage) },
+        { path: 'products',    element: adminOnly(ProductsPage) },
         { path: 'forecasting', element: adminOnly(ForecastingPage) },
         { path: 'customers',   element: adminOnly(CustomersPage) },
         { path: 'tiers',       element: adminOnly(TiersPage) },
@@ -112,8 +134,16 @@ export const appRoutes: RouteObject[] = [
         { path: 'promotions',  element: adminOnly(PromotionsPage) },
         { path: 'voice',             element: adminOnly(VoicePage) },
         { path: 'admin-settings',    element: adminOnly(SettingsPage) },
+        { path: 'admin-orders',      element: adminOnly(OrderManagementPage) },
 
         // Customer
+        { path: 'customer-loyalty', element: customerOnly(CustomerLoyalty) },
+        // Customer - shopping
+        { path: 'cart',        element: customerOnly(CartPage) },
+        { path: 'checkout',    element: customerOnly(CheckoutPage) },
+        { path: 'orders',      element: customerOnly(OrdersPage) },
+        { path: 'orders/:id',  element: customerOnly(OrderDetailPage) },
+        { path: 'assistant',   element: customerOnly(AssistantPage) },
         { path: 'customer-settings', element: customerOnly(CustomerSettings) },
         { path: 'my-promotions',     element: page(MyPromotionsPage) },
       ],

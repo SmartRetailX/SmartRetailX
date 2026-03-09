@@ -11,7 +11,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const API_URL = "http://localhost:8000/loyalty-tiers";
+const API_URL = "http://localhost:8003/loyalty-tiers";
 
 interface TierFormProps {
   tier?: LoyaltyTier | null;

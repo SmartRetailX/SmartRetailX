@@ -47,7 +47,7 @@ export default function CustomersPage() {
   const isSinhala = i18n.language === "si"
 
   useEffect(() => {
-    fetch("http://localhost:8000/segments/rfm")
+    fetch("http://localhost:8003/segments/rfm")
       .then((res) => res.json())
       .then((data) => {
         setCustomers(data)
@@ -102,7 +102,7 @@ export default function CustomersPage() {
       {/* RFM Segments */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("customers.rfmMatrix")}</CardTitle>
+          <CardTitle>Static Segmentation</CardTitle>
         </CardHeader>
 
         <CardContent>

@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from app.db.session import engine
 from app.routers import customer_segments, loyalty_tiers
 from fastapi.middleware.cors import CORSMiddleware
+from app.models.customer_loyalty import CustomerLoyalty
 from app.models.customer_segment import CustomerSegment
 from app.models.customer_category import CustomerCategoryContribution, CustomerCategoryPreference
 
+CustomerLoyalty.metadata.create_all(bind=engine)
 CustomerSegment.metadata.create_all(bind=engine)
 CustomerCategoryPreference.metadata.create_all(bind=engine)
 CustomerCategoryContribution.metadata.create_all(bind=engine)

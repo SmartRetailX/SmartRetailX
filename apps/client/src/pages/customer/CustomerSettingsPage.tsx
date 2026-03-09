@@ -15,7 +15,7 @@ export default function CustomerSettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">{t('customerSettings.title')}</h1>
-        <p className="text-gray-500 mt-1">{t('customerSettings.subtitle')}</p>
+        <p className="mt-1 text-muted-foreground">{t('customerSettings.subtitle')}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -63,7 +63,7 @@ export default function CustomerSettingsPage() {
                 <input
                   type="checkbox"
                   defaultChecked={item.defaultChecked}
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-border"
                 />
               </div>
             ))}
@@ -102,7 +102,7 @@ export default function CustomerSettingsPage() {
             <CardDescription>{t('customerSettings.appearanceDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {t('customerSettings.appearanceHint')}
             </p>
           </CardContent>
