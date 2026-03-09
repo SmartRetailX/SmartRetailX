@@ -88,25 +88,25 @@ async def lifespan(app: FastAPI):
 
         if os.path.exists(pp_path):
             engine.purchase_model = PurchasePredictionModel.load_model(pp_path)
-            print(f"  ✓ Purchase prediction model loaded")
+            print(f"  [OK] Purchase prediction model loaded")
         else:
-            print(f"  ✗ purchase_prediction_model.pkl not found at {pp_path}")
+            print(f"  [MISSING] purchase_prediction_model.pkl not found at {pp_path}")
 
         if os.path.exists(cf_path):
             engine.cf_model = CollaborativeFilteringModel.load_model(cf_path)
-            print(f"  ✓ Collaborative filtering model loaded")
+            print(f"  [OK] Collaborative filtering model loaded")
         else:
-            print(f"  ✗ collaborative_filtering_model.pkl not found at {cf_path}")
+            print(f"  [MISSING] collaborative_filtering_model.pkl not found at {cf_path}")
 
         engine.optimizer = PromotionOptimizer()
 
         app_state["engine"] = engine
         app_state["ready"] = True
 
-        print("\n✓ Promotion Engine API ready!")
+        print("\n[OK] Promotion Engine API ready!")
 
     except Exception as e:
-        print(f"\n✗ Failed to load: {e}")
+        print(f"\n[ERROR] Failed to load: {e}")
         import traceback
         traceback.print_exc()
 
