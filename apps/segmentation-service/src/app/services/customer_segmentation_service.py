@@ -138,6 +138,27 @@ def get_customer_segements_by_rfm(session: Session):
         for s in segments
     ]
 
+
+def get_customer_segment_by_rfm_id(session: Session, customer_id: int):
+    s = session.query(CustomerSegment).filter(CustomerSegment.customer_id == customer_id).first()
+    if not s:
+        return None
+
+    return {
+        "customer_id": s.customer_id,
+        "parent_cluster": {
+            "behavior": s.parent_behavior
+        },
+        "sub_cluster": {
+            "segment": s.sub_segment
+        },
+        "metrics": {
+            "recency": s.recency,
+            "frequency": s.frequency,
+            "monetary": float(s.monetary)
+        }
+    }
+
 def generate_segements_by_catagory_preference(session: Session, lambda_decay=0.03):
     transactions = get_all_transactions()
     if not transactions:
