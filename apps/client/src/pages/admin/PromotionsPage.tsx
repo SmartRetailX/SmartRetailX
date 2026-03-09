@@ -65,7 +65,7 @@ export default function PromotionsPage() {
       })
       if (result.success) {
         setCampaign(result.campaign)
-        setTargets(result.targets)
+        setTargets([...result.targets].sort((a, b) => b.purchaseProbability - a.purchaseProbability))
         refetchHistory()
       }
     } catch (error) {
