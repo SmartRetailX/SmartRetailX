@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tag, CheckCheck, Clock, PackageOpen, Loader2, ShoppingBag } from 'lucide-react'
+import { Tag, CheckCheck, Clock, PackageOpen, Loader2, Sparkles, Bell, BellOff } from 'lucide-react'
 import apiClient from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/constants'
 
@@ -22,9 +22,10 @@ interface PromotionNotification {
 
 interface PromotionsResponse {
   success: boolean
-  promotions: PromotionNotification[]
+  promotions: PromotionNotification[] | null
   total: number
   unread: number
+  error?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -44,23 +45,77 @@ function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
 }
 
+/** Pick a gradient stop pair based on discount amount */
+function discountGradient(pct: number): string {
+  if (pct >= 40) return 'from-rose-500 to-orange-500'
+  if (pct >= 25) return 'from-violet-500 to-purple-600'
+  if (pct >= 15) return 'from-blue-500 to-cyan-500'
+  return 'from-emerald-500 to-teal-500'
+}
+
+// ── Shared page wrapper ────────────────────────────────────
+
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return <div className="min-h-screen bg-gray-50 pb-12">{children}</div>
+}
+
+function HeroBanner({ unread, onMarkAll, pending }: {
+  unread: number
+  onMarkAll?: () => void
+  pending?: boolean
+}) {
+  return (
+    <div className="relative overflow-hidden border-b border-violet-100 bg-gradient-to-r from-violet-50 via-purple-50 to-indigo-50 px-6 py-8">
+      {/* Subtle decorative blobs */}
+      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-200/40 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-8 left-1/3 h-32 w-32 rounded-full bg-indigo-200/40 blur-2xl" />
+
+      <div className="relative mx-auto flex max-w-3xl items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-md shadow-violet-100 ring-1 ring-violet-100">
+            <Tag className="h-6 w-6 text-violet-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Promotions</h1>
+            <p className="mt-0.5 text-sm text-violet-500/80">
+              {unread > 0
+                ? `🎉 ${unread} exclusive offer${unread > 1 ? 's' : ''} just for you`
+                : '✨ You\'re all caught up!'}
+            </p>
+          </div>
+        </div>
+
+        {unread > 0 && onMarkAll && (
+          <button
+            onClick={onMarkAll}
+            disabled={pending}
+            className="flex items-center gap-2 rounded-xl border border-violet-200 bg-white/80 px-4 py-2 text-sm font-medium text-violet-700 shadow-sm backdrop-blur-sm transition hover:bg-white disabled:opacity-50"
+          >
+            <CheckCheck className="h-4 w-4" />
+            Mark all read
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────
 
 export default function MyPromotionsPage() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  // Fetch
-  const { data, isLoading, isError } = useQuery<PromotionsResponse>({
+  const { data, isLoading } = useQuery<PromotionsResponse>({
     queryKey: ['my-promotions'],
     queryFn: async () => {
       const res = await apiClient.get<PromotionsResponse>(API_ENDPOINTS.MY_PROMOTIONS.LIST)
       return res.data
     },
+    retry: false,
     refetchOnWindowFocus: false,
   })
 
-  // Mark one as read
   const markRead = useMutation({
     mutationFn: async (id: number) => {
       await apiClient.patch(API_ENDPOINTS.MY_PROMOTIONS.MARK_READ(id))
@@ -68,7 +123,6 @@ export default function MyPromotionsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-promotions'] }),
   })
 
-  // Mark all as read
   const markAllRead = useMutation({
     mutationFn: async () => {
       await apiClient.patch(API_ENDPOINTS.MY_PROMOTIONS.MARK_ALL_READ)
@@ -76,185 +130,211 @@ export default function MyPromotionsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-promotions'] }),
   })
 
-  const promotions = data?.promotions ?? []
-  const unread     = data?.unread ?? 0
+  // ── Loading ───────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <PageWrapper>
+        <HeroBanner unread={0} />
+        <div className="flex h-48 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  // ── Service-down ─────────────────────────────────────────
+  const serviceDown = !data || data.success === false || data.promotions === null
+  if (serviceDown) {
+    return (
+      <PageWrapper>
+        <HeroBanner unread={0} />
+        <div className="mx-auto mt-10 max-w-3xl px-6">
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-gray-200 bg-white py-20 text-center shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">
+              <PackageOpen className="h-8 w-8 text-gray-400" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-gray-700">Promotion service is offline</p>
+              <p className="mt-1 text-sm text-gray-400">
+                Your personalised offers will appear here once the service is back online.
+              </p>
+            </div>
+          </div>
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  const promotions: PromotionNotification[] = data.promotions
+  const unread = data.unread ?? 0
 
   const visible = filter === 'unread'
     ? promotions.filter(p => !p.is_read)
     : promotions
 
-  // ── Render ───────────────────────────────────────────────
-
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
-        <PackageOpen className="h-10 w-10 text-gray-300" />
-        <p className="text-sm text-gray-500">Could not load your promotions right now.</p>
-        <p className="text-xs text-gray-400">Make sure the promotion engine service is running.</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-6 p-6 max-w-3xl mx-auto">
+    <PageWrapper>
+      {/* ── Hero ── */}
+      <HeroBanner
+        unread={unread}
+        onMarkAll={() => markAllRead.mutate()}
+        pending={markAllRead.isPending}
+      />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
-            <Tag className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              My Promotions
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {unread > 0
-                ? `${unread} new offer${unread > 1 ? 's' : ''} waiting for you`
-                : 'All caught up!'}
-            </p>
-          </div>
-        </div>
+      <div className="mx-auto max-w-3xl space-y-5 px-6 pt-6">
 
-        {unread > 0 && (
-          <button
-            onClick={() => markAllRead.mutate()}
-            disabled={markAllRead.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <CheckCheck className="h-3.5 w-3.5" />
-            Mark all read
-          </button>
+        {/* ── Stats strip ── */}
+        {promotions.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Total offers',  value: promotions.length,                           icon: Sparkles, color: 'text-violet-600 bg-violet-50' },
+              { label: 'Unread',        value: unread,                                      icon: Bell,     color: 'text-blue-600 bg-blue-50' },
+              { label: 'Read',          value: promotions.length - unread,                  icon: BellOff,  color: 'text-emerald-600 bg-emerald-50' },
+            ].map(s => (
+              <div key={s.label} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm border border-gray-100">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.color}`}>
+                  <s.icon className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900 leading-none">{s.value}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 rounded-lg bg-gray-100 dark:bg-gray-800 p-1 w-fit">
-        {(['all', 'unread'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors capitalize ${
-              filter === f
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            {f}
-            {f === 'unread' && unread > 0 && (
-              <span className="ml-1.5 rounded-full bg-violet-500 px-1.5 py-0.5 text-xs text-white">
-                {unread}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Empty state */}
-      {visible.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 py-16 text-center">
-          <ShoppingBag className="h-12 w-12 text-gray-300 dark:text-gray-600" />
-          <p className="font-medium text-gray-500 dark:text-gray-400">
-            {filter === 'unread' ? 'No unread promotions' : 'No promotions yet'}
-          </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500">
-            {filter === 'unread'
-              ? 'Switch to "All" to see past offers.'
-              : 'When the store targets you with a personalised offer, it will appear here.'}
-          </p>
-        </div>
-      )}
-
-      {/* Promotion cards */}
-      <div className="space-y-3">
-        {visible.map(promo => {
-          const expiresDays = promo.expires_at ? daysUntil(promo.expires_at) : null
-          const expiring    = expiresDays !== null && expiresDays <= 3
-          return (
-            <div
-              key={promo.id}
-              onClick={() => { if (!promo.is_read) markRead.mutate(promo.id) }}
-              className={`group relative rounded-xl border p-4 transition-all cursor-pointer ${
-                promo.is_read
-                  ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/30'
-                  : 'border-violet-200 dark:border-violet-700/50 bg-violet-50/60 dark:bg-violet-900/10 shadow-sm'
+        {/* ── Filter tabs ── */}
+        <div className="flex gap-2">
+          {(['all', 'unread'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`relative rounded-xl px-5 py-2 text-sm font-semibold transition-all capitalize ${
+                filter === f
+                  ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                  : 'bg-white text-gray-500 border border-gray-200 hover:border-violet-300 hover:text-violet-600'
               }`}
             >
-              {/* Unread dot */}
-              {!promo.is_read && (
-                <span className="absolute right-4 top-4 h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
-              )}
-
-              <div className="flex items-start gap-3">
-                {/* Discount badge */}
-                <div className={`flex-shrink-0 flex h-12 w-12 items-center justify-center rounded-xl font-bold text-sm ${
-                  promo.is_read
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-500'
-                    : 'bg-violet-100 dark:bg-violet-800 text-violet-700 dark:text-violet-300'
+              {f}
+              {f === 'unread' && unread > 0 && (
+                <span className={`ml-2 rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                  filter === 'unread' ? 'bg-white/25 text-white' : 'bg-violet-100 text-violet-700'
                 }`}>
-                  -{promo.discount_percent.toFixed(0)}%
-                </div>
+                  {unread}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className={`font-semibold truncate ${
-                      promo.is_read
-                        ? 'text-gray-700 dark:text-gray-300'
-                        : 'text-gray-900 dark:text-white'
-                    }`}>
-                      {promo.product_name}
-                    </p>
-                    <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">
-                      {relativeTime(promo.created_at)}
+        {/* ── Empty state ── */}
+        {visible.length === 0 && (
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-gray-200 bg-white py-20 text-center shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50">
+              <Tag className="h-8 w-8 text-violet-300" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-gray-700">
+                {filter === 'unread' ? 'No unread promotions' : 'No promotions yet'}
+              </p>
+              <p className="mt-1 text-sm text-gray-400">
+                {filter === 'unread'
+                  ? 'Switch to "All" to review past offers.'
+                  : 'Personalised offers will appear here when the store targets you.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Promotion cards ── */}
+        <div className="space-y-3">
+          {visible.map(promo => {
+            const expiresDays = promo.expires_at ? daysUntil(promo.expires_at) : null
+            const expiring    = expiresDays !== null && expiresDays <= 3
+            const gradient    = discountGradient(promo.discount_percent)
+
+            return (
+              <div
+                key={promo.id}
+                onClick={() => { if (!promo.is_read) markRead.mutate(promo.id) }}
+                className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 cursor-pointer
+                  ${promo.is_read
+                    ? 'border-gray-100 hover:shadow-md'
+                    : 'border-violet-100 shadow-violet-100/60 hover:shadow-lg hover:shadow-violet-100'
+                  }`}
+              >
+                {/* Unread left accent bar */}
+                {!promo.is_read && (
+                  <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${gradient}`} />
+                )}
+
+                <div className="flex items-start gap-4 p-5 pl-6">
+                  {/* Discount pill */}
+                  <div className={`flex-shrink-0 flex flex-col items-center justify-center rounded-2xl p-3 min-w-[60px] bg-gradient-to-br ${
+                    promo.is_read ? 'from-gray-100 to-gray-200' : gradient
+                  }`}>
+                    <span className={`text-xs font-semibold leading-none ${promo.is_read ? 'text-gray-400' : 'text-white'}`}>OFF</span>
+                    <span className={`text-xl font-extrabold leading-tight ${promo.is_read ? 'text-gray-500' : 'text-white'}`}>
+                      {promo.discount_percent.toFixed(0)}%
                     </span>
                   </div>
 
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {promo.product_category}
-                  </p>
-
-                  <p className={`mt-1.5 text-sm ${
-                    promo.is_read ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-200'
-                  }`}>
-                    {promo.message}
-                  </p>
-
-                  {/* Expiry */}
-                  {expiresDays !== null && expiresDays > 0 && (
-                    <div className={`mt-2 flex items-center gap-1 text-xs ${
-                      expiring ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-gray-500'
-                    }`}>
-                      <Clock className="h-3 w-3" />
-                      {expiring
-                        ? `Expires in ${expiresDays} day${expiresDays > 1 ? 's' : ''}!`
-                        : `Valid for ${expiresDays} more days`}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`font-bold text-base truncate ${promo.is_read ? 'text-gray-500' : 'text-gray-900'}`}>
+                        {promo.product_name}
+                      </p>
+                      <span className="flex-shrink-0 text-xs text-gray-400 mt-0.5">
+                        {relativeTime(promo.created_at)}
+                      </span>
                     </div>
-                  )}
-                  {expiresDays !== null && expiresDays <= 0 && (
-                    <span className="mt-2 inline-block text-xs text-red-400">Expired</span>
-                  )}
-                </div>
-              </div>
 
-              {/* Read indicator on hover */}
-              {!promo.is_read && (
-                <p className="mt-2 text-right text-xs text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Click to mark as read
-                </p>
-              )}
-            </div>
-          )
-        })}
+                    {/* Category chip */}
+                    <span className="mt-1.5 inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                      {promo.product_category}
+                    </span>
+
+                    <p className={`mt-2 text-sm leading-relaxed ${promo.is_read ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {promo.message}
+                    </p>
+
+                    {/* Expiry */}
+                    <div className="mt-3 flex items-center justify-between">
+                      {expiresDays !== null && expiresDays > 0 ? (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          expiring
+                            ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                            : 'bg-gray-50 text-gray-500 border border-gray-200'
+                        }`}>
+                          <Clock className="h-3 w-3" />
+                          {expiring ? `Expires in ${expiresDays}d!` : `Valid ${expiresDays} more days`}
+                        </span>
+                      ) : expiresDays !== null && expiresDays <= 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-400 border border-red-200">
+                          Expired
+                        </span>
+                      ) : <span />}
+
+                      {!promo.is_read && (
+                        <span className="text-xs text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Tap to mark as read →
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Unread shimmer overlay on hover */}
+                {!promo.is_read && (
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-violet-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </PageWrapper>
   )
 }

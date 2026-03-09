@@ -144,7 +144,7 @@ export class PromotionEngineController {
     @Req() req: Request & { user?: { email?: string } },
   ) {
     const email = req.user?.email;
-    if (!email) throw new HttpException('Unauthorized', 401);
+    if (!email) return { success: false, marked: 0 };
     try {
       const params = new URLSearchParams({ email });
       const res = await fetch(
@@ -162,15 +162,21 @@ export class PromotionEngineController {
     @Req() req: Request & { user?: { email?: string } },
   ) {
     const email = req.user?.email;
-    if (!email) throw new HttpException('Unauthorized', 401);
+    // If somehow email is missing after auth guard, return empty inbox gracefully
+    // (do NOT throw 401 — that would trigger the client-side logout redirect)
+    if (!email) {
+      return { success: true, promotions: [], total: 0, unread: 0 };
+    }
     try {
       const params = new URLSearchParams({ email });
       const res = await fetch(
         `${this.baseUrl}/api/customer-promotions?${params.toString()}`,
       );
-      return res.json();
+      const data = await res.json();
+      return data;
     } catch {
-      return { success: false, error: 'ML service is not running' };
+      // ML service is unreachable — return a distinguishable error payload
+      return { success: false, promotions: null, total: 0, unread: 0, error: 'ML service is not running' };
     }
   }
 
@@ -180,7 +186,7 @@ export class PromotionEngineController {
     @Req() req: Request & { user?: { email?: string } },
   ) {
     const email = req.user?.email;
-    if (!email) throw new HttpException('Unauthorized', 401);
+    if (!email) return { success: false };
     try {
       const params = new URLSearchParams({ email });
       const res = await fetch(
