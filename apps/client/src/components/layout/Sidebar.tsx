@@ -42,7 +42,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
     ? [
         { name: t('nav.dashboard'), href: PATHS.DASHBOARD, icon: LayoutDashboard },
         { name: t('nav.revenue'), href: PATHS.REVENUE, icon: DollarSign },
-        { name: t('nav.inventory'), href: PATHS.INVENTORY, icon: Package },
+        // { name: t('nav.inventory'), href: PATHS.INVENTORY, icon: Package },
         { name: 'Products', href: PATHS.PRODUCTS, icon: Box },
         { name: 'Orders', href: PATHS.ADMIN_ORDERS, icon: ShoppingBag },
         { name: t('nav.forecasting'), href: PATHS.FORECASTING, icon: TrendingUp },
