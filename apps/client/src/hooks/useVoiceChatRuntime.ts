@@ -129,8 +129,15 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
   }, [])
 
   const applyResponseMessages = useCallback(
-    (response: VoiceChatResponseDto) => {
-      if (response.transcription) {
+    (
+      response: VoiceChatResponseDto,
+      options?: {
+        includeUserTranscription?: boolean
+      },
+    ) => {
+      const includeUserTranscription = options?.includeUserTranscription ?? true
+
+      if (includeUserTranscription && response.transcription) {
         appendMessage('user', response.transcription)
       }
 
@@ -177,6 +184,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
 
       setIsRunning(true)
       setError(null)
+      appendMessage('user', value)
 
       try {
         const { data } = await apiClient.post<VoiceChatResponseDto>(API_ENDPOINTS.VOICE.TEXT_CHAT, {
@@ -190,7 +198,7 @@ export function useVoiceChatRuntime(options?: VoiceChatRuntimeOptions) {
           throw new Error(data.error || 'Text processing failed')
         }
 
-        applyResponseMessages(data)
+        applyResponseMessages(data, { includeUserTranscription: false })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Text request failed'
         setError(message)

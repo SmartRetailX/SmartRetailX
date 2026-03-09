@@ -114,8 +114,11 @@ export default function MainLayout() {
                 </button>
               </div>
 
+              
+
+              <p className="hidden text-sm text-muted-foreground md:block">{user?.name || 'Customer'}</p>
               {/* Cart button */}
-              <Button variant="ghost" size="sm" asChild className="relative">
+              <Button variant="ghost" size="icon" asChild className="relative">
                 <Link to="/cart">
                   <ShoppingCart className="h-5 w-5" />
                   {cartItemCount > 0 && (
@@ -125,16 +128,13 @@ export default function MainLayout() {
                   )}
                 </Link>
               </Button>
-
-              <p className="hidden text-sm text-muted-foreground md:block">{user?.name || 'Customer'}</p>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="ghost" size="icon" asChild>
                 <Link to="/customer-settings" className="inline-flex items-center gap-1.5">
-                  <Settings className="h-4 w-4" />
-                  Settings
+                  <Settings  />
                 </Link>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => void logout()}>
-                <LogOut className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={() => void logout()}>
+                <LogOut />
               </Button>
             </div>
           </div>
