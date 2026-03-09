@@ -6,6 +6,7 @@ import {
   type VoiceCapabilityContext,
   type VoiceCapabilityMode,
 } from './voice-capability.interface';
+import { type ActivePromotionItem, VoiceOfferService } from './voice-offer.service';
 import { VoiceOrderService } from './voice-order.service';
 import { VoiceProductService } from './voice-product.service';
 import { type CatalogSearchRaw } from './voice.types';
@@ -18,6 +19,7 @@ export class VoiceRecommendationService implements VoiceCapability {
   constructor(
     private readonly voiceOrderService: VoiceOrderService,
     private readonly voiceProductService: VoiceProductService,
+    private readonly voiceOfferService: VoiceOfferService,
   ) {}
 
   async handle(context: VoiceCapabilityContext, mode: VoiceCapabilityMode): Promise<VoiceChatResponseDto | null> {
@@ -85,20 +87,96 @@ export class VoiceRecommendationService implements VoiceCapability {
     );
 
     const lines = suggestions.filter((line): line is string => Boolean(line)).slice(0, 5);
-    if (lines.length === 0) {
+    const offerLines = await this.buildOfferRecommendationLines(topItems.map((item) => item.productNameSi || item.productName || ''));
+
+    if (lines.length === 0 && offerLines.length === 0) {
       return 'ඔබගේ අවසන් ඇණවුම අනුව නිර්දේශ සකස් කළා, නමුත් දැනට ගැලපෙන stock items හමු නොවුණා.';
     }
 
-    return [
+    const sections = [
       '### ඔබට නිර්දේශිත ලැයිස්තුව',
       `- **මූලාශ්‍රය:** ඔබගේ අවසන් ඇණවුම (${lastOrder.orderNumber})`,
-      ...lines,
-      '_අවශ්‍ය නම් මේ ලැයිස්තුවෙන් items cart එකට දාන්න කියන්න._',
-    ].join('\n');
+    ];
+
+    if (lines.length > 0) {
+      sections.push('### නැවත මිලදී ගත හැකි items', ...lines);
+    }
+
+    if (offerLines.length > 0) {
+      sections.push('### ඔබට අදාල available offers', ...offerLines);
+    }
+
+    sections.push('_අවශ්‍ය නම් මේ ලැයිස්තුවෙන් items cart එකට දාන්න කියන්න._');
+
+    return sections.join('\n');
   }
 
   private formatRecommendationLine(product: CatalogSearchRaw): string {
     return `- **${this.voiceProductService.getDisplayName(product)}** - ${this.voiceProductService.formatPrice(product.price)} | ${this.voiceProductService.formatStockLabel(product.currentStock)}`;
+  }
+
+  private async buildOfferRecommendationLines(lastOrderNames: string[]): Promise<string[]> {
+    const offers = await this.voiceOfferService.getOfferCandidates(6);
+    if (!offers || offers.length === 0) {
+      return [];
+    }
+
+    const activeOrUpcoming = offers.filter((offer) => offer.offerStatus === 'active' || offer.offerStatus === 'upcoming');
+    if (activeOrUpcoming.length === 0) {
+      return [];
+    }
+
+    const related = activeOrUpcoming.filter((offer) => this.isOfferRelatedToRecentOrders(offer, lastOrderNames));
+    const selected = (related.length > 0 ? related : activeOrUpcoming).slice(0, 3);
+
+    return selected.map((offer) => {
+      const discount = this.formatOfferDiscount(offer.discountPercentage);
+      const status = offer.offerStatus === 'active' ? 'active' : 'upcoming';
+      const validity = this.formatOfferDateRange(offer.startDate, offer.endDate);
+      const offerName = (offer.productName || offer.productId || 'Unknown product').trim();
+
+      return `- **${offerName}** - ${discount} | ${status}${validity}`;
+    });
+  }
+
+  private isOfferRelatedToRecentOrders(offer: ActivePromotionItem, lastOrderNames: string[]): boolean {
+    const offerName = normalizeCatalogQuery(offer.productName || offer.productId || '');
+    if (!offerName) {
+      return false;
+    }
+
+    return lastOrderNames.some((name) => {
+      const normalizedName = normalizeCatalogQuery(name || '');
+      if (!normalizedName) {
+        return false;
+      }
+
+      const tokens = normalizedName.split(/\s+/).filter((token) => token.length >= 3);
+      return tokens.some((token) => offerName.includes(token));
+    });
+  }
+
+  private formatOfferDiscount(discountPercentage: number | undefined): string {
+    if (typeof discountPercentage !== 'number' || Number.isNaN(discountPercentage)) {
+      return 'Discount info unavailable';
+    }
+
+    const rounded = Number(discountPercentage.toFixed(2));
+    return Number.isInteger(rounded) ? `${rounded}% OFF` : `${rounded.toFixed(2)}% OFF`;
+  }
+
+  private formatOfferDateRange(startDate: string | null | undefined, endDate: string | null | undefined): string {
+    if (startDate && endDate) {
+      return ` | ${startDate} - ${endDate}`;
+    }
+    if (endDate) {
+      return ` | valid until ${endDate}`;
+    }
+    if (startDate) {
+      return ` | starts ${startDate}`;
+    }
+
+    return '';
   }
 
   private isRecommendationStyleQuestion(text: string): boolean {

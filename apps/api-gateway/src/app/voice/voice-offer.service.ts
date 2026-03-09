@@ -9,7 +9,7 @@ import {
   type VoiceCapabilityMode,
 } from './voice-capability.interface';
 
-type ActivePromotionItem = {
+export type ActivePromotionItem = {
   promotionId?: string;
   productId?: string;
   productName?: string;
@@ -238,6 +238,10 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
       this.logger.warn(`Direct offers DB lookup failed (${error?.message ?? error})`);
       return null;
     }
+  }
+
+  async getOfferCandidates(limit = 5): Promise<ActivePromotionItem[] | null> {
+    return await this.fetchOfferCandidates(limit);
   }
 
   private buildOfferListResponse(promotions: ActivePromotionItem[]): string {

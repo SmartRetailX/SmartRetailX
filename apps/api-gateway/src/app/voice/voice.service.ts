@@ -97,8 +97,15 @@ export class VoiceService {
       );
 
       if (primaryCapabilityResult) {
-        const rechecked = this.tryAgentSecondOpinion(primaryCapabilityResult, result, payload, sessionId);
-        return await this.persistAndReturn(rechecked || primaryCapabilityResult, channel, payload, userId);
+        const recommendationEnhanced = this.tryEnhanceRecommendationWithAgent(
+          primaryCapabilityResult,
+          result,
+          payload,
+          sessionId,
+        );
+        const capabilityFinal = recommendationEnhanced || primaryCapabilityResult;
+        const rechecked = this.tryAgentSecondOpinion(capabilityFinal, result, payload, sessionId);
+        return await this.persistAndReturn(rechecked || capabilityFinal, channel, payload, userId);
       }
 
       if (result.success && result.response?.trim()) {
@@ -245,6 +252,42 @@ export class VoiceService {
     };
   }
 
+  private tryEnhanceRecommendationWithAgent(
+    capabilityResult: VoiceChatResponseDto,
+    agentResult: VoiceChatResponseDto,
+    payload: VoiceChatTcpPayload,
+    sessionId: string,
+  ): VoiceChatResponseDto | null {
+    if ((capabilityResult.model || '').trim() !== 'core-order-recommendations') {
+      return null;
+    }
+
+    const agentText = (agentResult.response || '').trim();
+    if (!agentResult.success || !agentText) {
+      return null;
+    }
+
+    if (this.isWeakRecommendationEnhancement(agentText, capabilityResult.response || '', payload.transcriptText || '')) {
+      return null;
+    }
+
+    const combinedResponse = [
+      (capabilityResult.response || '').trim(),
+      '### AI Personalized Tips',
+      agentText,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    return {
+      ...capabilityResult,
+      response: combinedResponse,
+      language: agentResult.language || capabilityResult.language,
+      sessionId: agentResult.sessionId || capabilityResult.sessionId || sessionId,
+      model: 'core-order-recommendations-ai',
+    };
+  }
+
   private isWeakSecondOpinion(agentText: string, capabilityText: string, sourceText: string): boolean {
     const normalizedAgent = agentText.toLowerCase().replace(/\s+/g, ' ').trim();
     const normalizedCapability = (capabilityText || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -291,6 +334,37 @@ export class VoiceService {
     const sourceSet = new Set(sourceTokens);
     const overlap = candidateTokens.filter((token) => sourceSet.has(token)).length;
     return overlap / candidateTokens.length >= 0.7;
+  }
+
+  private isWeakRecommendationEnhancement(agentText: string, capabilityText: string, sourceText: string): boolean {
+    const normalizedAgent = agentText.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedCapability = (capabilityText || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedSource = (sourceText || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+    if (!normalizedAgent || normalizedAgent.length < 40) {
+      return true;
+    }
+
+    if (normalizedAgent === normalizedCapability) {
+      return true;
+    }
+
+    if (normalizedAgent.endsWith('?') || /\?|\u061f/u.test(normalizedAgent)) {
+      return true;
+    }
+
+    if (this.isLikelyParaphrase(normalizedAgent, normalizedSource)) {
+      return true;
+    }
+
+    const weakPhrases = [
+      'i can help',
+      'let me know',
+      'could you clarify',
+      'agent service unavailable',
+    ];
+
+    return weakPhrases.some((phrase) => normalizedAgent.includes(phrase));
   }
 
   private tokenizeText(text: string): string[] {
