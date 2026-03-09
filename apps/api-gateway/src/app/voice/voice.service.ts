@@ -3,6 +3,8 @@ import { ClientProxy } from '@nestjs/microservices';
 import { ConfigService } from '@smart-retail-x/config';
 import {
   VOICE_CHAT_PATTERN,
+  buildCatalogQueryTokens,
+  normalizeCatalogQuery,
   type VoiceAssistantIntent,
   type VoiceChatInputMode,
   type VoiceChatDto,
@@ -28,6 +30,10 @@ type CatalogSearchMatch = {
   currentStock: number;
   status: string;
   storeId: string | null;
+  tokenHits: number;
+  exactHit: boolean;
+  prefixHit: boolean;
+  matchScore: number;
 };
 
 type CatalogSearchResponse = {
@@ -206,10 +212,15 @@ export class VoiceService {
         return null;
       }
 
+      const selectedMatches = this.selectCatalogMatches(queryText, result.matches);
+      if (selectedMatches.length === 0) {
+        return null;
+      }
+
       return {
         success: true,
         transcription: queryText,
-        response: this.buildCatalogResponse(result.matches),
+        response: this.buildCatalogResponse(selectedMatches),
         language,
         sessionId,
         messages: [],
@@ -221,36 +232,87 @@ export class VoiceService {
     }
   }
 
+  private selectCatalogMatches(queryText: string, matches: CatalogSearchMatch[]): CatalogSearchMatch[] {
+    const queryTokens = buildCatalogQueryTokens(normalizeCatalogQuery(queryText));
+
+    const relevantMatches = matches
+      .filter((match) => this.isConfidentCatalogMatch(match, queryTokens))
+      .sort((a, b) => b.matchScore - a.matchScore);
+
+    if (relevantMatches.length === 0) {
+      return [];
+    }
+
+    const [top, second] = relevantMatches;
+    const hasStrongTop = top.exactHit || top.prefixHit || top.matchScore >= 90;
+    const clearLead = !second || top.matchScore - second.matchScore >= 24;
+
+    if (hasStrongTop && clearLead) {
+      return [top];
+    }
+
+    return relevantMatches.slice(0, 3);
+  }
+
+  private isConfidentCatalogMatch(match: CatalogSearchMatch, queryTokens: string[]): boolean {
+    if (match.exactHit || match.prefixHit) {
+      return true;
+    }
+
+    if (queryTokens.length >= 2) {
+      return match.tokenHits >= 2;
+    }
+
+    const singleToken = queryTokens[0] ?? '';
+    if (singleToken.length <= 3) {
+      return false;
+    }
+
+    return match.tokenHits >= 1;
+  }
+
   private buildCatalogResponse(matches: CatalogSearchMatch[]): string {
     const topMatches = matches.slice(0, 3);
 
     if (topMatches.length === 1) {
-      const product = topMatches[0];
-      const displayName = (product.nameSi || product.nameEn || '').trim();
-      const category = (product.categorySi || product.categoryEn || '').trim();
-      const stockLabel =
-        product.currentStock > 0
-          ? `${product.currentStock} available`
-          : 'Out of stock';
-
-      return [
-        '### Product Match',
-        `- **Name:** ${displayName}`,
-        `- **Category:** ${category || 'N/A'}`,
-        `- **Price:** LKR ${Number(product.price).toFixed(2)}`,
-        `- **Stock:** ${stockLabel}`,
-      ].join('\n');
+      return this.formatSingleCatalogMatch(topMatches[0]);
     }
 
     const lines = topMatches.map((product, index) => {
-      const displayName = (product.nameSi || product.nameEn || '').trim();
-      const stockLabel =
-        product.currentStock > 0 ? `${product.currentStock} available` : 'Out of stock';
-      const category = (product.categorySi || product.categoryEn || '').trim();
-      return `${index + 1}. **${displayName}** - LKR ${Number(product.price).toFixed(2)} | ${stockLabel} | ${category || 'N/A'}`;
+      return `${index + 1}. ${this.formatCompactCatalogMatch(product)}`;
     });
 
     return ['### Matching Products', ...lines, '_Tip: ask with brand, size, or variant for an exact single match._'].join('\n');
+  }
+
+  private formatSingleCatalogMatch(product: CatalogSearchMatch): string {
+    return [
+      '### Product Match',
+      `- **Name:** ${this.getDisplayName(product)}`,
+      `- **Category:** ${this.getDisplayCategory(product)}`,
+      `- **Price:** ${this.formatPrice(product.price)}`,
+      `- **Stock:** ${this.formatStockLabel(product.currentStock)}`,
+    ].join('\n');
+  }
+
+  private formatCompactCatalogMatch(product: CatalogSearchMatch): string {
+    return `**${this.getDisplayName(product)}** - ${this.formatPrice(product.price)} | ${this.formatStockLabel(product.currentStock)} | ${this.getDisplayCategory(product)}`;
+  }
+
+  private getDisplayName(product: CatalogSearchMatch): string {
+    return (product.nameSi || product.nameEn || '').trim();
+  }
+
+  private getDisplayCategory(product: CatalogSearchMatch): string {
+    return (product.categorySi || product.categoryEn || 'N/A').trim() || 'N/A';
+  }
+
+  private formatPrice(price: number): string {
+    return `LKR ${Number(price).toFixed(2)}`;
+  }
+
+  private formatStockLabel(stock: number): string {
+    return stock > 0 ? `${stock} available` : 'Out of stock';
   }
 
   private async persistAndReturn(
