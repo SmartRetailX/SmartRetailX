@@ -33,6 +33,10 @@ export class VoiceProductService implements VoiceCapability {
       return null;
     }
 
+    if (this.isOfferStyleQuestion(queryText)) {
+      return null;
+    }
+
     const isCatalogQuestion = this.isCatalogStyleQuestion(queryText);
     const hasExplicitCatalogSignal = this.hasExplicitCatalogSignal(queryText);
 
@@ -121,6 +125,70 @@ export class VoiceProductService implements VoiceCapability {
     }
 
     return buildCatalogQueryTokens(normalized).length > 0;
+  }
+
+  private isOfferStyleQuestion(text: string | undefined): boolean {
+    const normalized = normalizeCatalogQuery(text || '');
+    if (!normalized) {
+      return false;
+    }
+
+    const offerTerms = [
+      'offer',
+      'offers',
+      'promo',
+      'promos',
+      'promotion',
+      'promotions',
+      'discount',
+      'sale',
+      'sales',
+      'deals',
+      'special price',
+      'coupon',
+      'coupons',
+      'වට්ටම්',
+      'ප්රවර්ධන',
+      'ප්‍රවර්ධන',
+      'ප්‍රොමෝ',
+      'ප්රොමෝ',
+      'දීමනා',
+      'offer එක',
+      'offers තියෙනවද',
+      'ඔෆර්',
+      'ඔෆර්ස්',
+      'ඔෆර් එක',
+      'ඔෆර්ස් තියෙනවද',
+      'ඔපර්',
+      'ඔපර්ස්',
+      'ඔපර් එක',
+      'ඔපර්ස් තියෙනවද',
+      'ඔෆස්',
+      'ඔෆස් තියෙනවද',
+      'discount items',
+      'current offers',
+      'current promotions',
+      'promotion list',
+    ];
+
+    if (offerTerms.some((term) => normalized.includes(term))) {
+      return true;
+    }
+
+    const offerPatterns = [
+      /\boffer?s?\b/,
+      /\bpromo(?:s|tion|tions)?\b/,
+      /\bdiscounts?\b/,
+      /\bdeals?\b/,
+      /\bcoupons?\b/,
+      /\bsales?\b/,
+      /ඔ[ෆප](?:ර්|ර)?(?:ස්)?/,
+      /වට්ටම්/,
+      /ප්.?රවර්ධන/,
+      /දීමනා/,
+    ];
+
+    return offerPatterns.some((pattern) => pattern.test(normalized));
   }
 
   private hasExplicitCatalogSignal(text: string): boolean {
