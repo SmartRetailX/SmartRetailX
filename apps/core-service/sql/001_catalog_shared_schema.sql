@@ -1,10 +1,7 @@
--- Shared catalog localization schema
+-- Shared catalog localization schema (single-schema mode)
 -- Canonical product facts stay in public.products (core source of truth).
--- Sinhala text/aliases are stored in catalog schema and joined via product_id.
-
-CREATE SCHEMA IF NOT EXISTS catalog;
-
-CREATE TABLE IF NOT EXISTS catalog.product_localization (
+-- Sinhala text/aliases are stored in public tables and joined via product_id.
+CREATE TABLE IF NOT EXISTS public.product_localization (
   product_id text NOT NULL,
   locale text NOT NULL DEFAULT 'si',
   product_name text,
@@ -15,20 +12,18 @@ CREATE TABLE IF NOT EXISTS catalog.product_localization (
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   PRIMARY KEY (product_id, locale)
 );
-
-CREATE TABLE IF NOT EXISTS catalog.product_alias (
+CREATE TABLE IF NOT EXISTS public.product_alias (
   product_id text NOT NULL,
   locale text NOT NULL DEFAULT 'si',
   alias text NOT NULL,
-  normalized_alias text GENERATED ALWAYS AS (regexp_replace(lower(trim(alias)), '\\s+', ' ', 'g')) STORED,
+  normalized_alias text GENERATED ALWAYS AS (
+    regexp_replace(lower(trim(alias)), '\\s+', ' ', 'g')
+  ) STORED,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   PRIMARY KEY (product_id, locale, alias)
 );
-
-CREATE INDEX IF NOT EXISTS idx_product_alias_norm
-  ON catalog.product_alias (locale, normalized_alias);
-
-CREATE TABLE IF NOT EXISTS catalog.product_import_staging (
+CREATE INDEX IF NOT EXISTS idx_product_alias_norm ON public.product_alias (locale, normalized_alias);
+CREATE TABLE IF NOT EXISTS public.product_import_staging (
   product_id text,
   product_name text,
   category text,
@@ -42,20 +37,19 @@ CREATE TABLE IF NOT EXISTS catalog.product_import_staging (
   base_product_si text,
   imported_at timestamptz NOT NULL DEFAULT NOW()
 );
-
 -- Add a stable external reference key on canonical products.
 ALTER TABLE public.products
-  ADD COLUMN IF NOT EXISTS external_product_id text;
-
-CREATE UNIQUE INDEX IF NOT EXISTS ux_products_external_product_id
-  ON public.products (external_product_id)
-  WHERE external_product_id IS NOT NULL;
-
+ADD COLUMN IF NOT EXISTS external_product_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_products_external_product_id ON public.products (external_product_id)
+WHERE external_product_id IS NOT NULL;
 -- Resolve canonical + localization for all readers.
-CREATE OR REPLACE VIEW catalog.v_products_resolved AS
-SELECT
-  p.id::text AS product_uuid,
-  COALESCE(NULLIF(p.external_product_id, ''), p.sku, p.id::text) AS product_id,
+CREATE OR REPLACE VIEW public.v_products_resolved AS
+SELECT p.id::text AS product_uuid,
+  COALESCE(
+    NULLIF(p.external_product_id, ''),
+    p.sku,
+    p.id::text
+  ) AS product_id,
   p.sku,
   p.name AS product_name_en,
   l.product_name AS product_name_si,
@@ -69,6 +63,9 @@ SELECT
   NULL::text AS store_id,
   NOW() AS updated_at
 FROM public.products p
-LEFT JOIN catalog.product_localization l
-  ON l.product_id = COALESCE(NULLIF(p.external_product_id, ''), p.sku, p.id::text)
- AND l.locale = 'si';
+  LEFT JOIN public.product_localization l ON l.product_id = COALESCE(
+    NULLIF(p.external_product_id, ''),
+    p.sku,
+    p.id::text
+  )
+  AND l.locale = 'si';
