@@ -23,6 +23,7 @@ export const PATHS = {
   TIERS:       '/tiers',
   LOYALTY:       '/loyalty',
   PROMOTIONS:  '/promotions',
+  MY_PROMOTIONS: '/my-promotions',
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
@@ -45,6 +46,7 @@ const LoyaltyPage       = lazy(() => import('@/pages/admin/LoyaltyPage'))
 const VoicePage         = lazy(() => import('@/pages/admin/VoicePage'))
 const SettingsPage      = lazy(() => import('@/pages/admin/SettingsPage'))
 const PromotionsPage    = lazy(() => import('@/pages/admin/PromotionsPage'))
+const MyPromotionsPage  = lazy(() => import('@/pages/customer/MyPromotionsPage'))
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -113,6 +115,7 @@ export const appRoutes: RouteObject[] = [
 
         // Customer
         { path: 'customer-settings', element: customerOnly(CustomerSettings) },
+        { path: 'my-promotions',     element: page(MyPromotionsPage) },
       ],
     }],
   },

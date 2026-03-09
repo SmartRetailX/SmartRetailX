@@ -110,4 +110,11 @@ export const API_ENDPOINTS = {
   HEALTH: {
     CHECK: '/api/bi/health',
   },
+
+  // My Promotions (customer inbox — served by promotion engine via email match)
+  MY_PROMOTIONS: {
+    LIST: '/api/promotion-engine/my-promotions',
+    MARK_READ: (id: number) => `/api/promotion-engine/my-promotions/${id}/read`,
+    MARK_ALL_READ: '/api/promotion-engine/my-promotions/read-all',
+  },
 } as const
