@@ -12,7 +12,6 @@ import { useLanguageStore, useThemeStore } from '@/stores/appStore'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
-
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
@@ -53,12 +52,6 @@ export default function MainLayout() {
       {
         href: '/customer-settings',
         label: 'Account',
-      },
-
-      {
-        href: '/customer-settings',
-        label: 'Account',
-
       },
     ]
 
@@ -120,9 +113,8 @@ export default function MainLayout() {
                 </button>
               </div>
 
-              
-
               <p className="hidden text-sm text-muted-foreground md:block">{user?.name || 'Customer'}</p>
+
               {/* Cart button */}
               <Button variant="ghost" size="icon" asChild className="relative">
                 <Link to="/cart">
@@ -135,19 +127,18 @@ export default function MainLayout() {
                 </Link>
               </Button>
 
-              <Button variant="ghost" size="sm" asChild className="relative">
+              <Button variant="ghost" size="icon" asChild className="relative">
                 <Link to="/customer-loyalty">
                   <Award className="h-5 w-5" />
                 </Link>
               </Button>
 
-              <p className="hidden text-sm text-muted-foreground md:block">{user?.name || 'Customer'}</p>
-              <Button variant="outline" size="sm" asChild></Button>
               <Button variant="ghost" size="icon" asChild>
                 <Link to="/customer-settings" className="inline-flex items-center gap-1.5">
-                  <Settings  />
+                  <Settings />
                 </Link>
               </Button>
+
               <Button variant="ghost" size="icon" onClick={() => void logout()}>
                 <LogOut />
               </Button>
@@ -162,7 +153,7 @@ export default function MainLayout() {
         <AgentChatWidget />
       </div>
     )
-  }}
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
