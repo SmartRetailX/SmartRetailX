@@ -136,3 +136,55 @@ export function useCampaignDetail(id: number | null) {
     enabled: id !== null,
   })
 }
+
+// ── A/B Test Types & Hook ─────────────────────────────────
+
+export interface ABTestSide {
+  customersReached: number
+  discountPercent: number
+  avgPurchaseProbability: number
+  conversionRate: number
+  conversions: number
+  revenue: number
+  cost: number
+  profit: number
+  roi: number
+}
+
+export interface ABTestResult {
+  success: boolean
+  productName: string
+  productCategory: string
+  productPrice: number
+  conversionRate: number
+  totalCustomers: number
+  eligibleCustomers: number
+  conversionMethodNote: string
+  personalized: ABTestSide
+  broadcast: ABTestSide
+  comparison: {
+    costSavings: number
+    profitImprovement: number
+    roiImprovement: number
+    convRateLift: number
+    customerEfficiency: number
+    costReduction: number
+    revenuePerCustomerPersonalized: number
+    revenuePerCustomerBroadcast: number
+    revenueEfficiency: number
+  }
+}
+
+export function useCompareAB() {
+  return useMutation({
+    mutationFn: async (payload: {
+      productId: string
+      personalizedDiscount: number
+      broadcastDiscount: number
+      maxCustomers: number
+    }) => {
+      const { data } = await api.post(API_ENDPOINTS.PROMOTION_ENGINE.COMPARE, payload)
+      return data as ABTestResult
+    },
+  })
+}

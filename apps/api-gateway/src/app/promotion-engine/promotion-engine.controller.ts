@@ -95,4 +95,22 @@ export class PromotionEngineController {
       return { success: false, error: 'ML service is not running' };
     }
   }
+
+  @Post('campaigns/compare')
+  async compareCampaigns(@Body() body: any) {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/campaigns/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.detail || 'Comparison failed' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
+  }
 }

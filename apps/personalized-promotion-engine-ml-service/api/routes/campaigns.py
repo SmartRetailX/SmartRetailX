@@ -200,6 +200,167 @@ async def generate_campaign(request: GenerateCampaignRequest):
         raise HTTPException(500, f"Campaign generation failed: {str(e)}")
 
 
+# ── A/B Test Comparison ────────────────────────────────────
+
+class CompareRequest(BaseModel):
+    productId: str
+    personalizedDiscount: float = 10.0
+    broadcastDiscount: float = 15.0
+    maxCustomers: int = 100
+
+
+@router.post("/campaigns/compare")
+async def compare_campaigns(request: CompareRequest):
+    """
+    Compare personalized ML-targeted campaign vs broadcast to all customers.
+    Returns side-by-side metrics to demonstrate research thesis.
+    """
+    engine, preprocessor = _get_state()
+
+    product_df = preprocessor.products[
+        preprocessor.products['ProductID'] == request.productId
+    ]
+    if len(product_df) == 0:
+        raise HTTPException(404, f"Product '{request.productId}' not found")
+
+    product = product_df.iloc[0]
+    price = float(product['Price'])
+
+    try:
+        total_customers = int(len(preprocessor.customers))
+
+        # Score ALL eligible customers with the ML pipeline in one pass.
+        # Using a very large top_n returns every customer the CF+ML pipeline
+        # considers eligible (above the dynamic percentile threshold).
+        # This is the single source of truth for BOTH arms of the test:
+        #   - Personalized  = top maxCustomers customers by hybrid score
+        #   - Broadcast     = population-level average probability across all
+        #                     eligible customers (non-eligible contribute ~0)
+        #
+        # This avoids the historical-cumulative-rate bug where _calculate_
+        # historical_conversion_rate() returned 88%+ for common categories
+        # by counting lifetime unique buyers, not per-campaign conversions.
+        all_scored_df = engine.generate_promotion_targets(
+            request.productId, top_n=9999
+        )
+        if all_scored_df is None or len(all_scored_df) == 0:
+            raise HTTPException(404, "No suitable customers found for this product.")
+
+        # Personalized: best maxCustomers customers
+        targets_df = all_scored_df.head(request.maxCustomers).copy()
+
+        # Broadcast population-level average probability:
+        # sum of all ML-predicted probabilities / total customers in DB.
+        # Customers not retrieved by CF (~no purchase history for similar
+        # products) are assumed to have near-zero affinity, so dividing by
+        # total_customers naturally discounts them.
+        eligible_prob_sum = float(all_scored_df['purchase_probability'].sum())
+        b_avg_prob = eligible_prob_sum / total_customers  # effective population rate
+
+        # ── Personalized metrics ──────────────────────────────
+        p_targeted = int(len(targets_df))
+        p_avg_prob = float(targets_df['purchase_probability'].mean()) if p_targeted > 0 else 0.0
+        p_conversions = int(round(p_targeted * p_avg_prob))
+        p_discount_amt = price * (request.personalizedDiscount / 100)
+        p_revenue = round(p_conversions * price, 2)
+        # cost = discount given only to actual buyers (same applies to both arms)
+        p_cost = round(p_conversions * p_discount_amt, 2)
+        p_profit = round(p_revenue - p_cost, 2)
+        p_roi = round((p_profit / p_cost * 100) if p_cost > 0 else 0.0, 2)
+        p_conv_rate = round(p_avg_prob * 100, 2)  # % of targeted customers who convert
+
+        # ── Broadcast metrics (all customers, ML-derived population prob) ──
+        b_conversions = int(round(total_customers * b_avg_prob))
+        b_discount_amt = price * (request.broadcastDiscount / 100)
+        b_revenue = round(b_conversions * price, 2)
+        # Broadcast discount cost: same model as personalized — discount is paid
+        # only when a customer buys, not to every recipient.
+        # The key difference exposed by this fair comparison is the CONVERSION RATE:
+        # broadcast has a low population-average probability, so far fewer of its
+        # 1,000 targets actually convert, making every discounted sale less predictable.
+        b_cost = round(b_conversions * b_discount_amt, 2)
+        b_profit = round(b_revenue - b_cost, 2)
+        b_roi = round((b_profit / b_cost * 100) if b_cost > 0 else 0.0, 2)
+        b_conv_rate = round(b_avg_prob * 100, 2)  # % of targeted customers who convert
+
+        # ── Improvement metrics ──────────────────────────────
+        # ROI improvement: how many percentage points better personalized is
+        roi_improvement = round(p_roi - b_roi, 2)
+        # Conversion rate lift: personalized hit-rate vs broadcast hit-rate
+        conv_rate_lift = round(
+            ((p_avg_prob - b_avg_prob) / b_avg_prob * 100) if b_avg_prob > 0 else 0.0, 2
+        )
+        # Discount budget savings: less total discount paid because fewer (but richer)
+        # targets are engaged — each discounted sale is to a highly-likely buyer
+        discount_budget_savings = round(max(0.0, b_cost - p_cost), 2)
+        profit_improvement = round(
+            ((p_profit - b_profit) / abs(b_profit) * 100) if b_profit != 0 else 0.0, 2
+        )
+        customer_efficiency = round(
+            (p_targeted / total_customers * 100) if total_customers > 0 else 0.0, 2
+        )
+        cost_reduction = round(100 - customer_efficiency, 2)
+        # Revenue per customer reached — the definitive targeting efficiency metric.
+        # Personalized selects high-probability buyers, so each customer reached
+        # generates far more revenue than a random broadcast recipient.
+        revenue_per_customer_personalized = round(p_revenue / p_targeted, 2) if p_targeted > 0 else 0.0
+        revenue_per_customer_broadcast = round(b_revenue / total_customers, 2) if total_customers > 0 else 0.0
+        revenue_efficiency = round(
+            revenue_per_customer_personalized / revenue_per_customer_broadcast, 2
+        ) if revenue_per_customer_broadcast > 0 else 0.0
+
+        return {
+            "success": True,
+            "productName": str(product['ProductName']),
+            "productCategory": str(product['Category']),
+            "productPrice": price,
+            "conversionRate": round(b_avg_prob, 4),
+            "totalCustomers": total_customers,
+            "eligibleCustomers": int(len(all_scored_df)),
+            "conversionMethodNote": "Broadcast conversion rate = ML-predicted probability averaged across all customers (same model as personalized targeting)",
+            "personalized": {
+                "customersReached": p_targeted,
+                "discountPercent": request.personalizedDiscount,
+                "avgPurchaseProbability": round(p_avg_prob, 4),
+                "conversionRate": p_conv_rate,
+                "conversions": p_conversions,
+                "revenue": p_revenue,
+                "cost": p_cost,
+                "profit": p_profit,
+                "roi": p_roi,
+            },
+            "broadcast": {
+                "customersReached": total_customers,
+                "discountPercent": request.broadcastDiscount,
+                "avgPurchaseProbability": round(b_avg_prob, 4),
+                "conversionRate": b_conv_rate,
+                "conversions": b_conversions,
+                "revenue": b_revenue,
+                "cost": b_cost,
+                "profit": b_profit,
+                "roi": b_roi,
+            },
+            "comparison": {
+                "costSavings": discount_budget_savings,
+                "profitImprovement": profit_improvement,
+                "roiImprovement": roi_improvement,
+                "convRateLift": conv_rate_lift,
+                "customerEfficiency": customer_efficiency,
+                "costReduction": cost_reduction,
+                "revenuePerCustomerPersonalized": revenue_per_customer_personalized,
+                "revenuePerCustomerBroadcast": revenue_per_customer_broadcast,
+                "revenueEfficiency": revenue_efficiency,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Comparison failed: {str(e)}")
+
+
 # ── Campaign History ───────────────────────────────────────
 
 class CampaignHistoryItem(BaseModel):

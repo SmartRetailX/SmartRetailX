@@ -14,6 +14,7 @@ import {
   History,
   ChevronRight,
   X,
+  FlaskConical,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,9 +26,12 @@ import {
   usePromotionEngineHealth,
   useCampaignHistory,
   useCampaignDetail,
+  useCompareAB,
   type CustomerTarget,
   type CampaignSummary,
+  type ABTestResult,
 } from '@/hooks/usePromotionEngine'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export default function PromotionsPage() {
   // Form state
@@ -43,6 +47,13 @@ export default function PromotionsPage() {
   // Campaign history detail drawer
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
 
+  // A/B test state
+  const [abProduct, setAbProduct] = useState('')
+  const [abPersonalizedDiscount, setAbPersonalizedDiscount] = useState(10)
+  const [abBroadcastDiscount, setAbBroadcastDiscount] = useState(15)
+  const [abMaxCustomers, setAbMaxCustomers] = useState(100)
+  const [abResult, setAbResult] = useState<ABTestResult | null>(null)
+
   // API hooks
   const { data: healthData } = usePromotionEngineHealth()
   const isMLReady = healthData?.models_loaded === true
@@ -54,6 +65,25 @@ export default function PromotionsPage() {
   const generateMutation = useGenerateCampaign()
   const { data: historyData, isLoading: historyLoading, refetch: refetchHistory } = useCampaignHistory()
   const { data: campaignDetail, isLoading: detailLoading } = useCampaignDetail(selectedCampaignId)
+  const { data: allProductsData } = usePromotionProducts(undefined, isMLReady)
+  const compareMutation = useCompareAB()
+
+  const handleCompare = async () => {
+    if (!abProduct) return
+    try {
+      const result = await compareMutation.mutateAsync({
+        productId: abProduct,
+        personalizedDiscount: abPersonalizedDiscount,
+        broadcastDiscount: abBroadcastDiscount,
+        maxCustomers: abMaxCustomers,
+      })
+      if (result.success) {
+        setAbResult(result)
+      }
+    } catch (error) {
+      console.error('Comparison failed:', error)
+    }
+  }
 
   const handleGenerate = async () => {
     if (!selectedProduct) return
@@ -114,6 +144,10 @@ export default function PromotionsPage() {
                 {historyData.total}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="abtest" className="flex items-center gap-1.5">
+            <FlaskConical className="h-4 w-4" />
+            A/B Test
           </TabsTrigger>
         </TabsList>
 
@@ -397,8 +431,8 @@ export default function PromotionsPage() {
                               <td className="py-2.5 px-3 text-gray-400">{index + 1}</td>
                               <td className="py-2.5 px-3 font-medium">{target.customerName}</td>
                               <td className="py-2.5 px-3 text-gray-600 dark:text-gray-400">{target.location}</td>
-                              <td className="py-2.5 px-3">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
                                   target.segment === 'frequent_shoppers'
                                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                     : target.segment === 'regular_shoppers'
@@ -610,7 +644,355 @@ export default function PromotionsPage() {
             )}
           </div>
         </TabsContent>
-      </Tabs>
+        {/* ── Tab 3: A/B Test Simulation ── */}
+        <TabsContent value="abtest" className="mt-6">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Config Panel */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FlaskConical className="h-5 w-5 text-violet-500" />
+                  Test Configuration
+                </CardTitle>
+                <CardDescription>
+                  Compare ML-targeted personalization vs broadcasting to all customers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Product *</label>
+                  <div className="relative">
+                    <select
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm appearance-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      value={abProduct}
+                      onChange={(e) => setAbProduct(e.target.value)}
+                    >
+                      <option value="">Select a product</option>
+                      {allProductsData?.products?.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — Rs. {p.price.toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Personalized Discount: <span className="text-violet-600 font-bold">{abPersonalizedDiscount}%</span>
+                  </label>
+                  <input type="range" min={5} max={50} step={5}
+                    value={abPersonalizedDiscount}
+                    onChange={(e) => setAbPersonalizedDiscount(Number(e.target.value))}
+                    className="w-full accent-violet-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1"><span>5%</span><span>50%</span></div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Broadcast Discount: <span className="text-orange-500 font-bold">{abBroadcastDiscount}%</span>
+                  </label>
+                  <input type="range" min={5} max={50} step={5}
+                    value={abBroadcastDiscount}
+                    onChange={(e) => setAbBroadcastDiscount(Number(e.target.value))}
+                    className="w-full accent-orange-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1"><span>5%</span><span>50%</span></div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Personalized Targets: <span className="text-violet-600 font-bold">{abMaxCustomers}</span>
+                  </label>
+                  <input type="range" min={10} max={500} step={10}
+                    value={abMaxCustomers}
+                    onChange={(e) => setAbMaxCustomers(Number(e.target.value))}
+                    className="w-full accent-violet-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1"><span>10</span><span>500</span></div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
+                  <p className="font-semibold">How it works</p>
+                  <p>🎯 <strong>Personalized:</strong> ML pipeline targets the top {abMaxCustomers} highest-probability customers with a {abPersonalizedDiscount}% discount.</p>
+                  <p>📢 <strong>Broadcast:</strong> Discount sent to all customers. Conversion estimated using the <em>same ML model</em> averaged across the full population — a fair, apples-to-apples comparison.</p>
+                  <p>📦 Broadcast cost = discount given to <em>every recipient</em> (not just converters), which is the real cost of indiscriminate campaigns.</p>
+                </div>
+
+                <Button
+                  className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+                  size="lg"
+                  disabled={!abProduct || compareMutation.isPending || !isMLReady}
+                  onClick={handleCompare}
+                >
+                  {compareMutation.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Running Analysis...</>
+                  ) : (
+                    <><FlaskConical className="mr-2 h-4 w-4" />Run A/B Comparison</>
+                  )}
+                </Button>
+
+                {compareMutation.isError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-300">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>Comparison failed. Make sure the ML service is running.</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Results Panel */}
+            <div className="lg:col-span-2 space-y-5">
+              {compareMutation.isPending ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-20 text-gray-500">
+                    <Loader2 className="h-10 w-10 animate-spin mb-4 text-violet-500" />
+                    <p className="font-medium">Running ML pipeline...</p>
+                    <p className="text-sm mt-1 text-gray-400">Scoring all customers and computing comparison metrics</p>
+                  </CardContent>
+                </Card>
+              ) : !abResult ? (
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center text-gray-500">
+                    <FlaskConical className="h-12 w-12 mb-3 text-gray-300" />
+                    <h3 className="text-lg font-medium mb-1">No Comparison Yet</h3>
+                    <p className="text-sm max-w-md">
+                      Select a product and click <strong>"Run A/B Comparison"</strong> to see
+                      how ML-personalized targeting compares to broadcasting to all customers.
+                    </p>
+                    <ArrowRight className="h-6 w-6 mt-4 text-violet-400 animate-bounce" />
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Winner Banner — conversion efficiency is the primary research metric */}
+                  {(() => {
+                    const multiplier = 1 + abResult.comparison.convRateLift / 100
+                    const personalizedWins = abResult.comparison.convRateLift > 0
+                    return (
+                      <div className={`p-4 rounded-xl border-2 ${
+                        personalizedWins
+                          ? 'bg-green-50 border-green-400 dark:bg-green-900/20 dark:border-green-700'
+                          : 'bg-orange-50 border-orange-400 dark:bg-orange-900/20 dark:border-orange-700'
+                      }`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              {abResult.productName} · {abResult.productCategory} · Rs. {abResult.productPrice.toLocaleString()}
+                            </p>
+                            <h3 className={`text-xl font-bold mt-1 ${
+                              personalizedWins ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'
+                            }`}>
+                              {personalizedWins
+                                ? `🎯 Personalized wins: ${multiplier.toFixed(1)}× better conversion rate`
+                                : `📢 Broadcast leads conversion by ${(1 / multiplier).toFixed(1)}×`}
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Personalized hit rate{' '}
+                              <span className="font-semibold text-violet-700">{abResult.personalized.conversionRate.toFixed(1)}%</span>
+                              {' '}vs broadcast{' '}
+                              <span className="font-semibold text-gray-600">{abResult.broadcast.conversionRate.toFixed(2)}%</span>
+                              {' · '}
+                              <span className="font-semibold text-violet-600">Rs. {abResult.comparison.revenuePerCustomerPersonalized.toFixed(0)}</span> vs{' '}
+                              <span className="font-semibold text-gray-600">Rs. {abResult.comparison.revenuePerCustomerBroadcast.toFixed(1)}</span>
+                              {' '}revenue per customer
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 space-y-1">
+                            <div>
+                              <p className="text-xs text-gray-500">Rev/Customer — Personalized</p>
+                              <p className="text-2xl font-bold text-violet-600">Rs. {abResult.comparison.revenuePerCustomerPersonalized.toFixed(0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">Rev/Customer — Broadcast</p>
+                              <p className="text-lg font-bold text-gray-500">Rs. {abResult.comparison.revenuePerCustomerBroadcast.toFixed(1)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 text-sm text-violet-800 dark:text-violet-200 space-y-1">
+                    <p className="font-semibold text-xs uppercase tracking-wide text-violet-600">📌 Insight</p>
+                    <p>
+                      Broadcast reaches all {abResult.totalCustomers.toLocaleString()} customers but only <strong>{abResult.broadcast.conversionRate.toFixed(2)}%</strong> are likely to buy — the promotional discount is spread thin across low-intent contacts.
+                      Personalized ML targeting concentrates the same offer on <strong>{abResult.personalized.customersReached}</strong> customers who have a <strong>{abResult.personalized.conversionRate.toFixed(1)}%</strong> average purchase probability.
+                      Every rupee of discount budget is working on a <em>likely buyer</em> — this is why the ROI is higher even when absolute revenue is lower.
+                    </p>
+                  </div>
+
+                  {/* Side-by-side metric cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card className="border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Target className="h-4 w-4 text-violet-600" />
+                          🎯 Personalized
+                          <span className="ml-auto text-xs font-normal bg-violet-200 dark:bg-violet-800 text-violet-800 dark:text-violet-200 px-2 py-0.5 rounded-full">
+                            {abResult.personalized.discountPercent}% off
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {([
+                          ['Customers Reached', abResult.personalized.customersReached.toLocaleString(), false],
+                          ['Conversion Rate', `${abResult.personalized.conversionRate.toFixed(1)}%`, true],
+                          ['Revenue per Customer', `Rs. ${abResult.comparison.revenuePerCustomerPersonalized.toFixed(1)}`, true],
+                          ['Conversions', abResult.personalized.conversions.toLocaleString(), false],
+                          ['Revenue', `Rs. ${abResult.personalized.revenue.toLocaleString()}`, false],
+                          ['Discount Cost', `Rs. ${abResult.personalized.cost.toLocaleString()}`, false],
+                          ['Profit', `Rs. ${abResult.personalized.profit.toLocaleString()}`, false],
+                          ['ROI', `${abResult.personalized.roi.toFixed(1)}%`, false],
+                        ] as [string, string, boolean][]).map(([label, value, highlight]) => (
+                          <div key={label} className="flex justify-between text-sm">
+                            <span className="text-gray-500">{label}</span>
+                            <span className={`font-semibold ${highlight ? 'text-violet-700 dark:text-violet-300' : ''}`}>{value}</span>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-500" />
+                          📢 Broadcast
+                          <span className="ml-auto text-xs font-normal bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                            {abResult.broadcast.discountPercent}% off
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {([
+                          ['Customers Reached', abResult.broadcast.customersReached.toLocaleString()],
+                          ['Conversion Rate', `${abResult.broadcast.conversionRate.toFixed(2)}%`],
+                          ['Revenue per Customer', `Rs. ${abResult.comparison.revenuePerCustomerBroadcast.toFixed(1)}`],
+                          ['Conversions', abResult.broadcast.conversions.toLocaleString()],
+                          ['Revenue', `Rs. ${abResult.broadcast.revenue.toLocaleString()}`],
+                          ['Discount Cost', `Rs. ${abResult.broadcast.cost.toLocaleString()}`],
+                          ['Profit', `Rs. ${abResult.broadcast.profit.toLocaleString()}`],
+                          ['ROI', `${abResult.broadcast.roi.toFixed(1)}%`],
+                        ] as [string, string][]).map(([label, value]) => (
+                          <div key={label} className="flex justify-between text-sm">
+                            <span className="text-gray-500">{label}</span>
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">{value}</span>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Bar charts: ROI + Conversion Rate (efficiency charts) + Financial */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-violet-500" />
+                          Conversion Rate (%)
+                        </CardTitle>
+                        <CardDescription className="text-xs">Share of targeted customers who buy — personalized wins decisively</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart
+                            data={[
+                              { metric: 'Conversion Rate', Personalized: abResult.personalized.conversionRate, Broadcast: abResult.broadcast.conversionRate },
+                            ]}
+                            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                            <XAxis dataKey="metric" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 10 }} width={40} tickFormatter={(v) => `${v}%`} />
+                            <Tooltip formatter={(value) => [`${Number(value).toFixed(2)}%`, undefined]} />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="Personalized" fill="#7c3aed" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 11, fill: '#7c3aed', formatter: (v: number) => `${v.toFixed(1)}%` }} />
+                            <Bar dataKey="Broadcast" fill="#94a3b8" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 11, fill: '#94a3b8', formatter: (v: number) => `${v.toFixed(2)}%` }} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-violet-500" />
+                          Revenue &amp; Profit
+                        </CardTitle>
+                        <CardDescription className="text-xs">Absolute scale — broadcast may lead due to larger reach</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart
+                            data={[
+                              { metric: 'Revenue', Personalized: abResult.personalized.revenue, Broadcast: abResult.broadcast.revenue },
+                              { metric: 'Profit', Personalized: abResult.personalized.profit, Broadcast: abResult.broadcast.profit },
+                              { metric: 'Disc. Cost', Personalized: abResult.personalized.cost, Broadcast: abResult.broadcast.cost },
+                            ]}
+                            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                            <XAxis dataKey="metric" tick={{ fontSize: 11 }} />
+                            <YAxis
+                              tickFormatter={(v) => Number(v) >= 1000 ? `${(Number(v) / 1000).toFixed(0)}K` : String(v)}
+                              tick={{ fontSize: 10 }}
+                              width={40}
+                            />
+                            <Tooltip formatter={(value) => [`Rs. ${Number(value).toLocaleString()}`, undefined]} />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="Personalized" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Broadcast" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* 3 key research KPI cards */}
+                  {(() => {
+                    const convMultiplier = (1 + abResult.comparison.convRateLift / 100).toFixed(1)
+                    const revMultiplier = abResult.comparison.revenueEfficiency.toFixed(1)
+                    return (
+                      <div className="grid grid-cols-3 gap-4">
+                        <Card className="border-0 bg-violet-50 dark:bg-violet-900/20">
+                          <CardContent className="p-4 text-center">
+                            <p className="text-xs text-gray-500 mb-1">Conversion Efficiency</p>
+                            <p className="text-2xl font-bold text-violet-600">{convMultiplier}×</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              more likely to buy than broadcast ({abResult.personalized.conversionRate.toFixed(1)}% vs {abResult.broadcast.conversionRate.toFixed(2)}%)
+                            </p>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-0 bg-green-50 dark:bg-green-900/20">
+                          <CardContent className="p-4 text-center">
+                            <p className="text-xs text-gray-500 mb-1">Revenue per Customer</p>
+                            <p className="text-2xl font-bold text-green-600">{revMultiplier}×</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Rs. {abResult.comparison.revenuePerCustomerPersonalized.toFixed(0)} vs Rs. {abResult.comparison.revenuePerCustomerBroadcast.toFixed(1)} per customer reached
+                            </p>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-0 bg-blue-50 dark:bg-blue-900/20">
+                          <CardContent className="p-4 text-center">
+                            <p className="text-xs text-gray-500 mb-1">Targeting Focus</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              {abResult.comparison.customerEfficiency.toFixed(0)}%
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {abResult.personalized.customersReached} of {abResult.totalCustomers.toLocaleString()} customers — precision over spray
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+        </TabsContent>      </Tabs>
     </div>
   )
 }
