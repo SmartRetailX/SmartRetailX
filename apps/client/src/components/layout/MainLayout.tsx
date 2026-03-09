@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { LogOut, Package, Settings, ShoppingBag, ShoppingCart } from 'lucide-react'
+import { Award, LogOut, Package, Settings, ShoppingBag, ShoppingCart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
 import AgentChatWidget from '@/components/chat/AgentChatWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCart } from '@/hooks/useCart'
@@ -114,9 +113,8 @@ export default function MainLayout() {
                 </button>
               </div>
 
-              
-
               <p className="hidden text-sm text-muted-foreground md:block">{user?.name || 'Customer'}</p>
+
               {/* Cart button */}
               <Button variant="ghost" size="icon" asChild className="relative">
                 <Link to="/cart">
@@ -128,11 +126,19 @@ export default function MainLayout() {
                   )}
                 </Link>
               </Button>
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/customer-settings" className="inline-flex items-center gap-1.5">
-                  <Settings  />
+
+              <Button variant="ghost" size="icon" asChild className="relative">
+                <Link to="/customer-loyalty">
+                  <Award className="h-5 w-5" />
                 </Link>
               </Button>
+
+              <Button variant="ghost" size="icon" asChild>
+                <Link to="/customer-settings" className="inline-flex items-center gap-1.5">
+                  <Settings />
+                </Link>
+              </Button>
+
               <Button variant="ghost" size="icon" onClick={() => void logout()}>
                 <LogOut />
               </Button>
