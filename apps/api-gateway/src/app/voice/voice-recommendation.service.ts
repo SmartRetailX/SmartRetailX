@@ -80,7 +80,8 @@ export class VoiceRecommendationService implements VoiceCapability {
     const topItems = aggregatedItems.slice(0, 12);
 
     const recentProducts = await this.resolveRecentOrderProducts(topItems);
-    const productLines = recentProducts.map((product) => this.formatRecommendationLine(product)).slice(0, 5);
+    const topRecentProducts = recentProducts.slice(0, 5);
+    const productLines = topRecentProducts.map((product, index) => this.formatRecommendationLine(product, index + 1));
 
     const pickedProductIds = new Set(recentProducts.map((product) => product.productId));
     const categoryLines = await this.buildCategoryExpansionLines(recentProducts, pickedProductIds, 6);
@@ -94,29 +95,33 @@ export class VoiceRecommendationService implements VoiceCapability {
     }
 
     const sections = [
-      '### ඔබට නිර්දේශිත ලැයිස්තුව',
-      `- **මූලාශ්‍රය:** ඔබගේ මෑත ඇණවුම් ${recentOrders.length} (${latestOrder?.orderNumber || 'N/A'} latest)`,
+      '**ඔබට නිර්දේශිත ලැයිස්තුව**',
+      `_මූලාශ්‍රය: ඔබගේ මෑත ඇණවුම් ${recentOrders.length} (${latestOrder?.orderNumber || 'N/A'} latest)_`,
     ];
 
     if (productLines.length > 0) {
-      sections.push('### නැවත මිලදී ගත හැකි items', ...productLines);
+      sections.push('', '**නැවත මිලදී ගත හැකි items**', ...productLines);
     }
 
     if (categoryLines.length > 0) {
-      sections.push('### කාණ්ඩය අනුව තවත් නිර්දේශ', ...categoryLines);
+      sections.push('', '**කාණ්ඩය අනුව තවත් නිර්දේශ**', ...categoryLines);
     }
 
     if (offerLines.length > 0) {
-      sections.push('### ඔබට අදාල available offers', ...offerLines);
+      sections.push('', '**ඔබට අදාල available offers**', ...offerLines);
     }
 
-    sections.push('_අවශ්‍ය නම් මේ ලැයිස්තුවෙන් items cart එකට දාන්න කියන්න._');
+    sections.push('', '_අවශ්‍ය නම් මේ ලැයිස්තුවෙන් items cart එකට දාන්න කියන්න._');
 
     return sections.join('\n');
   }
 
-  private formatRecommendationLine(product: CatalogSearchRaw): string {
-    return `- **${this.voiceProductService.getDisplayName(product)}** - ${this.voiceProductService.formatPrice(product.price)} | ${this.voiceProductService.formatStockLabel(product.currentStock)}`;
+  private formatRecommendationLine(product: CatalogSearchRaw, rank: number): string {
+    return [
+      `${rank}) ${this.voiceProductService.getDisplayName(product)}`,
+      `   මිල: ${this.voiceProductService.formatPrice(product.price)}`,
+      `   තොගය: ${this.voiceProductService.formatStockLabel(product.currentStock)}`,
+    ].join('\n');
   }
 
   private aggregateRecentOrderItems(
@@ -236,9 +241,14 @@ export class VoiceRecommendationService implements VoiceCapability {
       }
     }
 
-    return expanded.map((product) => {
+    return expanded.map((product, index) => {
       const categoryLabel = (product.categorySi || product.category || 'N/A').trim();
-      return `- **${this.voiceProductService.getDisplayName(product)}** - ${this.voiceProductService.formatPrice(product.price)} | ${this.voiceProductService.formatStockLabel(product.currentStock)} | ${categoryLabel}`;
+      return [
+        `${index + 1}) ${this.voiceProductService.getDisplayName(product)}`,
+        `   මිල: ${this.voiceProductService.formatPrice(product.price)}`,
+        `   තොගය: ${this.voiceProductService.formatStockLabel(product.currentStock)}`,
+        `   කාණ්ඩය: ${categoryLabel}`,
+      ].join('\n');
     });
   }
 
@@ -267,13 +277,20 @@ export class VoiceRecommendationService implements VoiceCapability {
     const related = activeOrUpcoming.filter((_, index) => relatedChecks[index]);
     const selected = (related.length > 0 ? related : activeOrUpcoming).slice(0, 3);
 
-    return selected.map((offer) => {
+    return selected.map((offer, index) => {
       const discount = this.formatOfferDiscount(offer.discountPercentage);
       const status = offer.offerStatus === 'active' ? 'active' : 'upcoming';
       const validity = this.formatOfferDateRange(offer.startDate, offer.endDate);
       const offerName = (offer.productName || offer.productId || 'Unknown product').trim();
 
-      return `- **${offerName}** - ${discount} | ${status}${validity}`;
+      const details = [
+        `${index + 1}) ${offerName}`,
+        `   වට්ටම: ${discount}`,
+        `   තත්ත්වය: ${status}`,
+        validity ? `   වලංගු කාලය: ${validity}` : null,
+      ];
+
+      return details.filter((line): line is string => Boolean(line)).join('\n');
     });
   }
 
@@ -370,13 +387,13 @@ export class VoiceRecommendationService implements VoiceCapability {
 
   private formatOfferDateRange(startDate: string | null | undefined, endDate: string | null | undefined): string {
     if (startDate && endDate) {
-      return ` | ${startDate} - ${endDate}`;
+      return `${startDate} - ${endDate}`;
     }
     if (endDate) {
-      return ` | valid until ${endDate}`;
+      return `valid until ${endDate}`;
     }
     if (startDate) {
-      return ` | starts ${startDate}`;
+      return `starts ${startDate}`;
     }
 
     return '';

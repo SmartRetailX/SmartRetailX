@@ -13,19 +13,17 @@ import { VoiceAgentTransportService } from './voice-agent-transport.service';
 import { type VoiceCapabilityContext } from './voice-capability.interface';
 import { VoiceCapabilityDispatcherService } from './voice-capability-dispatcher.service';
 import { VoiceChatRepository } from './voice-chat.repository';
+import { VoiceTranscriptRefinerService } from './voice-transcript-refiner.service';
 
 @Injectable()
 export class VoiceService {
   private readonly logger = new Logger(VoiceService.name);
-  private readonly secondOpinionModels = new Set([
-    'db-offers-empty',
-    'offer-fallback',
-  ]);
 
   constructor(
     private readonly voiceAgentTransportService: VoiceAgentTransportService,
     private readonly voiceCapabilityDispatcherService: VoiceCapabilityDispatcherService,
     private readonly voiceChatRepository: VoiceChatRepository,
+    private readonly voiceTranscriptRefinerService: VoiceTranscriptRefinerService,
   ) {}
 
   async chatWithAudio(
@@ -77,14 +75,23 @@ export class VoiceService {
       userId,
       userContext,
       intents,
-      transcriptText: dto.transcriptText,
+      transcriptText: this.refineTranscript(dto.transcriptText),
     };
 
     try {
-      const result = await this.voiceAgentTransportService.request(audioFile, payload);
+      const transportResult = await this.voiceAgentTransportService.request(audioFile, payload);
+      const refinedAgentTranscription = this.refineTranscript(transportResult.transcription);
+      const result: VoiceChatResponseDto = {
+        ...transportResult,
+        transcription: refinedAgentTranscription || payload.transcriptText || transportResult.transcription,
+      };
+
       const capabilityTranscript = this.resolveCapabilityTranscript(channel, payload.transcriptText, result.transcription);
       const capabilityLanguage = result.language || payload.language;
       const capabilitySessionId = result.sessionId || sessionId;
+      const isDbGroundedQuery = this.isDatabaseGroundedQuery(
+        capabilityTranscript || payload.transcriptText || result.transcription,
+      );
 
       const primaryCapabilityResult = await this.voiceCapabilityDispatcherService.dispatch(
         this.buildCapabilityContext(
@@ -97,18 +104,49 @@ export class VoiceService {
       );
 
       if (primaryCapabilityResult) {
-        const recommendationEnhanced = this.tryEnhanceRecommendationWithAgent(
-          primaryCapabilityResult,
-          result,
-          payload,
-          sessionId,
+        return await this.persistAndReturn(primaryCapabilityResult, channel, payload, userId);
+      }
+
+      if (isDbGroundedQuery) {
+        const refinedValidatedResult = await this.tryDbValidatedRefinedCapability(
+          capabilityTranscript,
+          payload.transcriptText,
+          result.transcription,
+          capabilityLanguage,
+          capabilitySessionId,
+          userId,
         );
-        const capabilityFinal = recommendationEnhanced || primaryCapabilityResult;
-        const rechecked = this.tryAgentSecondOpinion(capabilityFinal, result, payload, sessionId);
-        return await this.persistAndReturn(rechecked || capabilityFinal, channel, payload, userId);
+
+        if (refinedValidatedResult) {
+          return await this.persistAndReturn(refinedValidatedResult, channel, payload, userId);
+        }
       }
 
       if (result.success && result.response?.trim()) {
+        // For DB-grounded user questions, avoid returning free-form generated answers.
+        if (isDbGroundedQuery) {
+          const fallbackCapabilityResult = await this.voiceCapabilityDispatcherService.dispatch(
+            this.buildCapabilityContext(
+              capabilityTranscript,
+              capabilityLanguage,
+              capabilitySessionId,
+              userId,
+            ),
+            'fallback',
+          );
+
+          if (fallbackCapabilityResult) {
+            return await this.persistAndReturn(fallbackCapabilityResult, channel, payload, userId);
+          }
+
+          return await this.persistAndReturn(
+            this.buildDatabaseSafetyResponse(capabilityTranscript, capabilityLanguage, capabilitySessionId),
+            channel,
+            payload,
+            userId,
+          );
+        }
+
         return await this.persistAndReturn(result, channel, payload, userId);
       }
 
@@ -117,7 +155,7 @@ export class VoiceService {
       this.logger.error(`Voice chat failed: ${error?.message ?? error}`, error?.stack);
 
       const fallbackResult = await this.voiceCapabilityDispatcherService.dispatch(
-        this.buildCapabilityContext(dto.transcriptText, language, sessionId, userId),
+        this.buildCapabilityContext(this.refineTranscript(dto.transcriptText), language, sessionId, userId),
         'fallback',
       );
       if (fallbackResult) {
@@ -192,8 +230,8 @@ export class VoiceService {
     originalText: string | undefined,
     agentTranscription: string | undefined,
   ): string | undefined {
-    const sourceText = originalText?.trim();
-    const transcribedText = agentTranscription?.trim();
+    const sourceText = this.refineTranscript(originalText);
+    const transcribedText = this.refineTranscript(agentTranscription);
 
     // For text requests, keep capability matching anchored to the exact user text.
     if (channel === 'text') {
@@ -201,6 +239,129 @@ export class VoiceService {
     }
 
     return transcribedText || sourceText;
+  }
+
+  private refineTranscript(text: string | undefined): string | undefined {
+    return this.voiceTranscriptRefinerService.refine(text);
+  }
+
+  private async tryDbValidatedRefinedCapability(
+    alreadyTriedTranscript: string | undefined,
+    sourceTranscript: string | undefined,
+    agentTranscription: string | undefined,
+    language: VoiceChatTcpPayload['language'],
+    sessionId: string,
+    userId: string,
+  ): Promise<VoiceChatResponseDto | null> {
+    const candidates = this.buildRefinementCandidates(alreadyTriedTranscript, sourceTranscript, agentTranscription);
+    for (const candidate of candidates) {
+      const validated = await this.voiceCapabilityDispatcherService.dispatch(
+        this.buildCapabilityContext(candidate, language, sessionId, userId),
+        'primary',
+      );
+
+      if (validated) {
+        this.logger.log('DB-validated response selected using AI-refined transcript candidate');
+        return validated;
+      }
+    }
+
+    return null;
+  }
+
+  private buildRefinementCandidates(
+    alreadyTriedTranscript: string | undefined,
+    sourceTranscript: string | undefined,
+    agentTranscription: string | undefined,
+  ): string[] {
+    const seen = new Set<string>();
+    const tried = this.normalizeForComparison(alreadyTriedTranscript);
+
+    if (tried) {
+      seen.add(tried);
+    }
+
+    const rawCandidates = [agentTranscription, sourceTranscript]
+      .map((value) => this.refineTranscript(value))
+      .filter((value): value is string => Boolean(value?.trim()));
+
+    const candidates: string[] = [];
+    for (const candidate of rawCandidates) {
+      const normalized = this.normalizeForComparison(candidate);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      candidates.push(candidate);
+    }
+
+    return candidates;
+  }
+
+  private normalizeForComparison(text: string | undefined): string {
+    return (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  private isDatabaseGroundedQuery(text: string | undefined): boolean {
+    const normalized = (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return false;
+    }
+
+    const dbTerms = [
+      'order',
+      'orders',
+      'history',
+      'status',
+      'offer',
+      'offers',
+      'promotion',
+      'discount',
+      'price',
+      'stock',
+      'product',
+      'products',
+      'catalog',
+      'search',
+      'recommend',
+      'suggest',
+      'shopping list',
+      'buying list',
+      'ඇණවු',
+      'ඔර්ඩ',
+      'ඕඩ',
+      'ඔෆර්',
+      'වට්ටම්',
+      'ප්‍රවර්ධන',
+      'දීමනා',
+      'මිල',
+      'තොග',
+      'ලැයිස්තුව',
+      'නිර්දේශ',
+      'යෝජනා',
+      'භාණ්ඩ',
+      'නිෂ්පාදන',
+    ];
+
+    return dbTerms.some((term) => normalized.includes(term.toLowerCase()));
+  }
+
+  private buildDatabaseSafetyResponse(
+    transcription: string | undefined,
+    language: VoiceChatTcpPayload['language'],
+    sessionId: string,
+  ): VoiceChatResponseDto {
+    return {
+      success: true,
+      transcription: transcription?.trim() || '',
+      response:
+        'මට database මත පදනම් වූ නිවැරදි දත්ත පමණක් ලබාදිය හැක. කරුණාකර order number, product name, offer, price, stock වගේ විස්තරාත්මක එකක් නැවත අහන්න.',
+      language,
+      sessionId,
+      messages: [],
+      model: 'db-grounded-safety',
+    };
   }
 
   private async persistAndReturn(
@@ -221,160 +382,4 @@ export class VoiceService {
     return result;
   }
 
-  private tryAgentSecondOpinion(
-    capabilityResult: VoiceChatResponseDto,
-    agentResult: VoiceChatResponseDto,
-    payload: VoiceChatTcpPayload,
-    sessionId: string,
-  ): VoiceChatResponseDto | null {
-    const capabilityModel = (capabilityResult.model || '').trim();
-    if (!this.secondOpinionModels.has(capabilityModel)) {
-      return null;
-    }
-
-    const agentText = (agentResult.response || '').trim();
-    if (!agentResult.success || !agentText) {
-      return null;
-    }
-
-    if (this.isWeakSecondOpinion(agentText, capabilityResult.response || '', payload.transcriptText || '')) {
-      return null;
-    }
-
-    this.logger.log(`AI second-opinion override applied for model: ${capabilityModel}`);
-
-    return {
-      ...agentResult,
-      transcription: agentResult.transcription || capabilityResult.transcription || payload.transcriptText || '',
-      language: agentResult.language || capabilityResult.language,
-      sessionId: agentResult.sessionId || capabilityResult.sessionId || sessionId,
-      model: `${agentResult.model || 'agent'}-second-opinion`,
-    };
-  }
-
-  private tryEnhanceRecommendationWithAgent(
-    capabilityResult: VoiceChatResponseDto,
-    agentResult: VoiceChatResponseDto,
-    payload: VoiceChatTcpPayload,
-    sessionId: string,
-  ): VoiceChatResponseDto | null {
-    if ((capabilityResult.model || '').trim() !== 'core-order-recommendations') {
-      return null;
-    }
-
-    const agentText = (agentResult.response || '').trim();
-    if (!agentResult.success || !agentText) {
-      return null;
-    }
-
-    if (this.isWeakRecommendationEnhancement(agentText, capabilityResult.response || '', payload.transcriptText || '')) {
-      return null;
-    }
-
-    const combinedResponse = [
-      (capabilityResult.response || '').trim(),
-      '### AI Personalized Tips',
-      agentText,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-
-    return {
-      ...capabilityResult,
-      response: combinedResponse,
-      language: agentResult.language || capabilityResult.language,
-      sessionId: agentResult.sessionId || capabilityResult.sessionId || sessionId,
-      model: 'core-order-recommendations-ai',
-    };
-  }
-
-  private isWeakSecondOpinion(agentText: string, capabilityText: string, sourceText: string): boolean {
-    const normalizedAgent = agentText.toLowerCase().replace(/\s+/g, ' ').trim();
-    const normalizedCapability = (capabilityText || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const normalizedSource = (sourceText || '').toLowerCase().replace(/\s+/g, ' ').trim();
-
-    if (!normalizedAgent) {
-      return true;
-    }
-
-    if (normalizedAgent === normalizedCapability) {
-      return true;
-    }
-
-    if (normalizedAgent.endsWith('?') || /\?|\u061f/u.test(normalizedAgent)) {
-      return true;
-    }
-
-    if (this.isLikelyParaphrase(normalizedAgent, normalizedSource)) {
-      return true;
-    }
-
-    const weakPhrases = [
-      'agent service unavailable',
-      'i do not have access',
-      'cannot access',
-      'දැනට offers සේවාවට සම්බන්ධතාවයේ ගැටලුවක්',
-      'ඔබ සෙවූ භාණ්ඩය දැනට',
-    ];
-
-    return weakPhrases.some((phrase) => normalizedAgent.includes(phrase.toLowerCase()));
-  }
-
-  private isLikelyParaphrase(candidate: string, source: string): boolean {
-    if (!candidate || !source) {
-      return false;
-    }
-
-    const candidateTokens = this.tokenizeText(candidate);
-    const sourceTokens = this.tokenizeText(source);
-    if (candidateTokens.length < 3 || sourceTokens.length < 3) {
-      return false;
-    }
-
-    const sourceSet = new Set(sourceTokens);
-    const overlap = candidateTokens.filter((token) => sourceSet.has(token)).length;
-    return overlap / candidateTokens.length >= 0.7;
-  }
-
-  private isWeakRecommendationEnhancement(agentText: string, capabilityText: string, sourceText: string): boolean {
-    const normalizedAgent = agentText.toLowerCase().replace(/\s+/g, ' ').trim();
-    const normalizedCapability = (capabilityText || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const normalizedSource = (sourceText || '').toLowerCase().replace(/\s+/g, ' ').trim();
-
-    if (!normalizedAgent || normalizedAgent.length < 40) {
-      return true;
-    }
-
-    if (normalizedAgent === normalizedCapability) {
-      return true;
-    }
-
-    if (normalizedAgent.endsWith('?') || /\?|\u061f/u.test(normalizedAgent)) {
-      return true;
-    }
-
-    if (this.isLikelyParaphrase(normalizedAgent, normalizedSource)) {
-      return true;
-    }
-
-    const weakPhrases = [
-      'i can help',
-      'let me know',
-      'could you clarify',
-      'agent service unavailable',
-    ];
-
-    return weakPhrases.some((phrase) => normalizedAgent.includes(phrase));
-  }
-
-  private tokenizeText(text: string): string[] {
-    return Array.from(
-      new Set(
-        text
-          .split(/\s+/)
-          .map((token) => token.replace(/^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu, ''))
-          .filter((token) => token.length >= 2),
-      ),
-    );
-  }
 }

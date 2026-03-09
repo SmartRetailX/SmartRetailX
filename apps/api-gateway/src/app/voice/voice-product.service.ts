@@ -320,27 +320,30 @@ export class VoiceProductService implements VoiceCapability {
       return this.formatSingleCatalogMatch(topMatches[0]);
     }
 
-    const lines = topMatches.map((product, index) => {
-      return `${index + 1}. ${this.formatCompactCatalogMatch(product)}`;
-    });
+    const lines = topMatches.map((product, index) => this.formatCompactCatalogMatch(product, index + 1));
 
-    return ['### ගැලපෙන නිෂ්පාදන', ...lines, '_තවත් නිවැරදි ප්‍රතිඵල සඳහා වෙළඳ නාමය හෝ ප්‍රභේදය සඳහන් කරන්න._'].join(
+    return ['**ගැලපෙන නිෂ්පාදන**', ...lines, '', '_තවත් නිවැරදි ප්‍රතිඵල සඳහා වෙළඳ නාමය හෝ ප්‍රභේදය සඳහන් කරන්න._'].join(
       '\n',
     );
   }
 
   private formatSingleCatalogMatch(product: CatalogSearchMatch): string {
     return [
-      '### නිෂ්පාදන තොරතුරු',
-      `- **නම:** ${this.getDisplayName(product)}`,
-      `- **වර්ගය:** ${this.getDisplayCategory(product)}`,
-      `- **මිල:** ${this.formatPrice(product.price)}`,
-      `- **තොගය:** ${this.formatStockLabel(product.currentStock)}`,
+      '**නිෂ්පාදන තොරතුරු**',
+      `නම: ${this.getDisplayName(product)}`,
+      `වර්ගය: ${this.getDisplayCategory(product)}`,
+      `මිල: ${this.formatPrice(product.price)}`,
+      `තොගය: ${this.formatStockLabel(product.currentStock)}`,
     ].join('\n');
   }
 
-  private formatCompactCatalogMatch(product: CatalogSearchMatch): string {
-    return `**${this.getDisplayName(product)}** - ${this.formatPrice(product.price)} | ${this.formatStockLabel(product.currentStock)} | ${this.getDisplayCategory(product)}`;
+  private formatCompactCatalogMatch(product: CatalogSearchMatch, rank: number): string {
+    return [
+      `${rank}) ${this.getDisplayName(product)}`,
+      `   මිල: ${this.formatPrice(product.price)}`,
+      `   තොගය: ${this.formatStockLabel(product.currentStock)}`,
+      `   වර්ගය: ${this.getDisplayCategory(product)}`,
+    ].join('\n');
   }
 
   private buildCatalogUnavailableResponse(

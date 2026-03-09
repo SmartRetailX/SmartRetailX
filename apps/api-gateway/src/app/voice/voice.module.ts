@@ -13,6 +13,7 @@ import { VoiceRecommendationService } from './voice-recommendation.service';
 import { VoiceOrderService } from './voice-order.service';
 import { VoiceProductService } from './voice-product.service';
 import { VoiceService } from './voice.service';
+import { VoiceTranscriptRefinerService } from './voice-transcript-refiner.service';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { VoiceService } from './voice.service';
     VoiceOrderService,
     VoiceRecommendationService,
     VoiceOfferService,
+    VoiceTranscriptRefinerService,
     VoiceCapabilityDispatcherService,
     {
       provide: VOICE_CAPABILITIES,

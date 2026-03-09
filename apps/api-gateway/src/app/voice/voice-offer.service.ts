@@ -253,36 +253,41 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     const sections: string[] = [];
 
     if (active.length > 0) {
-      sections.push('### දැනට පවතින Offers', ...this.buildOfferLines(active));
+      sections.push('**දැනට පවතින Offers**', ...this.buildOfferLines(active));
     }
 
     if (upcoming.length > 0) {
-      sections.push('### ඉදිරියේ එන Offers', ...this.buildOfferLines(upcoming));
+      sections.push('**ඉදිරියේ එන Offers**', ...this.buildOfferLines(upcoming));
     }
 
     if (expired.length > 0) {
       if (active.length === 0 && upcoming.length === 0) {
-        sections.push('### දැනට active offers නැහැ');
+        sections.push('_දැනට active offers නැහැ_');
       }
-      sections.push('### අවසන් වූ Offers', ...this.buildOfferLines(expired));
+      sections.push('**අවසන් වූ Offers**', ...this.buildOfferLines(expired));
     }
 
     if (sections.length === 0) {
-      return '### දැනට active promotions කිසිවක් නොපෙන්වයි.';
+      return '_දැනට active promotions කිසිවක් නොපෙන්වයි._';
     }
 
-    return sections.join('\n');
+    return sections.join('\n\n');
   }
 
   private buildOfferLines(promotions: ActivePromotionItem[]): string[] {
     return promotions.map((promotion, index) => {
       const product = (promotion.productName || promotion.productId || 'Unknown product').trim();
       const discount = this.formatDiscount(promotion.discountPercentage);
-      const typeLabel = promotion.promotionType ? ` | ${promotion.promotionType}` : '';
-      const audience = promotion.targetedPromotion ? ' | targeted' : '';
       const validity = this.formatDateRange(promotion.startDate, promotion.endDate);
+      const details = [
+        `${index + 1}) ${product}`,
+        `   වට්ටම: ${discount}`,
+        promotion.promotionType ? `   ප්‍රවර්ධන වර්ගය: ${promotion.promotionType}` : null,
+        promotion.targetedPromotion ? '   ඉලක්කගත ප්‍රවර්ධනය: ඔව්' : null,
+        validity ? `   වලංගු කාලය: ${validity}` : null,
+      ];
 
-      return `${index + 1}. **${product}** - ${discount}${typeLabel}${audience}${validity}`;
+      return details.filter((line): line is string => Boolean(line)).join('\n');
     });
   }
 
@@ -304,10 +309,10 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     }
 
     if (start && end) {
-      return ` | ${start} - ${end}`;
+      return `${start} - ${end}`;
     }
 
-    return ` | valid until ${end || start}`;
+    return `valid until ${end || start}`;
   }
 
   private formatDate(dateValue: string | null | undefined): string {

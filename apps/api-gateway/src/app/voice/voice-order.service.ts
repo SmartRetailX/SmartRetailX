@@ -105,12 +105,12 @@ export class VoiceOrderService implements VoiceCapability {
 
     const lines = orders.map((order, index) => {
       return [
-        `${index + 1}. **${order.orderNumber}**`,
-        `දිනය ${this.formatDate(order.createdAt)}`,
-        `තත්වය ${this.formatOrderStatus(order.status)}`,
-        `මුළු මුදල ${this.voiceProductService.formatPrice(order.total)}`,
-        `භාණ්ඩ ${order.itemCount}`,
-      ].join(' | ');
+        `${index + 1}) ${order.orderNumber}`,
+        `   දිනය: ${this.formatDate(order.createdAt)}`,
+        `   තත්වය: ${this.formatOrderStatus(order.status)}`,
+        `   මුළු මුදල: ${this.voiceProductService.formatPrice(order.total)}`,
+        `   භාණ්ඩ: ${order.itemCount}`,
+      ].join('\n');
     });
 
     const hiddenCount = Math.max(0, total - orders.length);
@@ -120,10 +120,12 @@ export class VoiceOrderService implements VoiceCapability {
         : '_Specific order number එකක් කියලා ඒකේ විස්තර පෙන්වන්න පුළුවන්._';
 
     return [
-      '### ඔබගේ ඇණවුම් විස්තර',
-      `- **මුළු ඇණවුම් ගණන:** ${total}`,
-      `- **පෙන්වන්නේ:** ${orders.length}`,
+      '**ඔබගේ ඇණවුම් විස්තර**',
+      `මුළු ඇණවුම් ගණන: ${total}`,
+      `පෙන්වන්නේ: ${orders.length}`,
+      '',
       ...lines,
+      '',
       footer,
     ].join('\n');
   }
@@ -263,29 +265,35 @@ export class VoiceOrderService implements VoiceCapability {
     const createdAt = this.formatDate(order.createdAt);
     const items = (order.items || []).slice(0, 5).map((item, index) => {
       const itemName = (item.productNameSi || item.productName || '').trim() || 'නම නොමැති නිෂ්පාදනය';
-      return `${index + 1}. ${itemName} x${item.quantity} - ${this.voiceProductService.formatPrice(item.totalPrice)}`;
+      return [
+        `${index + 1}) ${itemName}`,
+        `   ප්‍රමාණය: ${item.quantity}`,
+        `   මුදල: ${this.voiceProductService.formatPrice(item.totalPrice)}`,
+      ].join('\n');
     });
 
     return [
-      '### අවසන් ඇණවුමේ විස්තර',
-      `- **Order No:** ${order.orderNumber}`,
-      `- **දිනය:** ${createdAt}`,
-      `- **තත්වය:** ${this.formatOrderStatus(order.status)}`,
-      `- **මුළු මුදල:** ${this.voiceProductService.formatPrice(order.total)}`,
-      `- **භාණ්ඩ ගණන:** ${order.itemCount}`,
-      '### අයිතම',
-      ...(items.length > 0 ? items : ['- අයිතම නොමැත']),
+      '**අවසන් ඇණවුමේ විස්තර**',
+      `Order No: ${order.orderNumber}`,
+      `දිනය: ${createdAt}`,
+      `තත්වය: ${this.formatOrderStatus(order.status)}`,
+      `මුළු මුදල: ${this.voiceProductService.formatPrice(order.total)}`,
+      `භාණ්ඩ ගණන: ${order.itemCount}`,
+      '',
+      '**අයිතම**',
+      ...(items.length > 0 ? items : ['අයිතම නොමැත']),
     ].join('\n');
   }
 
   private formatLatestOrderSummary(order: OrderListItem): string {
     return [
-      '### අවසන් ඇණවුමේ සාරාංශය',
-      `- **Order No:** ${order.orderNumber}`,
-      `- **දිනය:** ${this.formatDate(order.createdAt)}`,
-      `- **තත්වය:** ${this.formatOrderStatus(order.status)}`,
-      `- **මුළු මුදල:** ${this.voiceProductService.formatPrice(order.total)}`,
-      `- **භාණ්ඩ ගණන:** ${order.itemCount}`,
+      '**අවසන් ඇණවුමේ සාරාංශය**',
+      `Order No: ${order.orderNumber}`,
+      `දිනය: ${this.formatDate(order.createdAt)}`,
+      `තත්වය: ${this.formatOrderStatus(order.status)}`,
+      `මුළු මුදල: ${this.voiceProductService.formatPrice(order.total)}`,
+      `භාණ්ඩ ගණන: ${order.itemCount}`,
+      '',
       '_අයිතම විස්තර ලබා ගැනීමට order number එක සඳහන් කර අහන්න._',
     ].join('\n');
   }
