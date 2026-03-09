@@ -21,7 +21,7 @@ class XAIService:
         if self.db_url and "?schema=" in self.db_url:
             self.db_url = self.db_url.split("?schema=")[0]
     
-    async def _fetch_current_context(self, product_id: str, store_id: str, 
+    async def _fetch_current_context(self, product_id: str,
                                      feature_names: List[str], metadata: Dict) -> pd.DataFrame:
         """
         Fetch current product context from PostgreSQL database
@@ -43,18 +43,15 @@ class XAIService:
             # Query current product info
             query = """
                 SELECT p.id, p.name, p.price, p.cost, p.current_stock,
-                       p.reorder_level, p.max_stock, p.category,
-                       s.name as store_name
+                       p.reorder_level, p.max_stock, p.category
                 FROM bi_dashboard.products p
-                JOIN bi_dashboard.stores s ON p.store_id = s.id
-                WHERE p.sku = :product_id AND s.id = :store_id
+                WHERE p.sku = :product_id
                 LIMIT 1
             """
             
             with engine.connect() as conn:
                 result = conn.execute(text(query), {
-                    "product_id": product_id,
-                    "store_id": store_id
+                    "product_id": product_id
                 })
                 row = result.fetchone()
                 
@@ -66,7 +63,7 @@ class XAIService:
             
             print(f"[DATA] Fetched product from DB: {product['name']} @ ${product['price']:.2f}")
             
-            # Query recent sales activity (last 30 days)
+            # Query recent sales activity across all stores (last 30 days)
             sales_query = """
                 SELECT COUNT(*) as sale_count, 
                        COALESCE(SUM(si.quantity), 0) as total_qty,
@@ -75,14 +72,12 @@ class XAIService:
                 JOIN bi_dashboard.sales s ON si.sale_id = s.id
                 JOIN bi_dashboard.products p ON si.product_id = p.id
                 WHERE p.sku = :product_id 
-                  AND s.store_id = :store_id
                   AND s.timestamp > NOW() - INTERVAL '30 days'
             """
             
             with engine.connect() as conn:
                 result = conn.execute(text(sales_query), {
-                    "product_id": product_id,
-                    "store_id": store_id
+                    "product_id": product_id
                 })
                 sales_row = result.fetchone()
                 sales_data = dict(sales_row._mapping) if sales_row else {
@@ -91,14 +86,13 @@ class XAIService:
             
             print(f"[DATA] Recent sales: {sales_data['total_qty']} units in last 30 days")
             
-            # Check for active promotions
+            # Check for active promotions (any store)
             promo_query = """
                 SELECT pr.discount
                 FROM bi_dashboard.promotions pr
                 JOIN bi_dashboard.promotion_products pp ON pr.id = pp."promotionId"
                 JOIN bi_dashboard.products p ON pp."productId" = p.id
                 WHERE p.sku = :product_id 
-                  AND pr.store_id = :store_id
                   AND pr.status = 'ACTIVE'
                   AND NOW() BETWEEN pr.start_date AND pr.end_date
                 LIMIT 1
@@ -106,8 +100,7 @@ class XAIService:
             
             with engine.connect() as conn:
                 result = conn.execute(text(promo_query), {
-                    "product_id": product_id,
-                    "store_id": store_id
+                    "product_id": product_id
                 })
                 promo_row = result.fetchone()
                 current_discount = float(promo_row[0]) if promo_row else 0.0
@@ -166,7 +159,7 @@ class XAIService:
             traceback.print_exc()
             return None
     
-    async def _fetch_current_context_for_alert(self, product_id: str, store_id: str,
+    async def _fetch_current_context_for_alert(self, product_id: str,
                                                 feature_names: List[str], metadata: Dict,
                                                 alert: Dict, engine) -> pd.DataFrame:
         """
@@ -187,7 +180,6 @@ class XAIService:
                 FROM bi_dashboard.promotions pr
                 JOIN bi_dashboard.promotion_products pp ON pr.id = pp."promotionId"
                 WHERE pp."productId" = :product_id 
-                  AND pr.store_id = :store_id
                   AND pr.status = 'ACTIVE'
                   AND NOW() BETWEEN pr.start_date AND pr.end_date
                 LIMIT 1
@@ -195,8 +187,7 @@ class XAIService:
             
             with engine.connect() as conn:
                 result = conn.execute(text(promo_query), {
-                    "product_id": alert['product_id'],
-                    "store_id": store_id
+                    "product_id": alert['product_id']
                 })
                 promo_row = result.fetchone()
                 current_discount = float(promo_row[0]) if promo_row else 0.0
@@ -246,22 +237,22 @@ class XAIService:
             print(f"[WARN] Alert context error: {str(e)}")
             return None
     
-    async def explain_forecast(self, product_id: str, store_id: str, 
+    async def explain_forecast(self, product_id: str,
                               date: str = None, lang: str = "en") -> Dict[str, Any]:
         """
         Get REAL XAI explanations using SHAP analysis on trained XGBoost model
         """
         try:
             print(f"\n=== XAI SHAP Analysis ===")
-            print(f"Product: {product_id}, Store: {store_id}")
+            print(f"Product: {product_id}")
             
             # Load the trained XGBoost model
-            model_file = f"{self.model_path}/{product_id}_{store_id}_xgboost.pkl"
-            metadata_file = f"{self.model_path}/{product_id}_{store_id}_metadata.pkl"
+            model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
+            metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
             
             if not os.path.exists(model_file):
                 raise FileNotFoundError(
-                    f"No trained XGBoost model found for {product_id}_{store_id}. "
+                    f"No trained XGBoost model found for {product_id}. "
                     f"Call /api/v1/forecast first to train the model."
                 )
             
@@ -278,7 +269,7 @@ class XAIService:
             print(f"[OK] Loaded model with {len(feature_names)} features")
             
             # Build current context from PostgreSQL database
-            current_context = await self._fetch_current_context(product_id, store_id, feature_names, metadata)
+            current_context = await self._fetch_current_context(product_id, feature_names, metadata)
             
             if current_context is None:
                 # Fallback to sample data from metadata if database query fails
@@ -286,7 +277,7 @@ class XAIService:
                 sample_data_records = metadata.get('sample_data')
                 if not sample_data_records:
                     raise ValueError(
-                        f"No sample data found in metadata for {product_id}_{store_id}. "
+                        f"No sample data found in metadata for {product_id}. "
                         f"Retrain models with: cd ml-service && python train_models.py"
                     )
                 df_features = pd.DataFrame(sample_data_records)
@@ -392,7 +383,7 @@ class XAIService:
             
             # Query alert from database
             query = """
-                SELECT a.id, a.product_id, a.store_id, a.current_stock, 
+                SELECT a.id, a.product_id, a.current_stock, 
                        a.recommended_quantity, a.estimated_stockout_date, a.confidence,
                        p.name, p.reorder_level, p.price
                 FROM bi_dashboard.inventory_alerts a
@@ -410,18 +401,17 @@ class XAIService:
                 alert = dict(row._mapping)
             
             product_id = alert['product_id']
-            store_id = alert['store_id']
             current_stock = alert['current_stock']
             
-            print(f"Product: {product_id}, Store: {store_id}")
+            print(f"Product: {product_id}")
             
             # Load the trained XGBoost model and metadata
-            model_file = f"{self.model_path}/{product_id}_{store_id}_xgboost.pkl"
-            metadata_file = f"{self.model_path}/{product_id}_{store_id}_metadata.pkl"
+            model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
+            metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
             
             if not os.path.exists(model_file):
                 raise FileNotFoundError(
-                    f"No trained XGBoost model found for {product_id}_{store_id}. "
+                    f"No trained XGBoost model found for {product_id}. "
                     f"Train models first via /api/v1/forecast endpoint."
                 )
             
@@ -437,7 +427,7 @@ class XAIService:
             
             # Build current context from PostgreSQL database (using alert's product info)
             current_context = await self._fetch_current_context_for_alert(
-                product_id, store_id, feature_names, metadata, alert, engine
+                product_id, feature_names, metadata, alert, engine
             )
             
             if current_context is None:
@@ -446,7 +436,7 @@ class XAIService:
                 sample_data_records = metadata.get('sample_data')
                 if not sample_data_records:
                     raise ValueError(
-                        f"No sample data found in metadata for {product_id}_{store_id}. "
+                        f"No sample data found in metadata for {product_id}. "
                         f"Retrain models with: cd ml-service && python train_models.py"
                     )
                 import pandas as pd
@@ -512,7 +502,6 @@ class XAIService:
             return {
                 "alertId": alert_id,
                 "productId": product_id,
-                "storeId": store_id,
                 "productName": alert['name'],
                 "modelType": "XGBoost + SHAP",
                 "explanation": {

@@ -11,7 +11,6 @@ export const customerKeys = {
 }
 
 interface CustomerFilters {
-  storeId?: string
   segment?: string
   search?: string
   page?: number

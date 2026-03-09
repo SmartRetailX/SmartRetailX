@@ -76,7 +76,6 @@ interface InventoryStatusResponse {
   items: Array<{
     productId: string
     productName: string
-    storeId: string
     currentStock: number
     reorderLevel: number
     status: string
@@ -86,13 +85,12 @@ interface InventoryStatusResponse {
 }
 
 // Get inventory status - returns summary and items per OpenAPI spec
-export function useInventoryStatus(storeId?: string) {
+export function useInventoryStatus() {
   return useQuery({
-    queryKey: [...inventoryKeys.status(), storeId],
+    queryKey: [...inventoryKeys.status()],
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<InventoryStatusResponse>>(
-        API_ENDPOINTS.INVENTORY.STATUS,
-        { params: { storeId } }
+        API_ENDPOINTS.INVENTORY.STATUS
       )
       // Transform to legacy format for backward compatibility
       const data = response.data.data
@@ -191,7 +189,6 @@ export function useRestock() {
     mutationFn: async (restockData: {
       productId: string
       quantity: number
-      storeId: string
     }) => {
       const response = await apiClient.post(
         API_ENDPOINTS.INVENTORY.RESTOCK,

@@ -44,9 +44,9 @@ def test_kaggle_dataset():
     print(df_clean.head(3).to_string())
     
     # 4. Test aggregation for a specific product/store
-    print("\n4⃣ Testing aggregation for Product P0001, Store S001...")
+    print("\n4⃣ Testing aggregation for Product PROD001, Store S001...")
     try:
-        df_daily = processor.aggregate_daily(df_clean, 'P0001', 'S001')
+        df_daily = processor.aggregate_daily(df_clean, 'PROD001', 'S001')
         print(f"[OK] Aggregated to {len(df_daily)} days")
         
         # Show stats (use 'quantity' column from aggregation)
@@ -117,7 +117,7 @@ def test_kaggle_dataset():
     print("   2. Test forecast API with your Product/Store IDs")
     print("   3. Example: curl -X POST http://localhost:8000/api/v1/forecast \\")
     print("             -H 'Content-Type: application/json' \\")
-    print("             -d '{\"productId\":\"P0001\",\"storeId\":\"S001\",\"horizon\":30}'")
+    print("             -d '{\"productId\":\"PROD001\",\"storeId\":\"S001\",\"horizon\":30}'")
     print()
 
 if __name__ == "__main__":

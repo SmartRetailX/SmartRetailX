@@ -43,7 +43,7 @@ class AlertGenerator:
         else:
             self.engine = None
         
-    async def analyze_all_products(self, store_id: str = None) -> List[Dict[str, Any]]:
+    async def analyze_all_products(self) -> List[Dict[str, Any]]:
         """
         Generate alerts using trained ML models
         
@@ -54,7 +54,6 @@ class AlertGenerator:
         4. Generate alert if stockout within 14 days
         """
         print(f"\n=== AI Alert Generation (Using Trained Models) ===")
-        print(f"Store filter: {store_id if store_id else 'All stores'}")
         
         alerts = []
         
@@ -64,14 +63,11 @@ class AlertGenerator:
             
             # Query products from PostgreSQL
             query = """
-                SELECT p.id, p.store_id as "storeId", p.name, p.name_si as "nameSi",
+                SELECT p.id, p.name, p.name_si as "nameSi",
                        p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
                 FROM bi_dashboard.products p
                 WHERE p.status IN ('IN_STOCK', 'LOW_STOCK')
             """
-            
-            if store_id:
-                query += f' AND p.store_id = \'{store_id}\''
             
             with self.engine.connect() as conn:
                 result = conn.execute(text(query))
@@ -114,13 +110,12 @@ class AlertGenerator:
         Use trained ML model to forecast demand and determine if alert needed
         
         Args:
-            product: Dict with keys: id, storeId, name, nameSi, currentStock, reorderLevel
+            product: Dict with keys: id, name, nameSi, currentStock, reorderLevel
             
         Returns:
             Alert dict if alert needed, None otherwise
         """
         product_id = product['id']
-        store_id = product['storeId']
         current_stock = product['currentStock']
         reorder_level = product['reorderLevel']
         
@@ -130,7 +125,6 @@ class AlertGenerator:
             
             forecast_result = await self.forecast_service.predict(
                 product_id=product_id,
-                store_id=store_id,
                 horizon=14,  # 2-week forecast
                 lang='en'
             )
@@ -171,21 +165,22 @@ class AlertGenerator:
             
             print(f"  [TIME] Stockout predicted in {days_until_stockout:.1f} days")
             
-            # Alert criteria: ONLY if stock below reorder level OR stockout within 3 days (CRITICAL)
+            # Alert criteria: stock below reorder level only.
+            # Days-until-stockout threshold is intentionally not used here because it
+            # depends on model accuracy — if models haven't been retrained on the latest
+            # dataset the inflated demand predictions would trigger alerts for every product.
             if current_stock < reorder_level:
                 needs_alert = True
                 print(f"  [WARN]  Below reorder level ({current_stock} < {reorder_level})")
-            elif days_until_stockout <= 3:
-                needs_alert = True
-                print(f"  [WARN]  CRITICAL stockout imminent ({days_until_stockout:.1f} days)")
-            
+
             if not needs_alert:
-                print(f"  [OK] Stock adequate ({current_stock} >= {reorder_level}, {days_until_stockout:.1f} days supply)")
+                # Still show the stockout estimate in the log for context
+                print(f"  [OK] Stock adequate ({current_stock} >= {reorder_level}, ~{days_until_stockout:.1f} days supply)")
                 return None
             
             # STEP 4: Calculate alert urgency
             stock_ratio = current_stock / reorder_level if reorder_level > 0 else 1
-            
+
             if stock_ratio < 0.5 or days_until_stockout <= 3:
                 urgency = "HIGH"
                 confidence = 0.92
@@ -198,12 +193,10 @@ class AlertGenerator:
             
             # STEP 5: Calculate recommended restock quantity
             # Simple approach: bring stock back to reorder level + 2 weeks buffer
-            stock_deficit = max(0, reorder_level - current_stock)
-            two_week_buffer = int(avg_daily_demand * 14)
-            recommended_qty = stock_deficit + two_week_buffer
-            
-            # Cap at reasonable maximum (3x reorder level)
-            recommended_qty = min(recommended_qty, reorder_level * 3)
+            # Recommend enough to fill up to a healthy target stock level (3x reorder),
+            # regardless of ML demand magnitude (avoids inflated numbers from aggregated training data)
+            target_stock = reorder_level * 3
+            recommended_qty = max(reorder_level, target_stock - current_stock)
             
             # STEP 6: Create alert with accurate reason
             stock_status = "below" if current_stock < reorder_level else "at"
@@ -221,7 +214,6 @@ class AlertGenerator:
             
             alert = {
                 'productId': product_id,
-                'storeId': store_id,
                 'type': 'RESTOCK',
                 'urgency': urgency,
                 'currentStock': current_stock,
@@ -236,7 +228,7 @@ class AlertGenerator:
                     'daysUntilStockout': round(days_until_stockout, 1),
                     'reorderPoint': reorder_level,
                     'recommendedQuantity': recommended_qty,
-                    'stockDeficit': stock_deficit
+                    'stockDeficit': max(0, reorder_level - current_stock)
                 }
             }
             
@@ -250,7 +242,7 @@ class AlertGenerator:
             print(f"  [ERROR] Forecast error: {str(e)}")
             return None
     
-    async def analyze_product_alert(self, product_id: str, store_id: str) -> Dict[str, Any]:
+    async def analyze_product_alert(self, product_id: str) -> Dict[str, Any]:
         """
         Analyze a specific product and return alert if needed
         """
@@ -260,14 +252,14 @@ class AlertGenerator:
             
             # Get product from database
             query = """
-                SELECT p.id, p.store_id as "storeId", p.name, p.name_si as "nameSi",
+                SELECT p.id, p.name, p.name_si as "nameSi",
                        p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
                 FROM bi_dashboard.products p
-                WHERE p.id = :product_id AND p.store_id = :store_id
+                WHERE p.id = :product_id
             """
             
             with self.engine.connect() as conn:
-                result = conn.execute(text(query), {"product_id": product_id, "store_id": store_id})
+                result = conn.execute(text(query), {"product_id": product_id})
                 row = result.fetchone()
                 
                 if not row:

@@ -54,7 +54,6 @@ alert_generator = AlertGenerator()
 
 class ForecastRequest(BaseModel):
     productId: str
-    storeId: str
     horizon: int = 30
     lang: str = "en"
 
@@ -64,13 +63,11 @@ class ForecastResponse(BaseModel):
 
 class ExplainRequest(BaseModel):
     productId: str
-    storeId: str
     date: Optional[str] = None
     lang: str = "en"
 
 class RetrainRequest(BaseModel):
     productId: Optional[str] = None
-    storeId: Optional[str] = None
 
 
 # ==================== HEALTH CHECK ====================
@@ -108,13 +105,11 @@ async def generate_forecast(request: ForecastRequest):
     try:
         print(f"\n=== Forecast Request ===")
         print(f"Product ID: {request.productId}")
-        print(f"Store ID: {request.storeId}")
         print(f"Horizon: {request.horizon}")
         print(f"Language: {request.lang}")
         
         forecast = await forecast_service.predict(
             product_id=request.productId,
-            store_id=request.storeId,
             horizon=request.horizon,
             lang=request.lang
         )
@@ -146,11 +141,10 @@ async def explain_forecast(request: ExplainRequest):
     """
     try:
         print(f"\n=== XAI SHAP Analysis ===")
-        print(f"Product: {request.productId}, Store: {request.storeId}")
+        print(f"Product: {request.productId}")
         
         explanation = await xai_service.explain_forecast(
             product_id=request.productId,
-            store_id=request.storeId,
             date=request.date,
             lang=request.lang
         )
@@ -189,14 +183,14 @@ async def explain_restock(alert_id: str, lang: str = "en"):
 # ==================== ALERT GENERATION ====================
 
 @app.post("/api/v1/alerts/generate")
-async def generate_alerts(store_id: str = None):
+async def generate_alerts():
     """
     Analyze all products and generate restock alerts
     This should be called by a scheduled job (hourly/daily)
     """
     try:
         print(f"\n=== Alert Generation Triggered ===")
-        alerts = await alert_generator.analyze_all_products(store_id)
+        alerts = await alert_generator.analyze_all_products()
         
         return {
             "success": True,
@@ -213,12 +207,12 @@ async def generate_alerts(store_id: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/alerts/analyze-product")
-async def analyze_product_for_alert(product_id: str, store_id: str):
+async def analyze_product_for_alert(product_id: str):
     """
     Analyze a specific product and check if alert is needed
     """
     try:
-        result = await alert_generator.analyze_product_alert(product_id, store_id)
+        result = await alert_generator.analyze_product_alert(product_id)
         return {"success": True, "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -233,8 +227,7 @@ async def retrain_models(request: RetrainRequest):
     """
     try:
         result = await forecast_service.retrain(
-            product_id=request.productId,
-            store_id=request.storeId
+            product_id=request.productId
         )
         return {"success": True, "data": result}
     except Exception as e:

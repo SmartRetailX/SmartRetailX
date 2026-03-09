@@ -12,47 +12,6 @@ datasource db {
   schemas  = ["bi_dashboard"]
 }
 
-// ==================== USER-STORE ASSOCIATIONS ====================
-// userId is a plain string reference to the user managed by Better Auth (api-gateway)
-
-model UserStore {
-  userId  String
-  storeId String
-  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  
-  @@id([userId, storeId])
-  @@map("user_stores")
-  @@schema("bi_dashboard")
-}
-
-// ==================== STORES ====================
-model Store {
-  id            String   @id @default(uuid())
-  name          String
-  nameSi        String?  @map("name_si")
-  address       String
-  city          String
-  phone         String
-  manager       String
-  active        Boolean  @default(true)
-  openingHours  String?  @map("opening_hours")
-  latitude      Float?
-  longitude     Float?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  
-  // Relations
-  users         UserStore[]
-  products      Product[]
-  sales         Sale[]
-  inventory     InventoryMovement[]
-  customers     Customer[]
-  promotions    Promotion[]
-  alerts        Alert[]
-  
-  @@map("stores")
-  @@schema("bi_dashboard")
-}
 
 // ==================== PRODUCTS ====================
 model Product {
@@ -65,7 +24,6 @@ model Product {
   categorySi    String?   @map("category_si")
   price         Float
   cost          Float
-  storeId       String    @map("store_id")
   currentStock  Int       @map("current_stock")
   reorderLevel  Int       @map("reorder_level")
   maxStock      Int       @map("max_stock")
@@ -78,14 +36,12 @@ model Product {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   
   // Relations
-  store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sales         SaleItem[]
   inventory     InventoryMovement[]
   promotions    PromotionProduct[]
   forecasts     Forecast[]
   alerts        Alert[]
   
-  @@index([storeId])
   @@index([category])
   @@index([status])
   @@map("products")
@@ -104,7 +60,6 @@ enum StockStatus {
 model Sale {
   id              String   @id @default(uuid())
   transactionId   String   @unique @map("transaction_id")
-  storeId         String   @map("store_id")
   customerId      String?  @map("customer_id")
   totalAmount     Float    @map("total_amount")
   discount        Float    @default(0)
@@ -114,12 +69,10 @@ model Sale {
   timestamp       DateTime @default(now())
   
   // Relations
-  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   promotion       Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
   items           SaleItem[]
   
-  @@index([storeId])
   @@index([customerId])
   @@index([timestamp])
   @@map("sales")
@@ -159,7 +112,6 @@ enum PaymentMethod {
 model InventoryMovement {
   id            String         @id @default(uuid())
   productId     String         @map("product_id")
-  storeId       String         @map("store_id")
   type          MovementType
   quantity      Int
   previousStock Int            @map("previous_stock")
@@ -174,10 +126,8 @@ model InventoryMovement {
   
   // Relations
   product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   
   @@index([productId])
-  @@index([storeId])
   @@index([timestamp])
   @@map("inventory_movements")
   @@schema("bi_dashboard")
@@ -197,7 +147,6 @@ enum MovementType {
 model Forecast {
   id                String   @id @default(uuid())
   productId         String   @map("product_id")
-  storeId           String   @map("store_id")
   date              DateTime
   predictedSales    Float    @map("predicted_sales")
   confidenceLower   Float    @map("confidence_lower")
@@ -210,7 +159,7 @@ model Forecast {
   // Relations
   product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   
-  @@unique([productId, storeId, date])
+  @@unique([productId, date])
   @@index([productId])
   @@index([date])
   @@map("sales_forecasts")
@@ -220,7 +169,6 @@ model Forecast {
 model ForecastDriver {
   id              String   @id @default(uuid())
   productId       String   @map("product_id")
-  storeId         String   @map("store_id")
   name            String
   nameSi          String?  @map("name_si")
   impact          Float
@@ -239,7 +187,6 @@ model Customer {
   name              String
   email             String?  @unique
   phone             String
-  storeId           String   @map("store_id")
   segment           String   @default("new_customers")
   rfmRecency        Int      @default(0) @map("rfm_recency")
   rfmFrequency      Int      @default(0) @map("rfm_frequency")
@@ -254,10 +201,8 @@ model Customer {
   updatedAt         DateTime @updatedAt @map("updated_at")
   
   // Relations
-  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sales             Sale[]
   
-  @@index([storeId])
   @@index([segment])
   @@map("customers")
   @@schema("bi_dashboard")
@@ -269,7 +214,6 @@ model Alert {
   type                AlertType
   urgency             Urgency
   productId           String?     @map("product_id")
-  storeId             String      @map("store_id")
   currentStock        Int?        @map("current_stock")
   recommendedQuantity Int?        @map("recommended_quantity")
   reason              String
@@ -285,9 +229,7 @@ model Alert {
   
   // Relations
   product             Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  store               Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   
-  @@index([storeId])
   @@index([status])
   @@index([urgency])
   @@map("inventory_alerts")
@@ -324,7 +266,6 @@ model Promotion {
   id              String   @id @default(uuid())
   name            String
   nameSi          String?  @map("name_si")
-  storeId         String   @map("store_id")
   discount        Float
   startDate       DateTime @map("start_date")
   endDate         DateTime @map("end_date")
@@ -335,11 +276,9 @@ model Promotion {
   createdAt       DateTime @default(now()) @map("created_at")
   
   // Relations
-  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   products        PromotionProduct[]
   sales           Sale[]
   
-  @@index([storeId])
   @@index([status])
   @@map("promotions")
   @@schema("bi_dashboard")
@@ -376,7 +315,6 @@ model AuditLog {
   changes     Json?
   ipAddress   String?  @map("ip_address")
   userAgent   String?  @map("user_agent")
-  storeId     String?  @map("store_id")
   timestamp   DateTime @default(now())
   
   @@index([userId])

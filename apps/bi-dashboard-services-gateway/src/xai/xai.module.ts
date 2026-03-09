@@ -16,12 +16,11 @@ class XaiService {
   }
 
   async explainForecast(query: any) {
-    const { productId, storeId, date, lang = 'en' } = query;
+    const { productId, date, lang = 'en' } = query;
 
     const response = await firstValueFrom(
       this.httpService.post(`${this.mlServiceUrl}/api/v1/explain/forecast`, {
         productId,
-        storeId,
         date,
         lang,
       }),
@@ -54,8 +53,7 @@ class XaiController {
     description:
       'Get Explainable AI (XAI) feature importance and SHAP-like explanations for forecast predictions. Shows how each feature (seasonality, day of week, etc.) contributes to the prediction with bilingual descriptions.',
   })
-  @ApiQuery({ name: 'productId', required: true, type: String, example: 'P0001' })
-  @ApiQuery({ name: 'storeId', required: true, type: String, example: 'S001' })
+  @ApiQuery({ name: 'productId', required: true, type: String, example: 'PROD001' })
   @ApiResponse({
     status: 200,
     description: 'Forecast explanation retrieved',

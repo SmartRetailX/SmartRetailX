@@ -10,7 +10,6 @@ import { ProductsModule } from '../products/products.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { RmqModule } from '../rmq/rmq.module';
 import { SalesModule } from '../sales/sales.module';
-import { StoresModule } from '../stores/stores.module';
 import { XaiModule } from '../xai/xai.module';
 
 @Module({
@@ -25,7 +24,6 @@ import { XaiModule } from '../xai/xai.module';
     InventoryModule,
     AnalyticsModule,
     XaiModule,
-    StoresModule,
     RmqModule, // RabbitMQ message handlers for API Gateway communication
   ],
 })

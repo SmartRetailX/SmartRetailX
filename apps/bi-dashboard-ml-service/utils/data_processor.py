@@ -133,13 +133,12 @@ class DataProcessor:
         return df
         
     @staticmethod
-    def aggregate_daily(df: pd.DataFrame, product_id: str, store_id: str) -> pd.DataFrame:
+    def aggregate_daily(df: pd.DataFrame, product_id: str) -> pd.DataFrame:
         """
-        Aggregate sales by day for a specific product/store
+        Aggregate sales by day for a specific product, across all stores
         """
         filtered = df[
-            (df['product_id'] == product_id) & 
-            (df['store_id'] == store_id)
+            df['product_id'] == product_id
         ].copy()
         
         # Calculate revenue if not present

@@ -6,21 +6,6 @@ export type Theme = 'light' | 'dark'
 export type StockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'
 export type PaymentMethod = 'CASH' | 'CARD' | 'MOBILE'
 
-export interface Store {
-  id: string
-  name: string
-  nameSi?: string
-  address: string
-  city?: string
-  phone?: string
-  manager?: string
-  active?: boolean
-  openingHours?: string
-  latitude?: number
-  longitude?: number
-  createdAt?: string
-}
-
 export interface User {
   id: string
   email: string
@@ -34,7 +19,6 @@ export interface User {
   language?: Language
   theme?: Theme
   active?: boolean
-  stores?: Store[]
 }
 
 export interface LoginRequest {
@@ -119,7 +103,6 @@ export interface Product {
   expiryDate?: string
   createdAt?: string
   updatedAt?: string
-  store?: Store
 }
 
 export interface SaleItem {
@@ -138,7 +121,6 @@ export interface Sale {
   paymentMethod: PaymentMethod
   timestamp: string
   items: SaleItem[]
-  store?: Store
 }
 
 export interface SalesAggregate {
@@ -187,7 +169,6 @@ export interface Forecast {
 
 export interface ForecastResponse {
   productId: string
-  storeId: string
   modelType: string
   confidence: number
   generatedAt: string
@@ -227,7 +208,6 @@ export interface RestockMetrics {
 export interface RestockExplanation {
   alertId: string
   productId: string
-  storeId: string
   productName: string
   modelType: string
   explanation: {
@@ -248,8 +228,6 @@ export interface Alert {
   productId: string
   productName: string
   productNameSi?: string
-  storeId: string
-  storeName: string
   currentStock?: number
   recommendedQuantity?: number
   reason: string
@@ -269,7 +247,6 @@ export interface Customer {
   name: string
   email?: string
   phone?: string
-  storeId?: string
   segment: string
   rfmScore: {
     recency: number
@@ -291,7 +268,6 @@ export interface Customer {
   lastPurchase?: string
   frequency?: number
   rfmSegment?: string
-  store?: Store
 }
 
 export interface DashboardKPI {
@@ -331,7 +307,6 @@ export interface Promotion {
   descriptionSi?: string
   type: 'PERCENTAGE' | 'FIXED' | string
   discountValue: number
-  storeId?: string
   startDate: string
   endDate: string
   status: 'ACTIVE' | 'SCHEDULED' | 'EXPIRED' | string
