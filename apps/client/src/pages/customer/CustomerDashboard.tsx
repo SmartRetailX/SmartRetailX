@@ -1,261 +1,329 @@
-import { useTranslation } from 'react-i18next'
-import {
-  ShoppingBag,
-  CreditCard,
-  Tag,
-  Star,
-  TrendingUp,
-  ArrowUp,
-  ArrowDown,
-  Clock,
-  Gift,
-} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Loader2, PackageX, Search, ShoppingCart, Sparkles } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAddToCart } from '@/hooks/useCart'
+import {
+  useInfiniteStorefrontProducts,
+  useStorefrontCategories,
+} from '@/hooks/useStorefrontProducts'
+import { formatCurrency } from '@/lib/utils'
+import type { Product } from '@/types/api'
 
-export default function CustomerDashboard() {
-  const { t } = useTranslation()
-  const { user } = useAuth()
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value)
 
-  // Static summary cards for customer dashboard
-  const summaryCards = [
-    {
-      title: t('customerDashboard.totalOrders'),
-      value: '24',
-      change: 12.5,
-      trend: 'up' as const,
-      icon: ShoppingBag,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100 dark:bg-blue-900/20',
-    },
-    {
-      title: t('customerDashboard.totalSpent'),
-      value: 'LKR 45,280',
-      change: 8.3,
-      trend: 'up' as const,
-      icon: CreditCard,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100 dark:bg-green-900/20',
-    },
-    {
-      title: t('customerDashboard.loyaltyPoints'),
-      value: '1,250',
-      change: 15.0,
-      trend: 'up' as const,
-      icon: Star,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
-    },
-    {
-      title: t('customerDashboard.activeCoupons'),
-      value: '3',
-      change: -1,
-      trend: 'down' as const,
-      icon: Tag,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100 dark:bg-purple-900/20',
-    },
-  ]
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebounced(value), delay)
+    return () => window.clearTimeout(timeoutId)
+  }, [delay, value])
 
-  // Recent orders mock data
-  const recentOrders = [
-    {
-      id: 'ORD-2024-001',
-      date: '2026-03-01',
-      items: 5,
-      total: 'LKR 3,450',
-      status: 'Delivered',
-    },
-    {
-      id: 'ORD-2024-002',
-      date: '2026-02-25',
-      items: 3,
-      total: 'LKR 1,820',
-      status: 'Delivered',
-    },
-    {
-      id: 'ORD-2024-003',
-      date: '2026-02-20',
-      items: 8,
-      total: 'LKR 6,200',
-      status: 'Delivered',
-    },
-    {
-      id: 'ORD-2024-004',
-      date: '2026-02-14',
-      items: 2,
-      total: 'LKR 980',
-      status: 'Delivered',
-    },
-  ]
+  return debounced
+}
 
-  // Active promotions
-  const promotions = [
-    {
-      id: 1,
-      title: t('customerDashboard.weekendSale'),
-      description: t('customerDashboard.weekendSaleDesc'),
-      discount: '15%',
-      validUntil: '2026-03-10',
-    },
-    {
-      id: 2,
-      title: t('customerDashboard.loyaltyBonus'),
-      description: t('customerDashboard.loyaltyBonusDesc'),
-      discount: '2x Points',
-      validUntil: '2026-03-15',
-    },
-  ]
+function stockLabel(product: Product): { label: string; tone: string } {
+  const normalizedStatus = String(product.status).toUpperCase()
+  const stock = Number(product.currentStock || product.stock || 0)
+
+  if (normalizedStatus.includes('OUT') || stock <= 0) {
+    return {
+      label: 'Out of stock',
+      tone: 'bg-destructive/10 text-destructive',
+    }
+  }
+
+  if (normalizedStatus.includes('LOW') || stock <= Math.max(5, Number(product.reorderLevel || 0))) {
+    return {
+      label: `Low stock (${stock})`,
+      tone: 'bg-accent text-accent-foreground',
+    }
+  }
+
+  return {
+    label: `${stock} available`,
+    tone: 'bg-secondary/15 text-secondary',
+  }
+}
+
+function categoryBadgeTone(category: string): string {
+  const seed = category.toLowerCase()
+  if (seed.includes('beverage') || seed.includes('drink')) {
+    return 'bg-primary/10 text-primary'
+  }
+  if (seed.includes('bakery') || seed.includes('snack')) {
+    return 'bg-accent text-accent-foreground'
+  }
+  if (seed.includes('dairy') || seed.includes('milk')) {
+    return 'bg-secondary/15 text-secondary'
+  }
+  return 'bg-muted text-muted-foreground'
+}
+
+function ProductCard({ product }: { product: Product }) {
+  const addToCart = useAddToCart()
+  const [justAdded, setJustAdded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const stock = stockLabel(product)
+  const isOutOfStock = stock.label === 'Out of stock'
+
+  const handleAddToCart = async () => {
+    setError(null)
+    try {
+      await addToCart.mutateAsync({ productId: product.id, quantity: 1 })
+      setJustAdded(true)
+      setTimeout(() => setJustAdded(false), 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to cart')
+      setTimeout(() => setError(null), 3000)
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div>
-        <h1 className="text-3xl font-bold">{t('customerDashboard.welcome')}</h1>
-        <p className="text-gray-500 mt-1">
-          {t('customerDashboard.welcomeMessage', { name: user?.name || 'Customer' })}
-        </p>
-      </div>
+    <Card
+      className="group overflow-hidden border-border bg-card transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg"
+    >
+      <CardContent className="p-0">
+        <div className="flex h-40 items-center justify-center bg-gradient-to-br from-muted to-muted/70">
+          <div className="text-center">
+            <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">{product.sku}</p>
+            <p className="mx-auto max-w-[14rem] text-sm font-medium text-foreground">
+              {product.nameSi || product.name}
+            </p>
+          </div>
+        </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card, index) => {
-          const Icon = card.icon
-          return (
-            <Card key={index}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-                <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                  <Icon className={`h-4 w-4 ${card.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{card.value}</div>
-                <div className="flex items-center text-xs mt-1">
-                  {card.trend === 'up' ? (
-                    <ArrowUp className="h-3 w-3 text-green-600 mr-1" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3 text-red-600 mr-1" />
-                  )}
-                  <span
-                    className={
-                      card.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                    }
-                  >
-                    {Math.abs(card.change).toFixed(1)}%
-                  </span>
-                  <span className="text-muted-foreground ml-1">
-                    {t('customerDashboard.vsLastMonth')}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+        <div className="space-y-3 p-4">
+          <div className="space-y-1">
+            <h3 className="line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-5">
+              {product.nameSi || product.name}
+            </h3>
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${categoryBadgeTone(
+                product.category,
+              )}`}
+            >
+              {product.categorySi || product.category}
+            </span>
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Recent Orders */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {t('customerDashboard.recentOrders')}
-            </CardTitle>
-            <CardDescription>{t('customerDashboard.recentOrdersDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-sm">{order.id}</p>
-                    <p className="text-xs text-gray-500">
-                      {order.date} &middot; {order.items} {t('customerDashboard.items')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-sm">{order.total}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                      {order.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-lg font-bold text-primary">{formatCurrency(product.price)}</p>
+              <p className="text-xs text-muted-foreground">per unit</p>
             </div>
-          </CardContent>
-        </Card>
+            <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${stock.tone}`}>
+              {stock.label}
+            </span>
+          </div>
 
-        {/* Promotions & Offers */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5" />
-              {t('customerDashboard.promotions')}
-            </CardTitle>
-            <CardDescription>{t('customerDashboard.promotionsDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {promotions.map((promo) => (
-                <div
-                  key={promo.id}
-                  className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-100 dark:border-purple-800"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold">{promo.title}</p>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                      {promo.discount}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {promo.description}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {t('customerDashboard.validUntil')}: {promo.validUntil}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <Button
+            type="button"
+            className="w-full gap-2"
+            disabled={isOutOfStock || addToCart.isPending}
+            onClick={handleAddToCart}
+          >
+            {addToCart.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : justAdded ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <ShoppingCart className="h-4 w-4" />
+            )}
+            {justAdded ? 'Added!' : 'Add to cart'}
+          </Button>
+          {error && <p className="text-center text-xs text-destructive">{error}</p>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
-      {/* Spending Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            {t('customerDashboard.spendingOverview')}
-          </CardTitle>
-          <CardDescription>{t('customerDashboard.spendingOverviewDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('customerDashboard.thisMonth')}
-              </p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">LKR 8,450</p>
-            </div>
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('customerDashboard.avgPerOrder')}
-              </p>
-              <p className="text-2xl font-bold text-green-600 mt-1">LKR 1,887</p>
-            </div>
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('customerDashboard.savedWithCoupons')}
-              </p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">LKR 2,150</p>
+export default function CustomerDashboard() {
+  const { user } = useAuth()
+  const [searchInput, setSearchInput] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+
+  const debouncedSearch = useDebouncedValue(searchInput.trim(), 350)
+  const {
+    data,
+    error,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteStorefrontProducts({
+    search: debouncedSearch,
+    category: activeCategory,
+    limit: 20,
+  })
+  const { data: categorySeed = [] } = useStorefrontCategories(250)
+
+  const products = useMemo(() => {
+    return data?.pages.flatMap((page) => page.products) ?? []
+  }, [data])
+
+  const totalProducts = data?.pages[0]?.pagination.total ?? products.length
+
+  const categoriesFromLoadedData = useMemo(() => {
+    return products
+      .map((product) => (product.category || '').trim())
+      .filter((value) => value.length > 0)
+  }, [products])
+
+  const categories = useMemo(() => {
+    const all = new Set<string>()
+    categorySeed.forEach((category) => all.add(category))
+    categoriesFromLoadedData.forEach((category) => all.add(category))
+    return Array.from(all).sort((a, b) => a.localeCompare(b))
+  }, [categoriesFromLoadedData, categorySeed])
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { rootMargin: '450px 0px 450px 0px' },
+    )
+
+    observer.observe(target)
+
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+
+  const errorMessage = error instanceof Error ? error.message : 'Unable to load products right now.'
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <section className="overflow-hidden rounded-2xl border border-border bg-gradient-to-r from-primary via-primary/90 to-secondary text-primary-foreground shadow-lg">
+        <div className="p-6 md:p-8">
+          <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary-foreground/15 px-3 py-1 text-xs font-semibold tracking-wide">
+            <Sparkles className="h-4 w-4" />
+            Fresh picks from your store
+          </p>
+          <h1 className="text-2xl font-bold md:text-4xl">Shop by category, discover products faster</h1>
+          <p className="mt-2 max-w-2xl text-sm text-primary-foreground/90 md:text-base">
+            Welcome back, {user?.name || 'shopper'}. Browse products from the live database with seamless
+            infinite scrolling and quick category filtering.
+          </p>
+
+          <div className="mt-5 max-w-xl">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search by product name, SKU, or barcode"
+                className="h-11 border-border bg-background text-foreground pl-10"
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Top Categories</h2>
+          <p className="text-xs text-muted-foreground">{totalProducts} products available</p>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <Button
+            type="button"
+            size="sm"
+            variant={activeCategory === 'all' ? 'default' : 'outline'}
+            onClick={() => setActiveCategory('all')}
+            className="rounded-full"
+          >
+            All
+          </Button>
+
+          {categories.map((category) => (
+            <Button
+              key={category}
+              type="button"
+              size="sm"
+              variant={activeCategory === category ? 'default' : 'outline'}
+              onClick={() => setActiveCategory(category)}
+              className="rounded-full"
+            >
+              {category}
+            </Button>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }, (_, index) => (
+              <div
+                key={`skeleton-${index}`}
+                className="h-72 animate-pulse rounded-xl border border-border bg-muted"
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {!isLoading && products.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <PackageX className="h-10 w-10 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">No products found</h3>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Try changing category or search keywords to discover products in your catalog.
+              </p>
+              <Button type="button" variant="outline" onClick={() => setSearchInput('')}>
+                Clear search
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {products.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {products.map((product) => (
+              <ProductCard key={`${product.id}-${product.updatedAt || product.createdAt || ''}`} product={product} />
+            ))}
+          </div>
+        ) : null}
+
+        <div ref={loadMoreRef} className="flex min-h-12 items-center justify-center">
+          {isFetchingNextPage ? (
+            <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading more products...
+            </p>
+          ) : null}
+
+          {!isFetchingNextPage && !hasNextPage && products.length > 0 ? (
+            <p className="text-xs text-muted-foreground">You have reached the end of the catalog</p>
+          ) : null}
+        </div>
+
+        {error ? (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="flex items-center justify-between gap-3 p-4">
+              <p className="text-sm text-destructive">{errorMessage}</p>
+              <Button type="button" variant="outline" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+      </section>
     </div>
   )
 }
