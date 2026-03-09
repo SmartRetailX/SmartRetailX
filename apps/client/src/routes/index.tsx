@@ -27,6 +27,7 @@ export const PATHS = {
   VOICE:              '/voice',
   ADMIN_SETTINGS:     '/admin-settings',
   CUSTOMER_SETTINGS:  '/customer-settings',
+  ASSISTANT: '/assistant',
   CUSTOMER_LOYALTY:   '/customer-loyalty',
   // Customer shopping
   CART:        '/cart',
@@ -61,6 +62,7 @@ const CartPage          = lazy(() => import('@/pages/customer/CartPage'))
 const CheckoutPage      = lazy(() => import('@/pages/customer/CheckoutPage'))
 const OrdersPage        = lazy(() => import('@/pages/customer/OrdersPage'))
 const OrderDetailPage   = lazy(() => import('@/pages/customer/OrderDetailPage'))
+const AssistantPage     = lazy(() => import('@/pages/customer/AssistantPage'))
 
 // Admin order management
 const OrderManagementPage = lazy(() => import('@/pages/admin/OrderManagementPage'))
@@ -139,6 +141,7 @@ export const appRoutes: RouteObject[] = [
         { path: 'checkout',    element: customerOnly(CheckoutPage) },
         { path: 'orders',      element: customerOnly(OrdersPage) },
         { path: 'orders/:id',  element: customerOnly(OrderDetailPage) },
+        { path: 'assistant',   element: customerOnly(AssistantPage) },
         { path: 'customer-settings', element: customerOnly(CustomerSettings) },
       ],
     }],

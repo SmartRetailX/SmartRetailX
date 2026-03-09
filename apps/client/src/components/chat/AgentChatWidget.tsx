@@ -1,5 +1,6 @@
-import { Loader2, MessageCircle, Mic, MicOff, Send, X } from 'lucide-react'
+import { Check, Copy, Expand, Loader2, MessageCircle, Mic, MicOff, Send, X } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useVoiceChatRuntime } from '@/hooks/useVoiceChatRuntime'
@@ -74,10 +75,22 @@ function AssistantMarkdownMessage({ text }: { text: string }) {
   )
 }
 
+function formatMessageTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 export default function AgentChatWidget() {
   const { user, isCustomer } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
+  const copyResetTimeoutRef = useRef<number | null>(null)
   const messageListRef = useRef<HTMLDivElement | null>(null)
 
   if (!isCustomer) {
@@ -155,6 +168,40 @@ export default function AgentChatWidget() {
     void startRecording()
   }
 
+  const openFullAssistant = () => {
+    setOpen(false)
+    navigate('/assistant')
+  }
+
+  const handleCopyMessage = async (messageId: string, text: string) => {
+    if (!text.trim()) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedMessageId(messageId)
+
+      if (copyResetTimeoutRef.current) {
+        window.clearTimeout(copyResetTimeoutRef.current)
+      }
+
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopiedMessageId(null)
+      }, 1200)
+    } catch {
+      // Ignore clipboard errors silently for unsupported environments.
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current) {
+        window.clearTimeout(copyResetTimeoutRef.current)
+      }
+    }
+  }, [])
+
   return (
     <>
       {open ? (
@@ -164,14 +211,27 @@ export default function AgentChatWidget() {
               <p className="text-sm font-semibold">AI Voice and Text Assistant</p>
               <p className="text-xs text-muted-foreground">Use voice or text in one secure thread</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              aria-label="Close chat"
-            >
-              <X className="h-4 w-4" />
-            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={openFullAssistant}
+                className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                aria-label="Open full screen assistant"
+                title="Open full assistant"
+              >
+                <Expand className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                aria-label="Close chat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
@@ -190,16 +250,38 @@ export default function AgentChatWidget() {
 
             {messages.map((message) => {
               const isUser = message.role === 'user'
+              const copied = copiedMessageId === message.id
+              const messageTime = formatMessageTime(message.createdAt)
+
               return (
-                <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  key={message.id}
+                  className={`group flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
+                >
                   <div
-                    className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${
+                    className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
                       isUser
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-foreground'
                     }`}
                   >
                     {isUser ? message.text : <AssistantMarkdownMessage text={message.text} />}
+                  </div>
+
+                  <div
+                    className={`mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 ${
+                      isUser ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <span>{messageTime}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyMessage(message.id, message.text)}
+                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-accent hover:text-accent-foreground"
+                      aria-label="Copy message"
+                    >
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </button>
                   </div>
                 </div>
               )

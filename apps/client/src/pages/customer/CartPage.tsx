@@ -4,11 +4,14 @@ import { Loader2, Minus, Plus, ShoppingBag, ShoppingCart, Trash2 } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCart, useUpdateCartItem, useRemoveFromCart, useClearCart, type CartItem } from '@/hooks/useCart'
+import { useLanguageStore } from '@/stores/appStore'
 import { formatCurrency } from '@/lib/utils'
+import type { Language } from '@/types/api'
 
-function CartItemRow({ item }: { item: CartItem }) {
+function CartItemRow({ item, language }: { item: CartItem; language: Language }) {
   const updateItem = useUpdateCartItem()
   const removeItem = useRemoveFromCart()
+  const displayName = language === 'si' && item.productNameSi ? item.productNameSi : item.productName
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = item.quantity + delta
@@ -31,7 +34,7 @@ function CartItemRow({ item }: { item: CartItem }) {
 
       {/* Product details */}
       <div className="flex flex-1 flex-col gap-1">
-        <h4 className="font-semibold leading-tight">{item.productNameSi || item.productName}</h4>
+        <h4 className="font-semibold leading-tight">{displayName}</h4>
         <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
         <p className="text-sm font-bold text-primary">{formatCurrency(item.unitPrice)}</p>
         {item.currentStock < 10 && (
@@ -89,6 +92,7 @@ export default function CartPage() {
   const navigate = useNavigate()
   const { data: cart, isLoading, error } = useCart()
   const clearCart = useClearCart()
+  const { language } = useLanguageStore()
 
   if (isLoading) {
     return (
@@ -167,7 +171,7 @@ export default function CartPage() {
             </CardHeader>
             <CardContent className="pt-0">
               {cart.items.map((item) => (
-                <CartItemRow key={item.id} item={item} />
+                <CartItemRow key={item.id} item={item} language={language} />
               ))}
             </CardContent>
           </Card>

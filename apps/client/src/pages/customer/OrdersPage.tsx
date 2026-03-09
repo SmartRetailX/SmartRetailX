@@ -4,7 +4,9 @@ import { Calendar, ChevronRight, Loader2, Package, ShoppingBag } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useOrders, type Order } from '@/hooks/useOrders'
+import { useLanguageStore } from '@/stores/appStore'
 import { cn, formatCurrency } from '@/lib/utils'
+import type { Language } from '@/types/api'
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: 'bg-accent', text: 'text-accent-foreground', label: 'Pending' },
@@ -31,12 +33,13 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, language }: { order: Order; language: Language }) {
   const createdAt = new Date(order.createdAt).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
+  const previewItems = (order.items || []).slice(0, 2)
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -56,14 +59,20 @@ function OrderCard({ order }: { order: Order }) {
 
           {/* Items preview */}
           <div className="mb-3 space-y-1">
-            {(order.items || []).slice(0, 2).map((item) => (
-              <div key={item.id} className="flex items-center justify-between text-sm">
-                <span className="flex-1 truncate text-foreground">
-                  {item.quantity}x {item.productNameSi || item.productName}
-                </span>
-                <span className="text-muted-foreground">{formatCurrency(item.totalPrice)}</span>
-              </div>
-            ))}
+            {previewItems.length > 0 ? (
+              previewItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between text-sm">
+                  <span className="flex-1 truncate text-foreground">
+                    {item.quantity}x {language === 'si' && item.productNameSi ? item.productNameSi : item.productName}
+                  </span>
+                  <span className="text-muted-foreground">{formatCurrency(item.totalPrice)}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {order.itemCount} item{order.itemCount === 1 ? '' : 's'}
+              </p>
+            )}
             {(order.items || []).length > 2 && (
               <p className="text-xs text-muted-foreground">
                 +{order.items.length - 2} more item{order.items.length - 2 > 1 ? 's' : ''}
@@ -87,11 +96,12 @@ function OrderCard({ order }: { order: Order }) {
 
 export default function OrdersPage() {
   const { data, isLoading, error } = useOrders()
+  const { language } = useLanguageStore()
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0d7f44]" />
       </div>
     )
   }
@@ -154,7 +164,7 @@ export default function OrdersPage() {
       {hasOrders && (
         <div className="grid gap-4 sm:grid-cols-2">
           {ordersList.map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderCard key={order.id} order={order} language={language} />
           ))}
         </div>
       )}

@@ -6,12 +6,18 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAddToCart } from '@/hooks/useCart'
-import {
-  useInfiniteStorefrontProducts,
-  useStorefrontCategories,
-} from '@/hooks/useStorefrontProducts'
+import { useInfiniteStorefrontProducts } from '@/hooks/useStorefrontProducts'
+import { useLanguageStore } from '@/stores/appStore'
 import { formatCurrency } from '@/lib/utils'
-import type { Product } from '@/types/api'
+import type { Language, Product } from '@/types/api'
+
+type CategoryLabels = {
+  key: string
+  en: string
+  si: string
+}
+
+const SINHALA_REGEX = /[\u0D80-\u0DFF]/
 
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value)
@@ -62,12 +68,43 @@ function categoryBadgeTone(category: string): string {
   return 'bg-muted text-muted-foreground'
 }
 
-function ProductCard({ product }: { product: Product }) {
+function isSinhalaText(value: string): boolean {
+  return SINHALA_REGEX.test(value)
+}
+
+function pickEnglishText(...values: Array<string | null | undefined>): string {
+  const normalized = values.map((value) => (value || '').trim()).filter(Boolean)
+  const latinCandidate = normalized.find((value) => !isSinhalaText(value))
+  return latinCandidate || normalized[0] || ''
+}
+
+function pickSinhalaText(...values: Array<string | null | undefined>): string {
+  const normalized = values.map((value) => (value || '').trim()).filter(Boolean)
+  const sinhalaCandidate = normalized.find((value) => isSinhalaText(value))
+  return sinhalaCandidate || normalized[0] || ''
+}
+
+function buildCategoryLabels(category?: string | null, categorySi?: string | null): CategoryLabels {
+  const en = pickEnglishText(category, categorySi)
+  const si = pickSinhalaText(categorySi, category) || en
+  const key = en || si
+
+  return {
+    key,
+    en: en || key,
+    si: si || key,
+  }
+}
+
+function ProductCard({ product, language }: { product: Product; language: Language }) {
   const addToCart = useAddToCart()
   const [justAdded, setJustAdded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const stock = stockLabel(product)
   const isOutOfStock = stock.label === 'Out of stock'
+  const displayName = language === 'si' && product.nameSi ? product.nameSi : product.name
+  const categoryLabels = buildCategoryLabels(product.category, product.categorySi)
+  const displayCategory = language === 'si' ? categoryLabels.si : categoryLabels.en
 
   const handleAddToCart = async () => {
     setError(null)
@@ -90,7 +127,7 @@ function ProductCard({ product }: { product: Product }) {
           <div className="text-center">
             <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">{product.sku}</p>
             <p className="mx-auto max-w-[14rem] text-sm font-medium text-foreground">
-              {product.nameSi || product.name}
+              {displayName}
             </p>
           </div>
         </div>
@@ -98,14 +135,14 @@ function ProductCard({ product }: { product: Product }) {
         <div className="space-y-3 p-4">
           <div className="space-y-1">
             <h3 className="line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-5">
-              {product.nameSi || product.name}
+              {displayName}
             </h3>
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${categoryBadgeTone(
-                product.category,
+                categoryLabels.en,
               )}`}
             >
-              {product.categorySi || product.category}
+              {displayCategory}
             </span>
           </div>
 
@@ -143,8 +180,10 @@ function ProductCard({ product }: { product: Product }) {
 
 export default function CustomerDashboard() {
   const { user } = useAuth()
+  const { language } = useLanguageStore()
   const [searchInput, setSearchInput] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
+  const [categoryOptionsByKey, setCategoryOptionsByKey] = useState<Record<string, CategoryLabels>>({})
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 350)
@@ -161,7 +200,6 @@ export default function CustomerDashboard() {
     category: activeCategory,
     limit: 20,
   })
-  const { data: categorySeed = [] } = useStorefrontCategories(250)
 
   const products = useMemo(() => {
     return data?.pages.flatMap((page) => page.products) ?? []
@@ -169,18 +207,51 @@ export default function CustomerDashboard() {
 
   const totalProducts = data?.pages[0]?.pagination.total ?? products.length
 
-  const categoriesFromLoadedData = useMemo(() => {
-    return products
-      .map((product) => (product.category || '').trim())
-      .filter((value) => value.length > 0)
+  useEffect(() => {
+    if (products.length === 0) {
+      return
+    }
+
+    setCategoryOptionsByKey((previous) => {
+      const next = { ...previous }
+      let changed = false
+
+      products.forEach((product) => {
+        const labels = buildCategoryLabels(product.category, product.categorySi)
+        if (!labels.key) {
+          return
+        }
+
+        const existing = next[labels.key]
+        if (!existing) {
+          next[labels.key] = labels
+          changed = true
+          return
+        }
+
+        const merged: CategoryLabels = {
+          key: labels.key,
+          en: existing.en || labels.en,
+          si: existing.si || labels.si,
+        }
+
+        if (merged.en !== existing.en || merged.si !== existing.si) {
+          next[labels.key] = merged
+          changed = true
+        }
+      })
+
+      return changed ? next : previous
+    })
   }, [products])
 
   const categories = useMemo(() => {
-    const all = new Set<string>()
-    categorySeed.forEach((category) => all.add(category))
-    categoriesFromLoadedData.forEach((category) => all.add(category))
-    return Array.from(all).sort((a, b) => a.localeCompare(b))
-  }, [categoriesFromLoadedData, categorySeed])
+    return Object.values(categoryOptionsByKey).sort((a, b) => {
+      const aLabel = language === 'si' ? a.si : a.en
+      const bLabel = language === 'si' ? b.si : b.en
+      return aLabel.localeCompare(bLabel)
+    })
+  }, [categoryOptionsByKey, language])
 
   useEffect(() => {
     const target = loadMoreRef.current
@@ -252,14 +323,14 @@ export default function CustomerDashboard() {
 
           {categories.map((category) => (
             <Button
-              key={category}
+              key={category.key}
               type="button"
               size="sm"
-              variant={activeCategory === category ? 'default' : 'outline'}
-              onClick={() => setActiveCategory(category)}
+              variant={activeCategory === category.key ? 'default' : 'outline'}
+              onClick={() => setActiveCategory(category.key)}
               className="rounded-full"
             >
-              {category}
+              {language === 'si' ? category.si : category.en}
             </Button>
           ))}
         </div>
@@ -295,7 +366,11 @@ export default function CustomerDashboard() {
         {products.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
-              <ProductCard key={`${product.id}-${product.updatedAt || product.createdAt || ''}`} product={product} />
+              <ProductCard
+                key={`${product.id}-${product.updatedAt || product.createdAt || ''}`}
+                product={product}
+                language={language}
+              />
             ))}
           </div>
         ) : null}
