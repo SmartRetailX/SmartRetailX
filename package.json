@@ -21,6 +21,7 @@
     "dev:frontend": "nx run-many --target=serve --projects=client --parallel=1",
     "dev:backend": "nx run-many --target=serve --projects=bi-dashboard-services-gateway,api-gateway,core-service --parallel=3",
     "dev:all": "nx run-many --target=serve --projects=bi-dashboard-services-gateway,api-gateway,core-service,client --parallel=4",
+    "dev:ml": "cd apps/personalized-promotion-engine-ml-service && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload",
     "mobile:start": "nx run mobile-app:start",
     "mobile:android": "nx run mobile-app:start --android",
     "mobile:ios": "nx run mobile-app:start --ios",

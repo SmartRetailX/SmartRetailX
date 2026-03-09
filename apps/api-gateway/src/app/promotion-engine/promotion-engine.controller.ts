@@ -18,38 +18,54 @@ export class PromotionEngineController {
 
   @Get('health')
   async health() {
-    const res = await fetch(`${this.baseUrl}/health`);
-    return res.json();
+    try {
+      const res = await fetch(`${this.baseUrl}/health`);
+      return res.json();
+    } catch {
+      return { status: 'unavailable', models_loaded: false };
+    }
   }
 
   @Get('products')
   async listProducts(@Query('category') category?: string, @Query('limit') limit?: string) {
-    const params = new URLSearchParams();
-    if (category) params.set('category', category);
-    if (limit) params.set('limit', limit);
-    const qs = params.toString() ? `?${params.toString()}` : '';
+    try {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (limit) params.set('limit', limit);
+      const qs = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${this.baseUrl}/api/products${qs}`);
-    return res.json();
+      const res = await fetch(`${this.baseUrl}/api/products${qs}`);
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
   }
 
   @Get('products/categories')
   async listCategories() {
-    const res = await fetch(`${this.baseUrl}/api/products/categories`);
-    return res.json();
+    try {
+      const res = await fetch(`${this.baseUrl}/api/products/categories`);
+      return res.json();
+    } catch {
+      return { success: false, error: 'ML service is not running' };
+    }
   }
 
   @Post('campaigns/generate')
   async generateCampaign(@Body() body: any) {
-    const res = await fetch(`${this.baseUrl}/api/campaigns/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return { success: false, error: data.detail || 'Campaign generation failed' };
+    try {
+      const res = await fetch(`${this.baseUrl}/api/campaigns/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.detail || 'Campaign generation failed' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'ML service is not running' };
     }
-    return data;
   }
 }
