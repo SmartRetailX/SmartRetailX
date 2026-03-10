@@ -222,4 +222,25 @@ export class PromotionEngineController {
       return { success: false, suggestions: null, total: 0, error: 'ML service is not running' };
     }
   }
+
+  // ── Cart co-purchase recommendations ───────────────────────────────────
+
+  @Post('cart-recommendations')
+  async getCartRecommendations(@Body() body: { productIds: string[]; limit?: number }) {
+    const { productIds = [], limit } = body;
+    if (!productIds.length) {
+      return { success: true, recommendations: [], cart_matched_count: 0, total: 0 };
+    }
+    try {
+      const res = await fetch(`${this.baseUrl}/api/cart-recommendations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_ids: productIds, limit: limit ?? 10 }),
+      });
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: false, recommendations: null, total: 0, error: 'ML service is not running' };
+    }
+  }
 }

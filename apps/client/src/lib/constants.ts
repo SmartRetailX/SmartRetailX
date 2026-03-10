@@ -147,6 +147,9 @@ export const API_ENDPOINTS = {
   PRODUCT_SUGGESTIONS: {
     LIST: '/api/promotion-engine/product-suggestions',
   },
+
+  // Cart co-purchase recommendations
+  CART_RECOMMENDATIONS: '/api/promotion-engine/cart-recommendations',
 } as const
 
 // Core service endpoints
