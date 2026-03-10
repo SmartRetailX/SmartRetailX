@@ -122,3 +122,6 @@ evaluation/results/*.pdf
 !data/processed/.gitkeep
 !models/.gitkeep
 !evaluation/results/.gitkeep
+
+# Allow specific files
+!ASSISTANT_TEST_PLAN.md
