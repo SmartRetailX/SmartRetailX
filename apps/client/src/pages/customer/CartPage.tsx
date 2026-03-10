@@ -1,12 +1,148 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader2, Minus, Plus, ShoppingBag, ShoppingCart, Trash2 } from 'lucide-react'
+import { Loader2, Minus, Plus, ShoppingBag, ShoppingCart, Sparkles, Tag, Trash2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { useCart, useUpdateCartItem, useRemoveFromCart, useClearCart, type CartItem } from '@/hooks/useCart'
+import { useCart, useUpdateCartItem, useRemoveFromCart, useClearCart, useAddToCart, type CartItem } from '@/hooks/useCart'
 import { useLanguageStore } from '@/stores/appStore'
 import { formatCurrency } from '@/lib/utils'
+import apiClient from '@/lib/api-client'
+import { API_ENDPOINTS } from '@/lib/constants'
 import type { Language } from '@/types/api'
+
+// ── Types ─────────────────────────────────────────────────
+
+interface CartRec {
+  storefront_product_id: string
+  product_name: string
+  category: string
+  brand: string
+  price: number
+  co_buyer_count: number
+  confidence_score: number
+  because_cart_items: string[]
+}
+
+interface CartRecsResponse {
+  success: boolean
+  recommendations: CartRec[] | null
+  cart_matched_count: number
+  total: number
+  error?: string
+}
+
+// ── Cart Recommendations Panel ─────────────────────────────
+
+function CartRecommendations({ cartProductIds }: { cartProductIds: string[] }) {
+  const addToCart = useAddToCart()
+
+  const { data, isLoading } = useQuery<CartRecsResponse>({
+    queryKey: ['cart-recommendations', ...cartProductIds.slice().sort()],
+    queryFn: async () => {
+      const res = await apiClient.post<CartRecsResponse>(
+        API_ENDPOINTS.CART_RECOMMENDATIONS,
+        { productIds: cartProductIds, limit: 8 },
+      )
+      return res.data
+    },
+    enabled: cartProductIds.length > 0,
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+
+  const recs = (!isLoading && data?.success && data.recommendations) ? data.recommendations : []
+  if (isLoading || recs.length === 0) return null
+
+  return (
+    <div className="mt-2">
+      {/* Section header */}
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100">
+          <Sparkles className="h-4 w-4 text-sky-600" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-gray-900">Frequently Bought Together</h2>
+          <p className="text-xs text-gray-400">Customers who bought items in your cart also picked these</p>
+        </div>
+      </div>
+
+      {/* Product grid */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {recs.map(rec => {
+          const alreadyInCart = cartProductIds.includes(rec.storefront_product_id)
+          const pct = Math.round(rec.confidence_score * 100)
+
+          return (
+            <div
+              key={rec.storefront_product_id}
+              className="flex flex-col justify-between rounded-2xl border border-sky-200/80 bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm transition-all hover:shadow-md hover:border-sky-300"
+            >
+              {/* Category tag */}
+              <div>
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                  <Tag className="h-3 w-3" />
+                  {rec.category}
+                </span>
+
+                <h3 className="mt-2 text-sm font-bold text-gray-900 leading-tight line-clamp-2">
+                  {rec.product_name}
+                </h3>
+                {rec.brand && (
+                  <p className="mt-0.5 text-xs text-gray-400">{rec.brand}</p>
+                )}
+
+                <p className="mt-2 text-base font-extrabold text-gray-900">
+                  {formatCurrency(rec.price)}
+                </p>
+
+                {/* Match strength */}
+                <div className="mt-2">
+                  <div className="h-1 w-full rounded-full bg-gray-100">
+                    <div
+                      className="h-1 rounded-full bg-sky-400 transition-all"
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-gray-400">
+                    {pct}% match · {rec.co_buyer_count} shopper{rec.co_buyer_count !== 1 ? 's' : ''}
+                  </p>
+                </div>
+
+                {/* Because of */}
+                {rec.because_cart_items.length > 0 && (
+                  <p className="mt-1.5 text-[10px] text-gray-400 line-clamp-1">
+                    With: {rec.because_cart_items.join(', ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Add to cart button */}
+              <Button
+                size="sm"
+                variant={alreadyInCart ? 'outline' : 'default'}
+                className={`mt-3 w-full text-xs ${alreadyInCart ? '' : 'bg-sky-600 hover:bg-sky-700 text-white border-0'}`}
+                disabled={alreadyInCart || addToCart.isPending}
+                onClick={() => {
+                  if (!alreadyInCart) addToCart.mutate({ productId: rec.storefront_product_id })
+                }}
+              >
+                {addToCart.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : alreadyInCart ? (
+                  'In Cart'
+                ) : (
+                  'Add to Cart'
+                )}
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function CartItemRow({ item, language }: { item: CartItem; language: Language }) {
   const updateItem = useUpdateCartItem()
@@ -161,7 +297,7 @@ export default function CartPage() {
         </Card>
       )}
 
-      {/* Cart items */}
+      {/* Cart items + order summary */}
       {hasItems && (
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Items list */}
@@ -207,6 +343,9 @@ export default function CartPage() {
           </Card>
         </div>
       )}
+
+      {/* Frequently bought together */}
+      {hasItems && <CartRecommendations cartProductIds={cart!.items.map(i => i.productId)} />}
     </div>
   )
 }

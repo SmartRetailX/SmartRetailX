@@ -454,6 +454,110 @@ def get_product_suggestions_by_email(email: str, limit: int = 20) -> dict:
     }
 
 
+# ── Cart Co-purchase Recommendations ──────────────────────
+
+def get_cart_recommendations(product_ids: list, limit: int = 10) -> dict:
+    """
+    Frequently-bought-together recommendations based on current cart contents.
+
+    Algorithm
+    ---------
+    1. Resolve storefront product UUIDs (products.id) → pe_products.product_id
+       via products.external_product_id = pe_products.product_id.
+    2. Find every customer in pe_transactions who bought any of those products (buyers).
+    3. Collect products those buyers also bought, excluding cart items.
+    4. Rank candidates by co-buyer count; compute a confidence score.
+    5. Join back to the storefront `products` table to return the UUID
+       needed by the frontend "Add to Cart" button.
+
+    Returns dict with keys: recommendations (list), cart_matched_count, total.
+    """
+    if not product_ids:
+        return {"recommendations": [], "cart_matched_count": 0, "total": 0}
+
+    sql = """
+    WITH
+    -- Step 1: resolve storefront UUIDs → pe_products id
+    cart_items AS (
+        SELECT pr.id::text        AS storefront_id,
+               pr.name            AS storefront_name,
+               pr.external_product_id AS pe_product_id
+        FROM   products pr
+        WHERE  pr.id::text = ANY(%s)
+          AND  pr.external_product_id IS NOT NULL
+          AND  TRIM(pr.external_product_id) != ''
+    ),
+    -- Step 2: customers who bought any cart item
+    buyers AS (
+        SELECT DISTINCT t.customer_id,
+               ci.storefront_name AS trigger_name
+        FROM   pe_transactions t
+        JOIN   cart_items ci ON t.product_id = ci.pe_product_id
+    ),
+    total_buyers AS (
+        SELECT COUNT(DISTINCT customer_id) AS n FROM buyers
+    ),
+    -- Step 3: products co-buyers bought, excluding cart items
+    candidates AS (
+        SELECT  t.product_id                                          AS pe_product_id,
+                COUNT(DISTINCT t.customer_id)                        AS co_buyer_count,
+                ARRAY_AGG(DISTINCT b.trigger_name ORDER BY b.trigger_name) AS because_of
+        FROM    pe_transactions t
+        JOIN    buyers b ON t.customer_id = b.customer_id
+        WHERE   t.product_id NOT IN (SELECT pe_product_id FROM cart_items)
+        GROUP BY t.product_id
+    )
+    -- Step 4: enrich with pe_products details + storefront id
+    SELECT
+        pr2.id::text           AS storefront_product_id,
+        pp.product_id          AS pe_product_id,
+        pp.product_name,
+        pp.category,
+        COALESCE(pp.brand, '') AS brand,
+        CAST(pp.price AS FLOAT) AS price,
+        c.co_buyer_count,
+        ROUND(
+            CAST(c.co_buyer_count AS NUMERIC)
+            / NULLIF((SELECT n FROM total_buyers), 0),
+            4
+        )                      AS confidence_score,
+        c.because_of,
+        (SELECT COUNT(*) FROM cart_items) AS cart_matched_count
+    FROM   candidates c
+    JOIN   pe_products pp  ON pp.product_id        = c.pe_product_id
+    JOIN   products    pr2 ON pr2.external_product_id = pp.product_id
+    ORDER BY c.co_buyer_count DESC
+    LIMIT  %s;
+    """
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (product_ids, limit))
+            columns = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+
+    if not rows:
+        return {"recommendations": [], "cart_matched_count": 0, "total": 0}
+
+    recommendations = []
+    cart_matched_count = 0
+    for row in rows:
+        item = dict(zip(columns, row))
+        cart_matched_count = int(item.pop("cart_matched_count", 0) or 0)
+        because_of = item.pop("because_of", None) or []
+        item["because_cart_items"] = list(because_of)[:3]
+        item["price"]            = float(item["price"])            if item.get("price")            is not None else None
+        item["confidence_score"] = float(item["confidence_score"]) if item.get("confidence_score") is not None else 0.0
+        item["co_buyer_count"]   = int(item["co_buyer_count"])     if item.get("co_buyer_count")   is not None else 0
+        recommendations.append(item)
+
+    return {
+        "recommendations": recommendations,
+        "cart_matched_count": cart_matched_count,
+        "total": len(recommendations),
+    }
+
+
 if __name__ == "__main__":
     print("Testing database connection...")
     try:
