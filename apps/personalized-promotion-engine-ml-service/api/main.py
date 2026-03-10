@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from api.database import get_customers, get_products, get_transactions, get_promotions
 from api.routes.campaigns import router as campaigns_router
 from api.routes.customer_promotions import router as customer_promotions_router
+from api.routes.product_suggestions import router as product_suggestions_router
 
 # Global state — shared with routes
 app_state = {
@@ -141,6 +142,7 @@ app.add_middleware(
 # Routes
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(customer_promotions_router, prefix="/api")
+app.include_router(product_suggestions_router, prefix="/api")
 
 
 @app.get("/health")

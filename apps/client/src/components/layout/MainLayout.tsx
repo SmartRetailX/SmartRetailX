@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { Award, LogOut, Package, Settings, ShoppingBag, ShoppingCart, Tag } from 'lucide-react'
+import { Award, LogOut, Package, Settings, ShoppingBag, ShoppingCart, Sparkles, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import AgentChatWidget from '@/components/chat/AgentChatWidget'
 import { useAuth } from '@/contexts/AuthContext'
@@ -53,6 +53,11 @@ export default function MainLayout() {
         href: '/my-promotions',
         label: 'My Promotions',
         icon: Tag,
+      },
+      {
+        href: '/product-suggestions',
+        label: 'For You',
+        icon: Sparkles,
       },
       {
         href: '/customer-settings',

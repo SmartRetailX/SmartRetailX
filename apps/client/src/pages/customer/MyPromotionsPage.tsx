@@ -260,8 +260,8 @@ export default function MyPromotionsPage() {
                 onClick={() => { if (!promo.is_read) markRead.mutate(promo.id) }}
                 className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 cursor-pointer
                   ${promo.is_read
-                    ? 'border-gray-100 hover:shadow-md'
-                    : 'border-violet-100 shadow-violet-100/60 hover:shadow-lg hover:shadow-violet-100'
+                    ? 'border-gray-300 hover:shadow-md'
+                    : 'border-violet-300 shadow-violet-100/60 hover:shadow-lg hover:shadow-violet-200'
                   }`}
               >
                 {/* Unread left accent bar */}
@@ -318,7 +318,7 @@ export default function MyPromotionsPage() {
                       ) : <span />}
 
                       {!promo.is_read && (
-                        <span className="text-xs text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-xs text-violet-800 opacity-0 group-hover:opacity-100 transition-opacity">
                           Tap to mark as read →
                         </span>
                       )}

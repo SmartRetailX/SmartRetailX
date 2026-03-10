@@ -198,4 +198,28 @@ export class PromotionEngineController {
       return { success: false, error: 'ML service is not running' };
     }
   }
+
+  // ── Customer product suggestions (co-purchase recommendations) ────────────
+
+  @Get('product-suggestions')
+  async getProductSuggestions(
+    @Req() req: Request & { user?: { email?: string } },
+    @Query('limit') limit?: string,
+  ) {
+    const email = req.user?.email;
+    if (!email) {
+      return { success: true, customer_found: false, customer_products_count: 0, suggestions: [], total: 0 };
+    }
+    try {
+      const params = new URLSearchParams({ email });
+      if (limit) params.set('limit', limit);
+      const res = await fetch(
+        `${this.baseUrl}/api/product-suggestions?${params.toString()}`,
+      );
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: false, suggestions: null, total: 0, error: 'ML service is not running' };
+    }
+  }
 }

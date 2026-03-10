@@ -142,6 +142,11 @@ export const API_ENDPOINTS = {
     MARK_READ: (id: number) => `/api/promotion-engine/my-promotions/${id}/read`,
     MARK_ALL_READ: '/api/promotion-engine/my-promotions/read-all',
   },
+
+  // Product Suggestions (co-purchase recommendations)
+  PRODUCT_SUGGESTIONS: {
+    LIST: '/api/promotion-engine/product-suggestions',
+  },
 } as const
 
 // Core service endpoints

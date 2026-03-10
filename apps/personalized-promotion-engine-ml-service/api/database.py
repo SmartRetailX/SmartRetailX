@@ -335,6 +335,125 @@ def mark_all_promotions_read(email: str) -> int:
         conn.commit()
     return updated
 
+# ── Product Suggestions (co-purchase / market basket) ─────
+
+def get_product_suggestions_by_email(email: str, limit: int = 20) -> dict:
+    """
+    Collaborative-filtering product recommendations via market basket analysis.
+
+    Algorithm
+    ---------
+    1. Resolve the customer via email → customer_id.
+    2. Collect all products the customer has already bought (my_products).
+    3. Find co-buyers: other customers who bought any of those same products.
+    4. Gather every product those co-buyers bought that the customer hasn't
+       bought yet (candidates).
+    5. Rank candidates by how many co-buyers purchased them.
+    6. Enrich with product details + "because you bought …" context (max 3).
+
+    Returns a dict with keys: customer_found, customer_products_count,
+    suggestions (list), total.
+    """
+    sql = """
+    WITH
+    -- Step 1: target customer
+    target AS (
+        SELECT customer_id
+        FROM   pe_customers
+        WHERE  LOWER(email) = LOWER(%s)
+        LIMIT  1
+    ),
+    -- Step 2: products already bought by this customer
+    my_products AS (
+        SELECT DISTINCT t.product_id, p.product_name
+        FROM   pe_transactions t
+        JOIN   pe_products p  ON p.product_id = t.product_id
+        WHERE  t.customer_id = (SELECT customer_id FROM target)
+    ),
+    -- Step 3: other customers who share at least one purchase (co-buyers)
+    co_buyers AS (
+        SELECT DISTINCT t.customer_id,
+               mp.product_id   AS trigger_id,
+               mp.product_name AS trigger_name
+        FROM   pe_transactions t
+        JOIN   my_products mp ON t.product_id = mp.product_id
+        WHERE  t.customer_id != (SELECT customer_id FROM target)
+    ),
+    total_co_buyers AS (
+        SELECT COUNT(DISTINCT customer_id) AS n FROM co_buyers
+    ),
+    -- Step 4: products bought by co-buyers that the customer hasn't bought
+    candidates AS (
+        SELECT  t.product_id,
+                COUNT(DISTINCT t.customer_id)    AS co_buyer_count,
+                ARRAY_AGG(DISTINCT cb.trigger_name) AS because_of
+        FROM    pe_transactions t
+        JOIN    co_buyers cb ON t.customer_id = cb.customer_id
+        WHERE   t.product_id NOT IN (SELECT product_id FROM my_products)
+        GROUP BY t.product_id
+    )
+    SELECT
+        p.product_id,
+        p.product_name,
+        p.category,
+        COALESCE(p.brand, '')        AS brand,
+        CAST(p.price AS FLOAT)       AS price,
+        c.co_buyer_count,
+        ROUND(
+            CAST(c.co_buyer_count AS NUMERIC)
+            / NULLIF((SELECT n FROM total_co_buyers), 0),
+            4
+        )                            AS confidence_score,
+        c.because_of,
+        (SELECT COUNT(*) FROM my_products) AS customer_products_count
+    FROM candidates c
+    JOIN pe_products p ON p.product_id = c.product_id
+    ORDER BY c.co_buyer_count DESC
+    LIMIT %s;
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (email, limit))
+            columns = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+
+    if not rows:
+        # Could be: customer not found, or no purchase history, or no co-buyers
+        # Check whether the email exists at all so the UI can differentiate
+        check_sql = "SELECT 1 FROM pe_customers WHERE LOWER(email) = LOWER(%s) LIMIT 1"
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(check_sql, (email,))
+                found = cur.fetchone() is not None
+        return {
+            "customer_found": found,
+            "customer_products_count": 0,
+            "suggestions": [],
+            "total": 0,
+        }
+
+    suggestions = []
+    customer_products_count = 0
+    for row in rows:
+        item = dict(zip(columns, row))
+        customer_products_count = int(item.pop("customer_products_count", 0) or 0)
+        # PostgreSQL returns ARRAY_AGG as a Python list via psycopg2
+        because_of = item.pop("because_of", None) or []
+        item["because_you_bought"] = list(because_of)[:3]
+        # Ensure JSON-serialisable numeric types
+        item["price"]            = float(item["price"])            if item.get("price")            is not None else None
+        item["confidence_score"] = float(item["confidence_score"]) if item.get("confidence_score") is not None else 0.0
+        item["co_buyer_count"]   = int(item["co_buyer_count"])     if item.get("co_buyer_count")   is not None else 0
+        suggestions.append(item)
+
+    return {
+        "customer_found": True,
+        "customer_products_count": customer_products_count,
+        "suggestions": suggestions,
+        "total": len(suggestions),
+    }
+
+
 if __name__ == "__main__":
     print("Testing database connection...")
     try:
