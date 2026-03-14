@@ -58,6 +58,22 @@ export interface HealthResponse {
  * ```
  */
 
+export const WEBSOCKET_PATTERNS = {
+  BROADCAST: { cmd: 'broadcast' },
+  SEND_TO_USER: { cmd: 'send_to_user' },
+} as const;
+
+export interface BroadcastPayload {
+  event: string;
+  data: any;
+}
+
+export interface SendToUserPayload {
+  userId: string;
+  event: string;
+  data: any;
+}
+
 /**
  * Helper type to create message pattern constants
  */

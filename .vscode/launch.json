@@ -6,43 +6,67 @@
       "request": "launch",
       "name": "Debug auth-service with Nx",
       "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "auth-service"],
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "auth-service"
+      ],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/apps/auth-service/dist/**/*.(m|c|)js", "!**/node_modules/**"]
+      "outFiles": [
+        "${workspaceFolder}/apps/auth-service/dist/**/*.(m|c|)js",
+        "!**/node_modules/**"
+      ]
     },
     {
       "type": "node",
       "request": "launch",
       "name": "Debug api-gateway with Nx",
       "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "api-gateway"],
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "api-gateway"
+      ],
       "env": {
         "NODE_OPTIONS": "--inspect=9230"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/apps/api-gateway/dist/**/*.(m|c|)js", "!**/node_modules/**"]
+      "outFiles": [
+        "${workspaceFolder}/apps/api-gateway/dist/**/*.(m|c|)js",
+        "!**/node_modules/**"
+      ]
     },
     {
       "type": "node",
       "request": "launch",
       "name": "Debug assistant-service with Nx",
       "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "assistant-service"],
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "assistant-service"
+      ],
       "env": {
         "NODE_OPTIONS": "--inspect=9232"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/apps/assistant-service/dist/**/*.(m|c|)js",
@@ -54,13 +78,19 @@
       "request": "launch",
       "name": "Debug bi-dashboard-services-gateway with Nx",
       "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "bi-dashboard-services-gateway"],
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "bi-dashboard-services-gateway"
+      ],
       "env": {
         "NODE_OPTIONS": "--inspect=9233"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/apps/bi-dashboard-services-gateway/dist/**/*.(m|c|)js",
@@ -72,15 +102,48 @@
       "request": "launch",
       "name": "Debug core-service with Nx",
       "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "core-service"],
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "core-service"
+      ],
       "env": {
         "NODE_OPTIONS": "--inspect=9234"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/apps/core-service/dist/**/*.(m|c|)js", "!**/node_modules/**"]
+      "outFiles": [
+        "${workspaceFolder}/apps/core-service/dist/**/*.(m|c|)js",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug websocket-service with Nx",
+      "runtimeExecutable": "pnpm exec",
+      "runtimeArgs": [
+        "nx",
+        "serve",
+        "websocket-service"
+      ],
+      "env": {
+        "NODE_OPTIONS": "--inspect=9235"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/apps/websocket-service/dist/**/*.(m|c|)js",
+        "!**/node_modules/**"
+      ]
     }
   ]
 }
