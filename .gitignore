@@ -125,3 +125,5 @@ evaluation/results/*.pdf
 
 # Allow specific files
 !ASSISTANT_TEST_PLAN.md
+
+.copilotignore
