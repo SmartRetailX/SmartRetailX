@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useRoutes } from 'react-router-dom';
 
 import { AuthProvider } from './contexts/AuthContext';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import { appRoutes } from './routes';
 import { useThemeStore } from './stores/appStore';
+import WebSocketDebugger from './components/WebSocketDebugger';
 
 function AppRoutes() {
   return useRoutes(appRoutes);
@@ -27,7 +29,10 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppRoutes />
+      <WebSocketProvider>
+        <AppRoutes />
+        <WebSocketDebugger />
+      </WebSocketProvider>
     </AuthProvider>
   );
 }

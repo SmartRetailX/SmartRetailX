@@ -110,6 +110,11 @@ export class ConfigService {
     return this.configService.get<string>('BI_DASHBOARD_SERVICE_QUEUE', 'bi_dashboard_queue');
   }
 
+  // WebSocket Service Configuration
+  get websocketServiceQueue(): string {
+    return this.configService.get<string>('WEBSOCKET_SERVICE_QUEUE', 'websocket_queue');
+  }
+
   // Base URL Configuration
   get baseUrl(): string | undefined {
     return this.configService.get<string>('BASE_URL');
