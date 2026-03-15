@@ -8,6 +8,7 @@ export interface User {
 export interface UserMeta extends User {
   createdAt: Date;
   updatedAt: Date;
+  role: string;
   emailVerified: boolean;
   twoFactorEnabled: boolean;
 }

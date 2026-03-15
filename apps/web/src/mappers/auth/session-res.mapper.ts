@@ -10,6 +10,7 @@ export function mapUser(user: SessionResponse['user']): UserMeta {
     image: user.image ?? undefined,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+    role: user.role ?? 'user',
     emailVerified: user.emailVerified ?? false,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
   };

@@ -8,6 +8,7 @@ const sessionSchema = z.object({
     image: z.string().nullable().optional(),
     createdAt: z.date(),
     updatedAt: z.date(),
+    role: z.string().nullable().optional(),
     emailVerified: z.boolean(),
     twoFactorEnabled: z.boolean().nullable().optional(),
   }),

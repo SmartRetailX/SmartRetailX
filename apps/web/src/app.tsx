@@ -17,7 +17,7 @@ export function App() {
 
   return (
     <>
-      <RouterProvider router={router} context={auth} />
+      <RouterProvider router={router} context={{ auth }} />
       <TanStackRouterDevtools router={router} />
       <ReactQueryDevtools initialIsOpen={false} />
     </>
