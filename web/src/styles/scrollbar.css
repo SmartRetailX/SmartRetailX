@@ -1,0 +1,247 @@
+/* Custom scrollbar styles for better visibility and UX */
+
+/* Webkit scrollbars (Chrome, Safari, Edge) */
+.markdown-table-scroll::-webkit-scrollbar {
+  height: 14px;
+  width: 14px;
+}
+
+.markdown-table-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.2);
+  border-radius: 8px;
+  margin: 2px;
+}
+
+.markdown-table-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted-foreground) / 0.3),
+    hsl(var(--muted-foreground) / 0.5)
+  );
+  border-radius: 8px;
+  border: 2px solid hsl(var(--background));
+  transition: all 0.3s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted-foreground) / 0.5),
+    hsl(var(--muted-foreground) / 0.7)
+  );
+  border: 2px solid hsl(var(--muted) / 0.3);
+  transform: scale(1.05);
+}
+
+.markdown-table-scroll::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted-foreground) / 0.6),
+    hsl(var(--muted-foreground) / 0.8)
+  );
+}
+
+.markdown-table-scroll::-webkit-scrollbar-corner {
+  background: hsl(var(--muted) / 0.2);
+  border-radius: 8px;
+}
+
+/* Firefox scrollbars */
+.markdown-table-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--muted) / 0.2);
+}
+
+/* Enhanced hover effects */
+.markdown-table-scroll:hover::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted-foreground) / 0.4),
+    hsl(var(--muted-foreground) / 0.6)
+  );
+}
+
+.markdown-table-scroll:hover {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted) / 0.3);
+}
+
+/* Enhanced table styling for markdown tables */
+.markdown-table-scroll table[data-slot='table'] {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+}
+
+.markdown-table-scroll table[data-slot='table'] thead {
+  background: hsl(var(--muted) / 0.8);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.markdown-table-scroll table[data-slot='table'] tbody tr {
+  transition: all 0.2s ease;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.markdown-table-scroll table[data-slot='table'] tbody tr:hover {
+  background: hsl(var(--muted) / 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px hsl(var(--border) / 0.2);
+}
+
+.markdown-table-scroll table[data-slot='table'] tbody tr:last-child {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.markdown-table-scroll table[data-slot='table'] th,
+.markdown-table-scroll table[data-slot='table'] td {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Additional table enhancements */
+.markdown-table-scroll table[data-slot='table'] th:first-child,
+.markdown-table-scroll table[data-slot='table'] td:first-child {
+  border-left: none;
+}
+
+.markdown-table-scroll table[data-slot='table'] th:last-child,
+.markdown-table-scroll table[data-slot='table'] td:last-child {
+  border-right: none;
+}
+
+/* Better text handling in cells */
+.markdown-table-scroll table[data-slot='table'] th,
+.markdown-table-scroll table[data-slot='table'] td {
+  word-wrap: break-word;
+  white-space: normal;
+  min-width: 120px;
+  vertical-align: top;
+}
+
+/* Focus and accessibility improvements */
+.markdown-table-scroll:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.markdown-table-scroll table[data-slot='table'] th:focus,
+.markdown-table-scroll table[data-slot='table'] td:focus {
+  outline: 1px solid hsl(var(--ring));
+  outline-offset: -1px;
+  background: hsl(var(--accent) / 0.1);
+}
+
+/* Loading state */
+.markdown-table-scroll.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.markdown-table-scroll.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid hsl(var(--muted));
+  border-top: 2px solid hsl(var(--primary));
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive table improvements */
+@media (max-width: 768px) {
+  .markdown-table-scroll::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+
+  .markdown-table-scroll table[data-slot='table'] th,
+  .markdown-table-scroll table[data-slot='table'] td {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 640px) {
+  .markdown-table-scroll::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+
+  .markdown-table-scroll table[data-slot='table'] th,
+  .markdown-table-scroll table[data-slot='table'] td {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    min-width: 80px;
+  }
+}
+
+/* Print styles */
+@media print {
+  .markdown-table-scroll {
+    overflow: visible !important;
+  }
+
+  .markdown-table-scroll table[data-slot='table'] {
+    break-inside: avoid;
+  }
+
+  .markdown-table-scroll table[data-slot='table'] thead {
+    display: table-header-group;
+  }
+
+  .markdown-table-scroll table[data-slot='table'] tbody tr {
+    break-inside: avoid;
+  }
+}
+
+/* Compact scrollbar for sidebar areas */
+.sidebar-thin-scroll,
+.sidebar-chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+}
+
+.sidebar-thin-scroll::-webkit-scrollbar,
+.sidebar-chat-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-thin-scroll::-webkit-scrollbar-track,
+.sidebar-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-thin-scroll::-webkit-scrollbar-button,
+.sidebar-chat-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-thin-scroll::-webkit-scrollbar-thumb,
+.sidebar-chat-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.4);
+  border-radius: 999px;
+}
+
+.sidebar-thin-scroll::-webkit-scrollbar-thumb:hover,
+.sidebar-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}

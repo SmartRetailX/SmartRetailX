@@ -1,0 +1,80 @@
+/* Table container for proper scrolling */
+.table-container {
+  overflow: auto;
+  max-height: 100%;
+  /* Ensures the horizontal scrollbar doesn't overlap with content */
+  padding-bottom: 6px;
+  border-radius: 0.5rem;
+  position: relative; /* For proper positioning context */
+  width: 100%; /* Ensure full width */
+}
+
+/* Fixed header table styles */
+.fixed-header-table {
+  width: 100%;
+  table-layout: fixed; /* This ensures columns have consistent widths across header and body */
+  border-collapse: separate; /* Required for sticky headers to work properly */
+  border-spacing: 0;
+}
+
+/* Ensure header cells look nice and stay fixed */
+.fixed-header-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: hsl(var(--background));
+  border-bottom: 1px solid hsl(var(--border));
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  box-sizing: border-box; /* Ensures padding is included in width calculations */
+}
+
+/* Improve the look of cells */
+.fixed-header-table tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border, #e2e8f0));
+  box-sizing: border-box; /* Ensures padding is included in width calculations */
+}
+
+/* Make columns handle content more gracefully */
+.fixed-header-table th,
+.fixed-header-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure the header stays aligned with body when scrolling horizontally */
+.fixed-header-table thead {
+  /* Ensure the header doesn't cause horizontal scrolling on its own */
+  width: 100%;
+  display: table-header-group;
+}
+
+/* Make the table body properly take up space and scroll */
+.fixed-header-table tbody {
+  width: 100%;
+  display: table-row-group;
+}
+
+/* For empty/loading states, ensure proper alignment */
+.fixed-header-table tr {
+  display: table-row;
+  width: 100%;
+}
+
+/* Ensure column widths stay consistent between header and body */
+.fixed-header-table thead tr th,
+.fixed-header-table tbody tr td {
+  width: auto;
+  box-sizing: border-box;
+  border: 1px solid transparent; /* Prevents layout shifts */
+}
+
+/* Force the table header to fit the exact same width as table body */
+.fixed-header-table thead,
+.fixed-header-table tbody {
+  table-layout: fixed;
+  width: 100%;
+}

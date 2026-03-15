@@ -33,7 +33,7 @@ export class DocsController {
     const prefixedAuthPaths: Record<string, any> = {};
 
     for (const [path, pathItem] of Object.entries(authSchema.paths || {})) {
-      const prefixedPath = `/auth${path}`;
+      const prefixedPath = `/api/auth${path}`;
       prefixedAuthPaths[prefixedPath] = pathItem;
 
       // Set tags to Authentication only and clean up optional fields

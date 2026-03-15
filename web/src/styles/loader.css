@@ -1,0 +1,141 @@
+.loader {
+  width: 40px;
+  aspect-ratio: 1;
+  --bar-color: var(--foreground); /* Theme Color */
+  --c: linear-gradient(var(--bar-color) 0 0);
+  --r1: radial-gradient(farthest-side at bottom, var(--bar-color) 93%, transparent);
+  --r2: radial-gradient(farthest-side at top, var(--bar-color) 93%, transparent);
+  background:
+    var(--c), var(--r1), var(--r2), var(--c), var(--r1), var(--r2), var(--c), var(--r1), var(--r2);
+  background-repeat: no-repeat;
+  animation: loader-animation 1s infinite alternate;
+}
+
+@keyframes loader-animation {
+  0%,
+  25% {
+    background-size:
+      8px 0,
+      8px 4px,
+      8px 4px,
+      8px 0,
+      8px 4px,
+      8px 4px,
+      8px 0,
+      8px 4px,
+      8px 4px;
+    background-position:
+      0 50%,
+      0 calc(50% - 2px),
+      0 calc(50% + 2px),
+      50% 50%,
+      50% calc(50% - 2px),
+      50% calc(50% + 2px),
+      100% 50%,
+      100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  50% {
+    background-size:
+      8px 100%,
+      8px 4px,
+      8px 4px,
+      8px 0,
+      8px 4px,
+      8px 4px,
+      8px 0,
+      8px 4px,
+      8px 4px;
+    background-position:
+      0 50%,
+      0 calc(0% - 2px),
+      0 calc(100% + 2px),
+      50% 50%,
+      50% calc(50% - 2px),
+      50% calc(50% + 2px),
+      100% 50%,
+      100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  75% {
+    background-size:
+      8px 100%,
+      8px 4px,
+      8px 4px,
+      8px 100%,
+      8px 4px,
+      8px 4px,
+      8px 0,
+      8px 4px,
+      8px 4px;
+    background-position:
+      0 50%,
+      0 calc(0% - 2px),
+      0 calc(100% + 2px),
+      50% 50%,
+      50% calc(0% - 2px),
+      50% calc(100% + 2px),
+      100% 50%,
+      100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  95%,
+  100% {
+    background-size:
+      8px 100%,
+      8px 4px,
+      8px 4px,
+      8px 100%,
+      8px 4px,
+      8px 4px,
+      8px 100%,
+      8px 4px,
+      8px 4px;
+    background-position:
+      0 50%,
+      0 calc(0% - 2px),
+      0 calc(100% + 2px),
+      50% 50%,
+      50% calc(0% - 2px),
+      50% calc(100% + 2px),
+      100% 50%,
+      100% calc(0% - 2px),
+      100% calc(100% + 2px);
+  }
+}
+
+.loader-primary {
+  --bar-color: var(--primary);
+}
+
+.loader-secondary {
+  --bar-color: var(--secondary);
+}
+
+.loader-accent {
+  --bar-color: var(--accent-foreground);
+}
+
+.loader-muted {
+  --bar-color: var(--muted-foreground);
+}
+
+.loader-chart-1 {
+  --bar-color: var(--chart-1);
+}
+
+.loader-chart-2 {
+  --bar-color: var(--chart-2);
+}
+
+.loader-chart-3 {
+  --bar-color: var(--chart-3);
+}
+
+.loader-chart-4 {
+  --bar-color: var(--chart-4);
+}
+
+.loader-chart-5 {
+  --bar-color: var(--chart-5);
+}

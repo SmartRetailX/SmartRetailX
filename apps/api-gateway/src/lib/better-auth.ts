@@ -57,9 +57,6 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     // Plugins
     plugins: [expo(), openAPI()],
 
-    // Base path for auth endpoints (they will be under /api/auth/*)
-    basePath: '/api/auth',
-
     // Base URL for the application
     baseURL,
 

@@ -1,0 +1,12 @@
+/* Layout sizing variables */
+:root {
+  /* --header-height: 85px; */
+  --header-height: 87px;
+
+  /* Header Height */
+  --h-header: 55px;
+  --h-header-with-padding: calc(var(--h-header) + 16px);
+
+  /* Payment page loader height */
+  --payment-loader-height: calc(100vh - var(--header-height) - 85px);
+}

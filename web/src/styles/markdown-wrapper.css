@@ -1,0 +1,137 @@
+.markdown-wrapper {
+  @apply prose max-w-none;
+
+  /* Base typography */
+  @apply text-foreground;
+
+  /* Headings */
+  h1 {
+    @apply text-3xl font-bold mt-8 mb-4 text-foreground;
+  }
+  h2 {
+    @apply text-2xl font-semibold mt-6 mb-3 text-foreground;
+  }
+  h3 {
+    @apply text-xl font-semibold mt-4 mb-2 text-foreground;
+  }
+  h4 {
+    @apply text-lg font-medium mt-3 mb-2 text-foreground;
+  }
+  h5 {
+    @apply text-base font-medium mt-2 mb-1 text-foreground;
+  }
+  h6 {
+    @apply text-sm font-medium mt-2 mb-1 text-foreground;
+  }
+
+  /* Paragraphs and text */
+  p {
+    @apply my-4 leading-relaxed;
+  }
+
+  /* Bold text */
+  strong {
+    @apply text-foreground;
+  }
+
+  /* Links */
+  a {
+    @apply text-primary hover:text-primary-foreground transition-colors underline;
+  }
+
+  /* Lists */
+  ul {
+    @apply my-4 list-disc list-inside;
+  }
+  ol {
+    @apply my-4 list-decimal list-inside;
+  }
+  li {
+    @apply my-1;
+  }
+
+  /* Code blocks */
+  pre {
+    @apply bg-muted p-4 rounded-md my-4 overflow-x-auto border border-border;
+  }
+  code {
+    @apply bg-muted px-1 py-0.5 rounded text-sm font-mono text-muted-foreground;
+  }
+  pre code {
+    @apply bg-transparent px-0 py-0 rounded-none;
+  }
+
+  /* Blockquotes */
+  blockquote {
+    @apply border-l-4 border-border pl-4 my-4 italic text-muted-foreground;
+  }
+
+  /* Tables - exclude our custom MarkdownTable component */
+  table:not([data-slot='table']) {
+    @apply w-full my-6 border-separate border border-border rounded-lg shadow-sm;
+    border-spacing: 0;
+    overflow: hidden;
+    display: block;
+    overflow-x: auto;
+  }
+
+  th:not([data-slot='table-head']) {
+    @apply bg-muted/80 p-3 text-left font-semibold border-r border-border last:border-r-0 text-foreground;
+  }
+
+  td:not([data-slot='table-cell']) {
+    @apply p-3 border-r last:border-r-0 border-b border-border/30 last:border-b-0;
+  }
+
+  /* Table row hover effects for non-component tables */
+  tr:not([data-slot='table-row']):hover th:not([data-slot='table-head']),
+  tr:not([data-slot='table-row']):hover td:not([data-slot='table-cell']) {
+    @apply bg-muted/40;
+  }
+
+  /* Images */
+  img {
+    @apply max-w-full h-auto my-4 rounded-md;
+  }
+
+  /* Horizontal rules */
+  hr {
+    @apply my-8 border-border;
+  }
+}
+
+/* Dark mode adjustments */
+.dark .markdown-wrapper {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-foreground;
+  }
+  strong {
+    @apply text-foreground;
+  }
+  a {
+    @apply text-primary hover:text-primary-foreground;
+  }
+  pre {
+    @apply bg-muted border-border;
+  }
+  code {
+    @apply text-muted-foreground;
+  }
+  blockquote {
+    @apply border-border text-muted-foreground;
+  }
+  th:not([data-slot='table-head']) {
+    @apply bg-muted text-foreground border-border;
+  }
+  td:not([data-slot='table-cell']) {
+    @apply border-border;
+  }
+  hr {
+    @apply border-border;
+  }
+}
