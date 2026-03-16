@@ -1,3 +1,4 @@
+import { useAuth } from '@/hooks';
 import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 
 import { Layout } from '@/components/partials/layout';
@@ -8,8 +9,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootComponent() {
+  const { user, isAuthenticated, signOut } = useAuth();
+
   return (
-    <Layout>
+    <Layout user={user} isAuthenticated={isAuthenticated} signOut={signOut}>
       <Outlet />
     </Layout>
   );
