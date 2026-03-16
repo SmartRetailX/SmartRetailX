@@ -27,9 +27,13 @@ export class DocsController {
   async getCombinedSpec() {
     const swaggerDoc = this.swaggerDocService.getDocument();
     const authSchema = await this.authService.api.generateOpenAPISchema();
+    const serverBasePath = this.extractServerBasePath(swaggerDoc?.servers);
+    const normalizedSwaggerPaths = this.normalizeSwaggerPaths(
+      swaggerDoc?.paths,
+      serverBasePath,
+    );
 
     // Prefix auth paths and fix tags
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prefixedAuthPaths: Record<string, any> = {};
 
     for (const [path, pathItem] of Object.entries(authSchema.paths || {})) {
@@ -76,7 +80,7 @@ export class DocsController {
       ],
       paths: {
         ...prefixedAuthPaths,
-        ...swaggerDoc.paths,
+        ...normalizedSwaggerPaths,
       },
       components: {
         schemas: {
@@ -89,6 +93,47 @@ export class DocsController {
         },
       },
     };
+  }
+
+  private extractServerBasePath(
+    servers: Array<{ url: string }> | undefined,
+  ): string | null {
+    const serverUrl = servers?.[0]?.url;
+    if (!serverUrl) {
+      return null;
+    }
+
+    try {
+      const parsedUrl = new URL(serverUrl);
+      const pathname = parsedUrl.pathname.replace(/\/$/, '');
+      return pathname && pathname !== '/' ? pathname : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private normalizeSwaggerPaths(
+    paths: Record<string, any> | undefined,
+    basePath: string | null,
+  ): Record<string, any> {
+    if (!paths || !basePath) {
+      return paths || {};
+    }
+
+    const normalized: Record<string, any> = {};
+
+    for (const [path, pathItem] of Object.entries(paths)) {
+      const normalizedPath =
+        path === basePath
+          ? '/'
+          : path.startsWith(`${basePath}/`)
+            ? path.slice(basePath.length)
+            : path;
+
+      normalized[normalizedPath || '/'] = pathItem;
+    }
+
+    return normalized;
   }
 
   /**
