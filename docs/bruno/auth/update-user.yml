@@ -1,0 +1,22 @@
+info:
+  name: update-user
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}auth/update-user"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Shanelka Pramuditha",
+        "image": "https://avatars.githubusercontent.com/u/74038575?v=4"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
