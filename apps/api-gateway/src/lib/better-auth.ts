@@ -1,7 +1,7 @@
 import { expo } from '@better-auth/expo';
 import { ConfigService } from '@smart-retail-x/config';
 import { betterAuth } from 'better-auth';
-import { openAPI } from 'better-auth/plugins';
+import { admin as adminPlugin, openAPI } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
 /**
@@ -55,7 +55,14 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
     database: pool,
 
     // Plugins
-    plugins: [expo(), openAPI()],
+    plugins: [
+      expo(),
+      openAPI(),
+      adminPlugin({
+        adminRoles: ['admin'],
+        defaultRole: 'user',
+      }),
+    ],
 
     // Base path for auth endpoints (they will be under /api/auth/*)
     basePath: '/api/auth',
@@ -84,23 +91,6 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
         maxAge: 60 * 5, // 5 minutes
       },
     },
-
-    // User schema customization
-    user: {
-      additionalFields: {
-        role: {
-          type: 'string',
-          defaultValue: 'user',
-          required: false,
-        },
-        emailVerified: {
-          type: 'boolean',
-          defaultValue: false,
-          required: false,
-        },
-      },
-    },
-
     // Trust proxy for production (when behind nginx/load balancer)
     advanced: {
       useSecureCookies: false, // Force false for localhost/development
