@@ -4,6 +4,7 @@ import type { SignInSchema, SignUpSchema } from '@/schemas/auth/auth.schema';
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 
 import { SignIn, SignUp } from '@/components/pages/auth';
+import { PageContainer } from '@/components/partials/container/page-container';
 
 type AuthViewMode = 'sign-in' | 'sign-up';
 
@@ -121,7 +122,7 @@ function RouteComponent() {
   }
 
   return (
-    <div className="flex min-h-(--h-content-min) items-center justify-center">
+    <PageContainer className="flex justify-center items-center">
       {mode === 'sign-in' ? (
         <SignIn
           onSubmit={handleSignInSubmit}
@@ -137,6 +138,6 @@ function RouteComponent() {
           errorMessage={errorMessage}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

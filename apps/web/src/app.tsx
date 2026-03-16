@@ -9,6 +9,8 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { FullScreenLoader } from '@/components/system/loaders/full-screen';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 
+import { USER_ROLE } from './types/auth';
+
 export function App() {
   const auth = useAuth();
 
@@ -20,7 +22,7 @@ export function App() {
     <ThemeProvider
       attribute="class"
       defaultTheme="light"
-      forcedTheme={auth.user?.role === 'admin' ? undefined : 'light'}
+      forcedTheme={auth.user?.role === USER_ROLE.ADMIN ? undefined : 'light'}
       enableSystem
     >
       <RouterProvider router={router} context={{ auth }} />

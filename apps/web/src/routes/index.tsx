@@ -1,6 +1,7 @@
 import { useAuth } from '@/hooks';
 import { createFileRoute } from '@tanstack/react-router';
 
+import { PageContainer } from '@/components/partials/container/page-container';
 import { Button } from '@/components/ui/button';
 
 export const Route = createFileRoute('/')({
@@ -11,7 +12,7 @@ function RouteComponent() {
   const { user, signOut } = useAuth();
 
   return (
-    <div>
+    <PageContainer>
       Welcome, {user?.name || 'Guest'}!
       <span className="block text-sm text-muted-foreground">
         {user ? `Your role: ${user.role}` : 'Please sign in to access more features.'}
@@ -31,6 +32,6 @@ function RouteComponent() {
           Sign In
         </Button>
       )}
-    </div>
+    </PageContainer>
   );
 }
