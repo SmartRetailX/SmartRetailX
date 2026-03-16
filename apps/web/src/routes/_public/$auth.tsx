@@ -28,7 +28,7 @@ function getUnknownErrorMessage(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
-export const Route = createFileRoute('/$auth')({
+export const Route = createFileRoute('/_public/$auth')({
   beforeLoad: ({
     params,
     context: {
@@ -121,7 +121,7 @@ function RouteComponent() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-(--h-content-min) items-center justify-center">
       {mode === 'sign-in' ? (
         <SignIn
           onSubmit={handleSignInSubmit}

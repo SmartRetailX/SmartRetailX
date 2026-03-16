@@ -1,0 +1,11 @@
+/* Layout sizing variables */
+:root {
+  /* Header Height */
+  --h-header: 120px;
+
+  /* Footer Height */
+  --h-footer: 270px;
+
+  /* Content Min Height */
+  --h-content-min: calc(100vh - var(--h-header) - var(--h-footer) - 4rem); /* 2rem for padding */
+}

@@ -7,6 +7,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 
 import { FullScreenLoader } from '@/components/system/loaders/full-screen';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 
 export function App() {
   const auth = useAuth();
@@ -16,11 +17,16 @@ export function App() {
   }
 
   return (
-    <>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      forcedTheme={auth.user?.role === 'admin' ? undefined : 'light'}
+      enableSystem
+    >
       <RouterProvider router={router} context={{ auth }} />
       <TanStackRouterDevtools router={router} />
       <ReactQueryDevtools initialIsOpen={false} />
-    </>
+    </ThemeProvider>
   );
 }
 

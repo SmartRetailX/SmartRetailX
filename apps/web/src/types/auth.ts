@@ -2,13 +2,13 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  role: string;
   image?: string;
 }
 
 export interface UserMeta extends User {
   createdAt: Date;
   updatedAt: Date;
-  role: string;
   emailVerified: boolean;
   twoFactorEnabled: boolean;
 }
