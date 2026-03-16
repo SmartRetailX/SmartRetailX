@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "prisma:api-gateway:generate": "pnpm exec prisma generate --schema apps/api-gateway/prisma/schema.prisma",
+    "prisma:api-gateway:push": "pnpm exec prisma db push --schema apps/api-gateway/prisma/schema.prisma",
+    "prisma:api-gateway:studio": "pnpm exec prisma studio --schema apps/api-gateway/prisma/schema.prisma",
     "prisma:generate": "cd apps/bi-dashboard-services-gateway && npx prisma generate",
     "prisma:migrate": "cd apps/bi-dashboard-services-gateway && npx prisma migrate deploy",
     "prisma:migrate:dev": "cd apps/bi-dashboard-services-gateway && npx prisma migrate dev",
@@ -112,7 +115,8 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.12.15",
-    "@better-auth/expo": "^1.4.3",
+    "@better-auth/expo": "^1.5.5",
+    "@better-auth/prisma-adapter": "1.5.5",
     "@expo/metro-config": "54.0.9",
     "@expo/metro-runtime": "6.1.2",
     "@expo/vector-icons": "^15.0.3",
@@ -157,7 +161,7 @@
     "assemblyai": "^4.22.1",
     "axios": "^1.6.0",
     "bcrypt": "^6.0.0",
-    "better-auth": "^1.4.3",
+    "better-auth": "^1.5.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "class-variance-authority": "^0.7.0",

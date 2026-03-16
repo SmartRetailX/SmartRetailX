@@ -45,6 +45,9 @@ Thumbs.db
 !.env.example
 !.env.*.example
 
+# Prisma generated clients
+apps/api-gateway/src/generated/prisma/
+
 .nx/cache
 .nx/workspace-data
 .cursor/rules/nx-rules.mdc

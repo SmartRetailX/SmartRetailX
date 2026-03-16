@@ -28,12 +28,6 @@ const envSchema = z.object({
   DATABASE_POOL_MIN: z.string().default('2').transform(Number).pipe(z.number().min(1)),
   DATABASE_POOL_MAX: z.string().default('10').transform(Number).pipe(z.number().min(1)),
 
-  // JWT Configuration
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-
   // CORS Configuration
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
@@ -55,21 +49,8 @@ const envSchema = z.object({
 
   // Base URL (for production)
   BASE_URL: z.string().url().optional(),
-
-  // Core Service Configuration (optional for services that need it)
-  CORE_SERVICE_URL: z.string().url().optional(),
-  CORE_SERVICE_PORT: z
-    .string()
-    .optional()
-    .transform((val) => (val ? Number(val) : undefined)),
-
-  // Redis Configuration (optional for services that need it)
-  REDIS_HOST: z.string().optional(),
-  REDIS_PORT: z
-    .string()
-    .optional()
-    .transform((val) => (val ? Number(val) : undefined)),
-  REDIS_PASSWORD: z.string().optional(),
+  BETTER_AUTH_URL: z.string().url().optional(),
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
 });
 
 export type Env = z.infer<typeof envSchema>;
