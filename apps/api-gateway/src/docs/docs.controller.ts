@@ -1,7 +1,6 @@
-import { Controller, Get, Req, Res } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { AllowAnonymous, AuthService } from '@thallesp/nestjs-better-auth';
-import type { Request, Response } from 'express';
 
 import type { Auth } from '../lib/better-auth';
 import { SwaggerDocumentService } from './swagger-document.service';
@@ -27,13 +26,8 @@ export class DocsController {
   async getCombinedSpec() {
     const swaggerDoc = this.swaggerDocService.getDocument();
     const authSchema = await this.authService.api.generateOpenAPISchema();
-    const serverBasePath = this.extractServerBasePath(swaggerDoc?.servers);
-    const normalizedSwaggerPaths = this.normalizeSwaggerPaths(
-      swaggerDoc?.paths,
-      serverBasePath,
-    );
 
-    // Prefix auth paths and fix tags
+    // Prefix auth paths and clean up schema
     const prefixedAuthPaths: Record<string, any> = {};
 
     for (const [path, pathItem] of Object.entries(authSchema.paths || {})) {
@@ -45,7 +39,6 @@ export class DocsController {
         const operation = pathItem[method];
         if (!operation) continue;
 
-        // Set correct tag
         if (operation.tags) {
           operation.tags = ['Authentication'];
         }
@@ -57,7 +50,6 @@ export class DocsController {
           optionalFields.forEach((field) => {
             delete schema.properties[field];
           });
-          // Also remove from required array if present
           if (Array.isArray(schema.required)) {
             schema.required = schema.required.filter((f: string) => !optionalFields.includes(f));
           }
@@ -80,7 +72,7 @@ export class DocsController {
       ],
       paths: {
         ...prefixedAuthPaths,
-        ...normalizedSwaggerPaths,
+        ...swaggerDoc.paths,
       },
       components: {
         schemas: {
@@ -95,76 +87,4 @@ export class DocsController {
     };
   }
 
-  private extractServerBasePath(
-    servers: Array<{ url: string }> | undefined,
-  ): string | null {
-    const serverUrl = servers?.[0]?.url;
-    if (!serverUrl) {
-      return null;
-    }
-
-    try {
-      const parsedUrl = new URL(serverUrl);
-      const pathname = parsedUrl.pathname.replace(/\/$/, '');
-      return pathname && pathname !== '/' ? pathname : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private normalizeSwaggerPaths(
-    paths: Record<string, any> | undefined,
-    basePath: string | null,
-  ): Record<string, any> {
-    if (!paths || !basePath) {
-      return paths || {};
-    }
-
-    const normalized: Record<string, any> = {};
-
-    for (const [path, pathItem] of Object.entries(paths)) {
-      const normalizedPath =
-        path === basePath
-          ? '/'
-          : path.startsWith(`${basePath}/`)
-            ? path.slice(basePath.length)
-            : path;
-
-      normalized[normalizedPath || '/'] = pathItem;
-    }
-
-    return normalized;
-  }
-
-  /**
-   * Scalar API documentation page
-   */
-  @Get('docs')
-  async getDocs(@Req() req: Request, @Res() res: Response) {
-    const specUrl = `${req.protocol}://${req.get('host')}/api/openapi/combined.json`;
-
-    const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Smart RetailX API Documentation</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-  </head>
-  <body>
-    <script
-      id="api-reference"
-      data-url="${specUrl}"
-      data-theme="purple"
-      data-layout="modern"
-      data-show-sidebar="true"
-      data-search-hotkey="k"
-    ></script>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-  </body>
-</html>`.trim();
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  }
 }

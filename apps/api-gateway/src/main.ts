@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { apiReference } from '@scalar/nestjs-api-reference';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@smart-retail-x/config';
 
@@ -62,12 +63,6 @@ async function bootstrap() {
     )
     .setVersion('1.0.0')
     .addServer(`http://localhost:${configService.port}/${globalPrefix}`, 'Development server')
-    .addTag('Health', 'Health check endpoints')
-    .addTag('Messaging Health', 'RabbitMQ and microservices health checks')
-    .addTag('Core Service', 'Core microservice endpoints')
-    .addTag('Assistant', 'Voice assistant endpoints')
-    .addTag('BI Dashboard', 'Business Intelligence dashboard proxy')
-    .addTag('Authentication', 'Better Auth endpoints')
     .addBearerAuth()
     .build();
 
@@ -77,13 +72,23 @@ async function bootstrap() {
   const swaggerDocService = app.get(SwaggerDocumentService);
   swaggerDocService.setDocument(document);
 
+  app.use(
+    `/${globalPrefix}/reference`,
+    apiReference({
+      url: `/${globalPrefix}/openapi/combined.json`,
+      theme: 'saturn',
+      hideClientButton: true,
+      hideModels: true,
+    }),
+  );
+
   const port = configService.port;
   const host = configService.host;
 
   await app.listen(port, host);
 
   Logger.log(`🚀 API Gateway running on: http://${host}:${port}/${globalPrefix}`);
-  Logger.log(`📚 API docs available at: http://${host}:${port}/${globalPrefix}/docs`);
+  Logger.log(`📚 API docs available at: http://${host}:${port}/${globalPrefix}/reference`);
   Logger.log(`🐰 RabbitMQ: ${configService.rabbitmqUri}`);
 }
 

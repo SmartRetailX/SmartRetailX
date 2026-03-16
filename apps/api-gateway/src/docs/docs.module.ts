@@ -8,6 +8,5 @@ import { SwaggerDocumentService } from './swagger-document.service';
   imports: [AuthModule],
   controllers: [DocsController],
   providers: [SwaggerDocumentService],
-  exports: [SwaggerDocumentService],
 })
 export class DocsModule {}
