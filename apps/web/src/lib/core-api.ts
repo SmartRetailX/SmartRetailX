@@ -1,6 +1,6 @@
 import type {
-  AdminCategoriesResponse,
   Address,
+  AdminCategoriesResponse,
   CartResponse,
   CategoriesResponse,
   OrderListResponse,
@@ -15,6 +15,11 @@ const rootBaseUrl = (import.meta.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const coreBaseUrl = `${rootBaseUrl}/api/core`;
 
 type QueryValue = string | number | boolean | null | undefined;
+type PaginatedParams = {
+  page?: number;
+  limit?: number;
+  offset?: number;
+};
 
 function buildUrl(path: string, query?: Record<string, QueryValue>) {
   const url = new URL(`${coreBaseUrl}${path}`, window.location.origin);
@@ -49,16 +54,33 @@ async function request<T>(path: string, init?: RequestInit, query?: Record<strin
   return payload;
 }
 
+function withOffset<TParams extends PaginatedParams>(params: TParams) {
+  const page = Number(params.page);
+  const limit = Number(params.limit);
+
+  if (Number.isFinite(page) && Number.isFinite(limit) && page > 0 && limit > 0) {
+    return {
+      ...params,
+      page: Math.floor(page),
+      limit: Math.floor(limit),
+      offset: (Math.floor(page) - 1) * Math.floor(limit),
+    };
+  }
+
+  return params;
+}
+
 export const coreApi = {
   listProducts(params: {
     search?: string;
     category?: string;
     page?: number;
     limit?: number;
+    offset?: number;
     sortBy?: string;
     sortDir?: string;
   }) {
-    return request<ProductListResponse>('/products', undefined, params);
+    return request<ProductListResponse>('/products', undefined, withOffset(params));
   },
   getProduct(productId: string) {
     return request<ProductResponse>(`/products/${productId}`);
@@ -91,11 +113,7 @@ export const coreApi = {
       method: 'DELETE',
     });
   },
-  createOrder(payload: {
-    shippingAddress: Address;
-    billingAddress: Address;
-    notes?: string;
-  }) {
+  createOrder(payload: { shippingAddress: Address; billingAddress: Address; notes?: string }) {
     return request<OrderResponse>('/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -104,9 +122,10 @@ export const coreApi = {
   listOrders(params: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: OrderStatus | '';
   }) {
-    return request<OrderListResponse>('/orders', undefined, params);
+    return request<OrderListResponse>('/orders', undefined, withOffset(params));
   },
   cancelOrder(orderId: string) {
     return request<OrderResponse>(`/orders/${orderId}/cancel`, {
@@ -118,8 +137,9 @@ export const coreApi = {
     category?: string;
     page?: number;
     limit?: number;
+    offset?: number;
   }) {
-    return request<ProductListResponse>('/admin/products', undefined, params);
+    return request<ProductListResponse>('/admin/products', undefined, withOffset(params));
   },
   listAdminCategories() {
     return request<AdminCategoriesResponse>('/admin/categories');
@@ -164,7 +184,10 @@ export const coreApi = {
       method: 'DELETE',
     });
   },
-  adjustProductStock(productId: string, payload: { quantityChange?: number; balanceTo?: number; note?: string }) {
+  adjustProductStock(
+    productId: string,
+    payload: { quantityChange?: number; balanceTo?: number; note?: string },
+  ) {
     return request<ProductResponse>(`/admin/products/${productId}/stock-adjustments`, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -173,10 +196,11 @@ export const coreApi = {
   listAdminOrders(params: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: OrderStatus | '';
     search?: string;
   }) {
-    return request<OrderListResponse>('/admin/orders', undefined, params);
+    return request<OrderListResponse>('/admin/orders', undefined, withOffset(params));
   },
   updateOrderStatus(orderId: string, status: OrderStatus) {
     return request<OrderResponse>(`/admin/orders/${orderId}/status`, {

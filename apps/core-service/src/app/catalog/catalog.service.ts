@@ -65,6 +65,7 @@ type CatalogListResponse = {
     pagination: {
       page: number;
       limit: number;
+      offset: number;
       total: number;
       totalPages: number;
     };
@@ -129,6 +130,10 @@ function stockStatus(qty: number): CatalogListProduct['status'] {
   if (qty <= 0) return 'OUT_OF_STOCK';
   if (qty <= 5) return 'LOW_STOCK';
   return 'IN_STOCK';
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function toStockEntry(entry: ProductRow['stockEntries'][number]): ProductStockEntry {
@@ -264,14 +269,23 @@ export class CatalogService {
     category?: string;
     page?: number;
     limit?: number;
+    offset?: number;
     sortBy?: string;
     sortDir?: string;
     activeOnly?: boolean;
   }): Promise<CatalogListResponse> {
-    const safePage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page as number)) : 1;
     const safeLimit = Number.isFinite(params.limit)
       ? Math.max(1, Math.min(Math.floor(params.limit as number), 1000))
       : 20;
+    const requestedOffset =
+      Number.isFinite(params.offset) && (params.offset as number) >= 0
+        ? Math.floor(params.offset as number)
+        : undefined;
+    const requestedPage = Number.isFinite(params.page)
+      ? Math.max(1, Math.floor(params.page as number))
+      : 1;
+    const safeOffset = requestedOffset ?? (requestedPage - 1) * safeLimit;
+    const safePage = Math.floor(safeOffset / safeLimit) + 1;
     const normalizedSearch = normalizeCatalogQuery(params.search || '');
     const normalizedCategory = normalizeCatalogQuery(params.category || '');
 
@@ -296,12 +310,17 @@ export class CatalogService {
     }
 
     if (normalizedCategory) {
+      const categoryFilters: Prisma.ProductWhereInput[] = [
+        { category: { name: { equals: normalizedCategory, mode: 'insensitive' } } },
+        { category: { nameSi: { equals: normalizedCategory, mode: 'insensitive' } } },
+      ];
+
+      if (isUuid(normalizedCategory)) {
+        categoryFilters.push({ categoryId: normalizedCategory });
+      }
+
       andFilters.push({
-        OR: [
-          { category: { name: { equals: normalizedCategory, mode: 'insensitive' } } },
-          { category: { nameSi: { equals: normalizedCategory, mode: 'insensitive' } } },
-          { categoryId: normalizedCategory },
-        ],
+        OR: categoryFilters,
       });
     }
 
@@ -323,7 +342,7 @@ export class CatalogService {
       this.prisma.product.findMany({
         where,
         orderBy,
-        skip: (safePage - 1) * safeLimit,
+        skip: safeOffset,
         take: safeLimit,
         include: {
           category: true,
@@ -342,6 +361,7 @@ export class CatalogService {
         pagination: {
           page: safePage,
           limit: safeLimit,
+          offset: safeOffset,
           total,
           totalPages: total > 0 ? Math.ceil(total / safeLimit) : 0,
         },
@@ -349,7 +369,9 @@ export class CatalogService {
     };
   }
 
-  async getProduct(productId: string): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
+  async getProduct(
+    productId: string,
+  ): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
     try {
       const row = await this.prisma.product.findUnique({
         where: { id: productId },
@@ -521,7 +543,9 @@ export class CatalogService {
     }
   }
 
-  async createProduct(input: ProductInput): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
+  async createProduct(
+    input: ProductInput,
+  ): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
     try {
       const englishName = input.name.trim();
       const englishDescription = input.description?.trim() || null;
@@ -616,7 +640,9 @@ export class CatalogService {
 
         const nextName = input.name !== undefined ? input.name.trim() : existing.name;
         const nextDescription =
-          input.description !== undefined ? input.description?.trim() || null : existing.description;
+          input.description !== undefined
+            ? input.description?.trim() || null
+            : existing.description;
         const shouldTranslateName = input.name !== undefined && input.nameSi === undefined;
         const shouldTranslateDescription =
           input.description !== undefined && input.descriptionSi === undefined;
@@ -633,8 +659,10 @@ export class CatalogService {
         if (input.nameSi !== undefined) data.nameSi = input.nameSi?.trim() || null;
         else if (shouldTranslateName && translated.nameSi) data.nameSi = translated.nameSi;
         if (input.description !== undefined) data.description = nextDescription;
-        if (input.descriptionSi !== undefined) data.descriptionSi = input.descriptionSi?.trim() || null;
-        else if (shouldTranslateDescription && translated.descriptionSi) data.descriptionSi = translated.descriptionSi;
+        if (input.descriptionSi !== undefined)
+          data.descriptionSi = input.descriptionSi?.trim() || null;
+        else if (shouldTranslateDescription && translated.descriptionSi)
+          data.descriptionSi = translated.descriptionSi;
         if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
         if (input.imageUrl !== undefined) data.imageUrl = input.imageUrl?.trim() || null;
         if (input.isActive !== undefined) data.isActive = input.isActive;
@@ -711,7 +739,8 @@ export class CatalogService {
             productId,
             quantityChange: input.quantityChange,
             balanceTo: input.balanceTo,
-            type: input.balanceTo !== undefined ? StockEntryType.rebalance : StockEntryType.adjustment,
+            type:
+              input.balanceTo !== undefined ? StockEntryType.rebalance : StockEntryType.adjustment,
             note: input.note?.trim() || null,
             createdBy: input.createdBy ?? null,
           },
@@ -797,7 +826,9 @@ export class CatalogService {
     const category = await tx.category.upsert({
       where: { name: categoryName },
       update: {
-        ...(input.categoryNameSi !== undefined ? { nameSi: input.categoryNameSi?.trim() || null } : {}),
+        ...(input.categoryNameSi !== undefined
+          ? { nameSi: input.categoryNameSi?.trim() || null }
+          : {}),
       },
       create: {
         name: categoryName,

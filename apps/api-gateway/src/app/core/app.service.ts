@@ -1,10 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import {
-  BroadcastPayload,
-  SendToUserPayload,
-  WEBSOCKET_PATTERNS,
-} from '@smart-retail-x/messaging';
+import { BroadcastPayload, SendToUserPayload, WEBSOCKET_PATTERNS } from '@smart-retail-x/messaging';
 import { Observable } from 'rxjs';
 
 @Injectable()
@@ -45,6 +41,7 @@ export class CoreService implements OnModuleInit {
     category?: string;
     page?: number;
     limit?: number;
+    offset?: number;
     sortBy?: string;
     sortDir?: string;
     activeOnly?: boolean;
@@ -174,7 +171,7 @@ export class CoreService implements OnModuleInit {
 
   listOrders(
     userId: string,
-    params: { page?: number; limit?: number; status?: string },
+    params: { page?: number; limit?: number; offset?: number; status?: string },
   ): Observable<unknown> {
     return this.coreClient.send({ cmd: 'order_list' }, { userId, ...params });
   }
@@ -187,6 +184,7 @@ export class CoreService implements OnModuleInit {
   listAllOrders(params: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: string;
     search?: string;
   }): Observable<unknown> {

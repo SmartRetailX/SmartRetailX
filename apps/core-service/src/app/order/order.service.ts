@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OrderStatus as PrismaOrderStatus, Prisma, StockEntryType } from '@prisma/client';
+import { Prisma, OrderStatus as PrismaOrderStatus, StockEntryType } from '@prisma/client';
 import { PrismaService } from '@smart-retail-x/database';
 
 import { CartService } from '../cart/cart.service';
 import { InventoryService } from '../catalog/inventory.service';
 
 // Types
-export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 
 export type OrderItem = {
   id: string;
@@ -52,6 +58,7 @@ export type OrderListResponse = {
     pagination: {
       page: number;
       limit: number;
+      offset: number;
       total: number;
       totalPages: number;
     };
@@ -184,11 +191,21 @@ export class OrderService {
 
   async listOrders(
     userId: string,
-    params: { page?: number; limit?: number; status?: OrderStatus },
+    params: { page?: number; limit?: number; offset?: number; status?: OrderStatus },
   ): Promise<OrderListResponse> {
     try {
-      const safePage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
-      const safeLimit = Number.isFinite(params.limit) ? Math.max(1, Math.min(Math.floor(params.limit!), 50)) : 10;
+      const safeLimit = Number.isFinite(params.limit)
+        ? Math.max(1, Math.min(Math.floor(params.limit!), 50))
+        : 10;
+      const requestedOffset =
+        Number.isFinite(params.offset) && params.offset! >= 0
+          ? Math.floor(params.offset!)
+          : undefined;
+      const requestedPage = Number.isFinite(params.page)
+        ? Math.max(1, Math.floor(params.page!))
+        : 1;
+      const safeOffset = requestedOffset ?? (requestedPage - 1) * safeLimit;
+      const safePage = Math.floor(safeOffset / safeLimit) + 1;
 
       const where = {
         userId,
@@ -200,7 +217,7 @@ export class OrderService {
         this.prisma.order.findMany({
           where,
           orderBy: { createdAt: 'desc' },
-          skip: (safePage - 1) * safeLimit,
+          skip: safeOffset,
           take: safeLimit,
           include: { items: { select: { quantity: true } } },
         }),
@@ -213,6 +230,7 @@ export class OrderService {
           pagination: {
             page: safePage,
             limit: safeLimit,
+            offset: safeOffset,
             total,
             totalPages: total > 0 ? Math.ceil(total / safeLimit) : 0,
           },
@@ -222,7 +240,10 @@ export class OrderService {
       this.logger.error(`Failed to list orders: ${(error as Error).message}`);
       return {
         success: true,
-        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
+        data: {
+          orders: [],
+          pagination: { page: 1, limit: 10, offset: 0, total: 0, totalPages: 0 },
+        },
       };
     }
   }
@@ -236,7 +257,10 @@ export class OrderService {
         });
 
         if (!order) throw new Error('Order not found');
-        if (order.status !== PrismaOrderStatus.pending && order.status !== PrismaOrderStatus.confirmed) {
+        if (
+          order.status !== PrismaOrderStatus.pending &&
+          order.status !== PrismaOrderStatus.confirmed
+        ) {
           throw new Error('Cannot cancel order in current status');
         }
 
@@ -273,12 +297,23 @@ export class OrderService {
   async listAllOrders(params: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: OrderStatus;
     search?: string;
   }): Promise<OrderListResponse> {
     try {
-      const safePage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
-      const safeLimit = Number.isFinite(params.limit) ? Math.max(1, Math.min(Math.floor(params.limit!), 50)) : 10;
+      const safeLimit = Number.isFinite(params.limit)
+        ? Math.max(1, Math.min(Math.floor(params.limit!), 50))
+        : 10;
+      const requestedOffset =
+        Number.isFinite(params.offset) && params.offset! >= 0
+          ? Math.floor(params.offset!)
+          : undefined;
+      const requestedPage = Number.isFinite(params.page)
+        ? Math.max(1, Math.floor(params.page!))
+        : 1;
+      const safeOffset = requestedOffset ?? (requestedPage - 1) * safeLimit;
+      const safePage = Math.floor(safeOffset / safeLimit) + 1;
 
       const where: Parameters<typeof this.prisma.order.findMany>[0]['where'] = {};
       if (params.status) where.status = params.status as PrismaOrderStatus;
@@ -294,7 +329,7 @@ export class OrderService {
         this.prisma.order.findMany({
           where,
           orderBy: { createdAt: 'desc' },
-          skip: (safePage - 1) * safeLimit,
+          skip: safeOffset,
           take: safeLimit,
           include: { items: { select: { quantity: true } } },
         }),
@@ -307,6 +342,7 @@ export class OrderService {
           pagination: {
             page: safePage,
             limit: safeLimit,
+            offset: safeOffset,
             total,
             totalPages: total > 0 ? Math.ceil(total / safeLimit) : 0,
           },
@@ -316,7 +352,10 @@ export class OrderService {
       this.logger.error(`Failed to list all orders: ${(error as Error).message}`);
       return {
         success: true,
-        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
+        data: {
+          orders: [],
+          pagination: { page: 1, limit: 10, offset: 0, total: 0, totalPages: 0 },
+        },
       };
     }
   }
@@ -355,33 +394,31 @@ export class OrderService {
 
   // ── Mappers ──────────────────────────────────────────────────────────────
 
-  private toOrder(
-    row: {
+  private toOrder(row: {
+    id: string;
+    orderNumber: string;
+    userId: string;
+    status: PrismaOrderStatus;
+    subtotal: Prisma.Decimal;
+    discount: Prisma.Decimal;
+    tax: Prisma.Decimal;
+    total: Prisma.Decimal;
+    shippingAddress: string | null;
+    billingAddress: string | null;
+    notes: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    items: Array<{
       id: string;
-      orderNumber: string;
-      userId: string;
-      status: PrismaOrderStatus;
-      subtotal: Prisma.Decimal;
-      discount: Prisma.Decimal;
-      tax: Prisma.Decimal;
-      total: Prisma.Decimal;
-      shippingAddress: string | null;
-      billingAddress: string | null;
-      notes: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-      items: Array<{
-        id: string;
-        productId: string;
-        productName: string;
-        productNameSi: string | null;
-        productSku: string;
-        quantity: number;
-        unitPrice: Prisma.Decimal;
-        totalPrice: Prisma.Decimal;
-      }>;
-    },
-  ): Order {
+      productId: string;
+      productName: string;
+      productNameSi: string | null;
+      productSku: string;
+      quantity: number;
+      unitPrice: Prisma.Decimal;
+      totalPrice: Prisma.Decimal;
+    }>;
+  }): Order {
     const items: OrderItem[] = row.items.map((i) => ({
       id: i.id,
       productId: i.productId,
@@ -404,29 +441,31 @@ export class OrderService {
       discount: Number(row.discount),
       tax: Number(row.tax),
       total: Number(row.total),
-      shippingAddress: row.shippingAddress ? (JSON.parse(row.shippingAddress) as Record<string, string>) : null,
-      billingAddress: row.billingAddress ? (JSON.parse(row.billingAddress) as Record<string, string>) : null,
+      shippingAddress: row.shippingAddress
+        ? (JSON.parse(row.shippingAddress) as Record<string, string>)
+        : null,
+      billingAddress: row.billingAddress
+        ? (JSON.parse(row.billingAddress) as Record<string, string>)
+        : null,
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
 
-  private toOrderListItem(
-    row: {
-      id: string;
-      orderNumber: string;
-      userId: string;
-      status: PrismaOrderStatus;
-      subtotal: Prisma.Decimal;
-      discount: Prisma.Decimal;
-      tax: Prisma.Decimal;
-      total: Prisma.Decimal;
-      createdAt: Date;
-      updatedAt: Date;
-      items: Array<{ quantity: number }>;
-    },
-  ): OrderListItem {
+  private toOrderListItem(row: {
+    id: string;
+    orderNumber: string;
+    userId: string;
+    status: PrismaOrderStatus;
+    subtotal: Prisma.Decimal;
+    discount: Prisma.Decimal;
+    tax: Prisma.Decimal;
+    total: Prisma.Decimal;
+    createdAt: Date;
+    updatedAt: Date;
+    items: Array<{ quantity: number }>;
+  }): OrderListItem {
     return {
       id: row.id,
       orderNumber: row.orderNumber,
