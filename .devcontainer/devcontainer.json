@@ -3,14 +3,29 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "workspace",
   "workspaceFolder": "/workspaces/smart-retail-x",
-  "remoteUser": "node",
+  "remoteUser": "root",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "enableNonRootDocker": "true",
       "version": "latest"
     }
   },
-  "forwardPorts": [3000, 3001, 3004, 5173, 5432, 5672, 8000, 8001, 8002, 8010, 8877, 15672],
+  "forwardPorts": [
+    3000,
+    3001,
+    3004,
+    5173,
+    5432,
+    5672,
+    8000,
+    8001,
+    8002,
+    8010,
+    8877,
+    15672
+  ],
   "portsAttributes": {
     "3000": {
       "label": "API Gateway"
