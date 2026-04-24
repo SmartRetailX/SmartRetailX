@@ -1,7 +1,22 @@
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const { join } = require('path');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 module.exports = {
+  externals: {
+    '@prisma/client': 'commonjs @prisma/client',
+  },
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        enforce: "pre",
+        use: ["source-map-loader"],
+        exclude: [/node_modules/, /generated\/prisma/],
+      },
+    ],
+  },
   output: {
     path: join(__dirname, '../../dist/apps/core-service'),
     clean: true,
@@ -18,7 +33,7 @@ module.exports = {
       assets: ['./src/assets'],
       optimization: false,
       outputHashing: 'none',
-      generatePackageJson: true,
+      generatePackageJson: isProduction,
       sourceMaps: true,
     }),
   ],

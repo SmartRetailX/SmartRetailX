@@ -11,8 +11,8 @@ import { createBetterAuthInstance } from '../lib/better-auth';
  * Features:
  * - Global AuthGuard by default (use @AllowAnonymous for public routes)
  * - Session management via @Session decorator
- * - Automatic body parser and CORS handling
- * - Role-based access control with @Roles and @OrgRoles
+ * - Better Auth admin plugin with built-in admin/user roles
+ * - Email/Password authentication with session management
  */
 @Module({
   imports: [
@@ -24,12 +24,9 @@ import { createBetterAuthInstance } from '../lib/better-auth';
         const auth = createBetterAuthInstance(configService);
         return {
           auth,
-          // Keep the global auth guard enabled - all routes protected by default
           disableGlobalAuthGuard: false,
-          // Enable body parser and CORS handling
           disableBodyParser: false,
           disableTrustedOriginsCors: false,
-          // Disable raw body parser (not needed for our use case)
           enableRawBodyParser: false,
         };
       },

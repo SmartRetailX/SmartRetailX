@@ -247,13 +247,11 @@ export class VoiceProductService implements VoiceCapability {
     return rawMatches.map((raw) => {
       const nameLower = (raw.name || '').toLowerCase();
       const nameSiLower = (raw.nameSi || '').toLowerCase();
-      const baseLower = (raw.baseProduct || '').toLowerCase();
-      const baseSiLower = (raw.baseProductSi || '').toLowerCase();
       const catLower = (raw.category || '').toLowerCase();
-      const catSiLower = (raw.categorySi || '').toLowerCase();
+      const catSiLower = (raw.categoryNameSi || '').toLowerCase();
       const skuLower = (raw.sku || '').toLowerCase();
 
-      const searchable = [nameLower, nameSiLower, baseLower, baseSiLower, catLower, catSiLower, skuLower];
+      const searchable = [nameLower, nameSiLower, catLower, catSiLower, skuLower];
 
       const exactHit = nameLower === normalized || nameSiLower === normalized;
       const prefixHit = nameLower.startsWith(normalized) || nameSiLower.startsWith(normalized);
@@ -367,6 +365,6 @@ export class VoiceProductService implements VoiceCapability {
   }
 
   private getDisplayCategory(product: CatalogSearchRaw): string {
-    return (product.categorySi || product.category || 'N/A').trim() || 'N/A';
+    return (product.categoryNameSi || product.category || 'N/A').trim() || 'N/A';
   }
 }

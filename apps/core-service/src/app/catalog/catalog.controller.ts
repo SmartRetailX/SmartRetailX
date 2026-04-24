@@ -35,17 +35,21 @@ export class CatalogController {
     return this.catalogService.getProduct(data.productId);
   }
 
+  @MessagePattern({ cmd: 'catalog_translate_product_fields' })
+  async translateProductFields(data: { name?: string; description?: string }) {
+    return this.catalogService.previewProductTranslation(data || {});
+  }
+
   @MessagePattern({ cmd: 'catalog_create_product' })
   async createProduct(data: {
     sku: string;
     name: string;
     nameSi?: string;
-    baseProduct?: string;
-    baseProductSi?: string;
     description?: string;
     descriptionSi?: string;
-    category?: string;
-    categorySi?: string;
+    categoryId?: string;
+    categoryName?: string;
+    categoryNameSi?: string;
     price: number;
     stockQuantity: number;
     imageUrl?: string;
@@ -60,19 +64,52 @@ export class CatalogController {
     productId: string;
     name?: string;
     nameSi?: string;
-    baseProduct?: string;
-    baseProductSi?: string;
     description?: string;
     descriptionSi?: string;
-    category?: string;
-    categorySi?: string;
+    categoryId?: string;
+    categoryName?: string;
+    categoryNameSi?: string;
     price?: number;
     stockQuantity?: number;
     imageUrl?: string;
     isActive?: boolean;
+    createdBy?: string;
   }) {
     const { productId, ...input } = data;
     return this.catalogService.updateProduct(productId, input);
+  }
+
+  @MessagePattern({ cmd: 'catalog_adjust_stock' })
+  async adjustProductStock(data: {
+    productId: string;
+    quantityChange?: number;
+    balanceTo?: number;
+    note?: string;
+    createdBy?: string;
+  }) {
+    const { productId, ...input } = data;
+    return this.catalogService.adjustProductStock(productId, input);
+  }
+
+  @MessagePattern({ cmd: 'catalog_admin_categories' })
+  async listAdminCategories() {
+    return this.catalogService.listAdminCategories();
+  }
+
+  @MessagePattern({ cmd: 'catalog_create_category' })
+  async createCategory(data: { name: string; nameSi?: string }) {
+    return this.catalogService.createCategory(data);
+  }
+
+  @MessagePattern({ cmd: 'catalog_update_category' })
+  async updateCategory(data: { categoryId: string; name?: string; nameSi?: string }) {
+    const { categoryId, ...input } = data;
+    return this.catalogService.updateCategory(categoryId, input);
+  }
+
+  @MessagePattern({ cmd: 'catalog_delete_category' })
+  async deleteCategory(data: { categoryId: string }) {
+    return this.catalogService.deleteCategory(data.categoryId);
   }
 
   @MessagePattern({ cmd: 'catalog_delete_product' })

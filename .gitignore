@@ -40,10 +40,18 @@ Thumbs.db
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.*.local
 !.env.example
 !.env.*.example
+credentials.txt
+*.session.sql
+apps/**/.git/
+
+# Prisma generated clients
+apps/api-gateway/src/generated/prisma/
+apps/core-service/src/generated/prisma/
 
 .nx/cache
 .nx/workspace-data
@@ -80,6 +88,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
 venv/
 ENV/
 env/
@@ -127,3 +136,12 @@ evaluation/results/*.pdf
 !ASSISTANT_TEST_PLAN.md
 
 .copilotignore
+.codexignore
+
+# Script related files
+scripts/data-insert-scripts/merged-files/
+scripts/data-insert-scripts/push-file/
+scripts/data-insert-scripts/splitted-files/
+scripts/data-insert-scripts/all_products.json
+scripts/data-insert-scripts/prompt.txt
+!scripts/README.md

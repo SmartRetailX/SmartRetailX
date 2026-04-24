@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@smart-retail-x/config';
-
 import { CatalogController } from './catalog.controller';
+import { CatalogTranslationService } from './catalog-translation.service';
 import { CatalogService } from './catalog.service';
+import { InventoryService } from './inventory.service';
 
 @Module({
-  imports: [ConfigModule],
   controllers: [CatalogController],
-  providers: [CatalogService],
-  exports: [CatalogService],
+  providers: [CatalogService, InventoryService, CatalogTranslationService],
+  exports: [CatalogService, InventoryService, CatalogTranslationService],
 })
 export class CatalogModule {}

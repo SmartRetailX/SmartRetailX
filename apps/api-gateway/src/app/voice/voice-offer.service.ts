@@ -194,8 +194,8 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
             ELSE 'active'
           END::text AS "offerStatus"
         FROM pe_promotions p
-        LEFT JOIN public.products pr
-          ON p.product_id::text = COALESCE(NULLIF(btrim(pr.external_product_id), ''), pr.sku, pr.id::text)
+        LEFT JOIN core.products pr
+          ON p.product_id::text = COALESCE(pr.sku, pr.id::text)
         ORDER BY
           CASE
             WHEN (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)

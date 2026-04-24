@@ -1,0 +1,79 @@
+{
+  "name": "Smart RetailX",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/smart-retail-x",
+  "remoteUser": "root",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "enableNonRootDocker": "true",
+      "version": "latest"
+    }
+  },
+  "forwardPorts": [
+    3000,
+    3001,
+    3004,
+    5173,
+    5432,
+    5672,
+    8000,
+    8001,
+    8002,
+    8010,
+    8877,
+    15672
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "API Gateway"
+    },
+    "3001": {
+      "label": "BI Dashboard Gateway"
+    },
+    "3004": {
+      "label": "WebSocket Service"
+    },
+    "5173": {
+      "label": "Web App"
+    },
+    "8000": {
+      "label": "BI ML Service"
+    },
+    "8001": {
+      "label": "Promotion Engine"
+    },
+    "8002": {
+      "label": "Segmentation Service"
+    },
+    "8010": {
+      "label": "Agent Service"
+    },
+    "8877": {
+      "label": "Agent TCP"
+    },
+    "15672": {
+      "label": "RabbitMQ Explorer"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "nrwl.angular-console",
+        "Prisma.prisma",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "js/ts.tsdk.path": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

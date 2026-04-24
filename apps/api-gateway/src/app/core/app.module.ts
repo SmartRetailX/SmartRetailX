@@ -16,6 +16,10 @@ import { AssistantService } from './assistant/assistant.service';
       name: 'CORE_SERVICE',
       queueGetter: (config) => config.coreServiceQueue,
     }),
+    RabbitMQModule.register({
+      name: 'WEBSOCKET_SERVICE',
+      queueGetter: (config) => config.websocketServiceQueue,
+    }),
   ],
   controllers: [CoreController, AssistantController],
   providers: [CoreService, AssistantService],

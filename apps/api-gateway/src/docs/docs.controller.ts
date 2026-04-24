@@ -1,7 +1,6 @@
-import { Controller, Get, Req, Res } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { AllowAnonymous, AuthService } from '@thallesp/nestjs-better-auth';
-import type { Request, Response } from 'express';
 
 import type { Auth } from '../lib/better-auth';
 import { SwaggerDocumentService } from './swagger-document.service';
@@ -28,8 +27,7 @@ export class DocsController {
     const swaggerDoc = this.swaggerDocService.getDocument();
     const authSchema = await this.authService.api.generateOpenAPISchema();
 
-    // Prefix auth paths and fix tags
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Prefix auth paths and clean up schema
     const prefixedAuthPaths: Record<string, any> = {};
 
     for (const [path, pathItem] of Object.entries(authSchema.paths || {})) {
@@ -41,7 +39,6 @@ export class DocsController {
         const operation = pathItem[method];
         if (!operation) continue;
 
-        // Set correct tag
         if (operation.tags) {
           operation.tags = ['Authentication'];
         }
@@ -53,7 +50,6 @@ export class DocsController {
           optionalFields.forEach((field) => {
             delete schema.properties[field];
           });
-          // Also remove from required array if present
           if (Array.isArray(schema.required)) {
             schema.required = schema.required.filter((f: string) => !optionalFields.includes(f));
           }
@@ -91,35 +87,4 @@ export class DocsController {
     };
   }
 
-  /**
-   * Scalar API documentation page
-   */
-  @Get('docs')
-  async getDocs(@Req() req: Request, @Res() res: Response) {
-    const specUrl = `${req.protocol}://${req.get('host')}/api/openapi/combined.json`;
-
-    const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Smart RetailX API Documentation</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-  </head>
-  <body>
-    <script
-      id="api-reference"
-      data-url="${specUrl}"
-      data-theme="purple"
-      data-layout="modern"
-      data-show-sidebar="true"
-      data-search-hotkey="k"
-    ></script>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-  </body>
-</html>`.trim();
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  }
 }

@@ -59,23 +59,6 @@ export class ConfigService {
     return this.configService.get<number>('DATABASE_POOL_MAX', 10);
   }
 
-  // JWT Configuration
-  get jwtSecret(): string {
-    return this.configService.getOrThrow<string>('JWT_SECRET');
-  }
-
-  get jwtExpiresIn(): string {
-    return this.configService.get<string>('JWT_EXPIRES_IN', '15m');
-  }
-
-  get jwtRefreshSecret(): string {
-    return this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
-  }
-
-  get jwtRefreshExpiresIn(): string {
-    return this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
-  }
-
   // CORS Configuration
   get corsOrigin(): string {
     return this.configService.get<string>('CORS_ORIGIN', 'http://localhost:5173');
@@ -120,26 +103,16 @@ export class ConfigService {
     return this.configService.get<string>('BASE_URL');
   }
 
-  // Core Service Configuration
-  get coreServiceUrl(): string | undefined {
-    return this.configService.get<string>('CORE_SERVICE_URL');
+  get betterAuthSecret(): string {
+    return this.configService.getOrThrow<string>('BETTER_AUTH_SECRET');
   }
 
-  get coreServicePort(): number | undefined {
-    return this.configService.get<number>('CORE_SERVICE_PORT');
-  }
-
-  // Redis Configuration
-  get redisHost(): string | undefined {
-    return this.configService.get<string>('REDIS_HOST');
-  }
-
-  get redisPort(): number | undefined {
-    return this.configService.get<number>('REDIS_PORT');
-  }
-
-  get redisPassword(): string | undefined {
-    return this.configService.get<string>('REDIS_PASSWORD');
+  get betterAuthUrl(): string {
+    return (
+      this.configService.get<string>('BETTER_AUTH_URL') ||
+      this.baseUrl ||
+      `http://localhost:${this.port}`
+    );
   }
 
   /**

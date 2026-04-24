@@ -1,5 +1,19 @@
-import { Body, Controller, Delete, Get, Logger, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Logger,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { firstValueFrom, timeout } from 'rxjs';
 
 import { CoreService } from './app.service';
@@ -8,6 +22,12 @@ interface AuthenticatedRequest {
   user?: { id: string; email?: string; role?: string };
 }
 
+type GatewayResponse = {
+  success?: boolean;
+  data?: unknown;
+  message?: string;
+};
+
 @ApiTags('Core Service')
 @Controller('core')
 export class CoreController {
@@ -15,10 +35,30 @@ export class CoreController {
 
   constructor(private readonly coreService: CoreService) {}
 
-  /**
-   * Core service health check endpoint
-   * Returns the health status of the core microservice
-   */
+  private requireUser(req: AuthenticatedRequest) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    return req.user;
+  }
+
+  private requireAdmin(req: AuthenticatedRequest) {
+    const user = this.requireUser(req);
+
+    if (user.role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+
+    return user;
+  }
+
+  private isSuccessfulResponse(response: unknown): response is GatewayResponse {
+    return Boolean(
+      response && typeof response === 'object' && 'success' in response && (response as GatewayResponse).success,
+    );
+  }
+
   @Get('health')
   @ApiOperation({
     summary: 'Core service health check',
@@ -27,10 +67,7 @@ export class CoreController {
   @ApiResponse({ status: 200, description: 'Core service health status' })
   async getHealth() {
     try {
-      const health = await firstValueFrom(
-        this.coreService.getMicroserviceHealth().pipe(timeout(5000)),
-      );
-      return health;
+      return await firstValueFrom(this.coreService.getMicroserviceHealth().pipe(timeout(5000)));
     } catch (error) {
       this.logger.error('Failed to retrieve core service health', error.message);
       return {
@@ -41,6 +78,7 @@ export class CoreController {
   }
 
   @Get('products')
+  @AllowAnonymous()
   @ApiOperation({
     summary: 'Get catalog products',
     description: 'Returns paginated products from core-service catalog in shopping-friendly format',
@@ -94,7 +132,25 @@ export class CoreController {
     }
   }
 
+  @Get('products/:productId')
+  @AllowAnonymous()
+  @ApiOperation({
+    summary: 'Get product details',
+    description: 'Returns a single product from the core-service catalog',
+  })
+  @ApiParam({ name: 'productId', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Catalog product retrieved successfully' })
+  async getCatalogProduct(@Param('productId') productId: string) {
+    try {
+      return await firstValueFrom(this.coreService.getProduct(productId).pipe(timeout(8000)));
+    } catch (error) {
+      this.logger.error('Failed to retrieve catalog product', error.message);
+      return { success: false, message: error.message || 'Failed to retrieve catalog product' };
+    }
+  }
+
   @Get('categories')
+  @AllowAnonymous()
   @ApiOperation({
     summary: 'Get catalog categories',
     description: 'Returns category list from core-service catalog',
@@ -118,21 +174,14 @@ export class CoreController {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // CART ENDPOINTS
-  // ─────────────────────────────────────────────────────────────────────────────
-
   @Get('cart')
   @ApiOperation({ summary: 'Get current user cart' })
   @ApiResponse({ status: 200, description: 'Cart retrieved successfully' })
   async getCart(@Req() req: AuthenticatedRequest) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(this.coreService.getCart(userId).pipe(timeout(8000)));
+      return await firstValueFrom(this.coreService.getCart(user.id).pipe(timeout(8000)));
     } catch (error) {
       this.logger.error('Failed to get cart', error.message);
       return { success: false, message: error.message || 'Failed to get cart' };
@@ -156,15 +205,22 @@ export class CoreController {
     @Req() req: AuthenticatedRequest,
     @Body() body: { productId: string; quantity?: number },
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
-        this.coreService.addToCart(userId, body.productId, body.quantity ?? 1).pipe(timeout(8000)),
+      const response = await firstValueFrom(
+        this.coreService.addToCart(user.id, body.productId, body.quantity ?? 1).pipe(timeout(8000)),
       );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'cart.updated',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to add to cart', error.message);
       return { success: false, message: error.message || 'Failed to add to cart' };
@@ -189,15 +245,22 @@ export class CoreController {
     @Param('productId') productId: string,
     @Body() body: { quantity: number },
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
-        this.coreService.updateCartItem(userId, productId, body.quantity).pipe(timeout(8000)),
+      const response = await firstValueFrom(
+        this.coreService.updateCartItem(user.id, productId, body.quantity).pipe(timeout(8000)),
       );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'cart.updated',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to update cart item', error.message);
       return { success: false, message: error.message || 'Failed to update cart item' };
@@ -212,15 +275,20 @@ export class CoreController {
     @Req() req: AuthenticatedRequest,
     @Param('productId') productId: string,
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
-        this.coreService.removeFromCart(userId, productId).pipe(timeout(8000)),
-      );
+      const response = await firstValueFrom(this.coreService.removeFromCart(user.id, productId).pipe(timeout(8000)));
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'cart.updated',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to remove from cart', error.message);
       return { success: false, message: error.message || 'Failed to remove from cart' };
@@ -231,22 +299,25 @@ export class CoreController {
   @ApiOperation({ summary: 'Clear entire cart' })
   @ApiResponse({ status: 200, description: 'Cart cleared' })
   async clearCart(@Req() req: AuthenticatedRequest) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(this.coreService.clearCart(userId).pipe(timeout(8000)));
+      const response = await firstValueFrom(this.coreService.clearCart(user.id).pipe(timeout(8000)));
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'cart.updated',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to clear cart', error.message);
       return { success: false, message: error.message || 'Failed to clear cart' };
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ORDER ENDPOINTS (Customer)
-  // ─────────────────────────────────────────────────────────────────────────────
 
   @Post('orders')
   @ApiOperation({ summary: 'Create order from cart (checkout)' })
@@ -287,22 +358,34 @@ export class CoreController {
       notes?: string;
     },
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
+      const response = await firstValueFrom(
         this.coreService
           .createOrder({
-            userId,
+            userId: user.id,
             shippingAddress: body.shippingAddress,
             billingAddress: body.billingAddress,
             notes: body.notes,
           })
           .pipe(timeout(15000)),
       );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'order.created',
+          data: response,
+        });
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'cart.updated',
+          data: { success: true },
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to create order', error.message);
       return { success: false, message: error.message || 'Failed to create order' };
@@ -321,15 +404,12 @@ export class CoreController {
     @Query('limit') limit?: string,
     @Query('status') status?: string,
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
       return await firstValueFrom(
         this.coreService
-          .listOrders(userId, {
+          .listOrders(user.id, {
             page: page ? Number(page) : undefined,
             limit: limit ? Number(limit) : undefined,
             status,
@@ -354,15 +434,10 @@ export class CoreController {
     @Req() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
-        this.coreService.getOrder(userId, orderId).pipe(timeout(8000)),
-      );
+      return await firstValueFrom(this.coreService.getOrder(user.id, orderId).pipe(timeout(8000)));
     } catch (error) {
       this.logger.error('Failed to get order', error.message);
       return { success: false, message: error.message || 'Failed to get order' };
@@ -377,24 +452,25 @@ export class CoreController {
     @Req() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return { success: false, message: 'Unauthorized' };
-    }
+    const user = this.requireUser(req);
 
     try {
-      return await firstValueFrom(
-        this.coreService.cancelOrder(userId, orderId).pipe(timeout(8000)),
-      );
+      const response = await firstValueFrom(this.coreService.cancelOrder(user.id, orderId).pipe(timeout(8000)));
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: user.id,
+          event: 'order.cancelled',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to cancel order', error.message);
       return { success: false, message: error.message || 'Failed to cancel order' };
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ORDER ENDPOINTS (Admin)
-  // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('admin/orders')
   @ApiOperation({ summary: 'List all orders (admin)' })
@@ -404,11 +480,14 @@ export class CoreController {
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
   async listAllOrders(
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
+    this.requireAdmin(req);
+
     try {
       return await firstValueFrom(
         this.coreService
@@ -434,11 +513,11 @@ export class CoreController {
   @ApiOperation({ summary: 'Get order details (admin)' })
   @ApiParam({ name: 'orderId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Order retrieved successfully' })
-  async getOrderAdmin(@Param('orderId') orderId: string) {
+  async getOrderAdmin(@Req() req: AuthenticatedRequest, @Param('orderId') orderId: string) {
+    this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
-        this.coreService.getOrderAdmin(orderId).pipe(timeout(8000)),
-      );
+      return await firstValueFrom(this.coreService.getOrderAdmin(orderId).pipe(timeout(8000)));
     } catch (error) {
       this.logger.error('Failed to get order', error.message);
       return { success: false, message: error.message || 'Failed to get order' };
@@ -462,22 +541,40 @@ export class CoreController {
   })
   @ApiResponse({ status: 200, description: 'Order status updated' })
   async updateOrderStatus(
+    @Req() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
     @Body() body: { status: string },
   ) {
+    const adminUser = this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
+      const response = await firstValueFrom(
         this.coreService.updateOrderStatus(orderId, body.status).pipe(timeout(8000)),
       );
+
+      if (
+        this.isSuccessfulResponse(response) &&
+        response.data &&
+        typeof response.data === 'object' &&
+        'userId' in response.data
+      ) {
+        this.coreService.sendRealtimeEventToUser({
+          userId: String((response.data as { userId: string }).userId),
+          event: 'order.status.updated',
+          data: response,
+        });
+        this.coreService.broadcastRealtimeEvent({
+          event: 'admin.order.updated',
+          data: { orderId, status: body.status, updatedBy: adminUser.id },
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to update order status', error.message);
       return { success: false, message: error.message || 'Failed to update order status' };
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PRODUCT ENDPOINTS (Admin)
-  // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('admin/products')
   @ApiOperation({ summary: 'List all products including inactive (admin)' })
@@ -489,6 +586,7 @@ export class CoreController {
   @ApiQuery({ name: 'sortDir', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
   async listAllProducts(
+    @Req() req: AuthenticatedRequest,
     @Query('search') search?: string,
     @Query('category') category?: string,
     @Query('page') page?: string,
@@ -496,6 +594,8 @@ export class CoreController {
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
   ) {
+    this.requireAdmin(req);
+
     try {
       return await firstValueFrom(
         this.coreService
@@ -524,14 +624,38 @@ export class CoreController {
   @ApiOperation({ summary: 'Get product details (admin)' })
   @ApiParam({ name: 'productId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
-  async getProductAdmin(@Param('productId') productId: string) {
+  async getProductAdmin(@Req() req: AuthenticatedRequest, @Param('productId') productId: string) {
+    this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
-        this.coreService.getProduct(productId).pipe(timeout(8000)),
-      );
+      return await firstValueFrom(this.coreService.getProduct(productId).pipe(timeout(8000)));
     } catch (error) {
       this.logger.error('Failed to get product', error.message);
       return { success: false, message: error.message || 'Failed to get product' };
+    }
+  }
+
+  @Post('admin/products/translate')
+  @ApiOperation({ summary: 'Preview Sinhala translation for product fields (admin)' })
+  async translateProductFields(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { name?: string; description?: string },
+  ) {
+    this.requireAdmin(req);
+
+    try {
+      return await firstValueFrom(this.coreService.translateProductFields(body).pipe(timeout(15000)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to translate product fields';
+      this.logger.error('Failed to translate product fields', message);
+      return {
+        success: false,
+        message,
+        data: {
+          nameSi: null,
+          descriptionSi: null,
+        },
+      };
     }
   }
 
@@ -544,12 +668,11 @@ export class CoreController {
         sku: { type: 'string' },
         name: { type: 'string' },
         nameSi: { type: 'string' },
-        baseProduct: { type: 'string' },
-        baseProductSi: { type: 'string' },
         description: { type: 'string' },
         descriptionSi: { type: 'string' },
-        category: { type: 'string' },
-        categorySi: { type: 'string' },
+        categoryId: { type: 'string' },
+        categoryName: { type: 'string' },
+        categoryNameSi: { type: 'string' },
         price: { type: 'number' },
         stockQuantity: { type: 'number' },
         imageUrl: { type: 'string' },
@@ -565,24 +688,32 @@ export class CoreController {
       sku: string;
       name: string;
       nameSi?: string;
-      baseProduct?: string;
-      baseProductSi?: string;
       description?: string;
       descriptionSi?: string;
-      category?: string;
-      categorySi?: string;
+      categoryId?: string;
+      categoryName?: string;
+      categoryNameSi?: string;
       price: number;
       stockQuantity: number;
       imageUrl?: string;
       isActive?: boolean;
     },
   ) {
+    const adminUser = this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
-        this.coreService
-          .createProduct({ ...body, createdBy: req.user?.id })
-          .pipe(timeout(8000)),
+      const response = await firstValueFrom(
+        this.coreService.createProduct({ ...body, createdBy: adminUser.id }).pipe(timeout(8000)),
       );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.broadcastRealtimeEvent({
+          event: 'catalog.product.created',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to create product', error.message);
       return { success: false, message: error.message || 'Failed to create product' };
@@ -598,12 +729,11 @@ export class CoreController {
       properties: {
         name: { type: 'string' },
         nameSi: { type: 'string' },
-        baseProduct: { type: 'string' },
-        baseProductSi: { type: 'string' },
         description: { type: 'string' },
         descriptionSi: { type: 'string' },
-        category: { type: 'string' },
-        categorySi: { type: 'string' },
+        categoryId: { type: 'string' },
+        categoryName: { type: 'string' },
+        categoryNameSi: { type: 'string' },
         price: { type: 'number' },
         stockQuantity: { type: 'number' },
         imageUrl: { type: 'string' },
@@ -613,26 +743,37 @@ export class CoreController {
   })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
   async updateProduct(
+    @Req() req: AuthenticatedRequest,
     @Param('productId') productId: string,
     @Body() body: {
       name?: string;
       nameSi?: string;
-      baseProduct?: string;
-      baseProductSi?: string;
       description?: string;
       descriptionSi?: string;
-      category?: string;
-      categorySi?: string;
+      categoryId?: string;
+      categoryName?: string;
+      categoryNameSi?: string;
       price?: number;
       stockQuantity?: number;
       imageUrl?: string;
       isActive?: boolean;
     },
   ) {
+    const adminUser = this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
-        this.coreService.updateProduct(productId, body).pipe(timeout(8000)),
+      const response = await firstValueFrom(
+        this.coreService.updateProduct(productId, { ...body, createdBy: adminUser.id }).pipe(timeout(8000)),
       );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.broadcastRealtimeEvent({
+          event: 'catalog.product.updated',
+          data: response,
+        });
+      }
+
+      return response;
     } catch (error) {
       this.logger.error('Failed to update product', error.message);
       return { success: false, message: error.message || 'Failed to update product' };
@@ -643,14 +784,126 @@ export class CoreController {
   @ApiOperation({ summary: 'Delete product (admin)' })
   @ApiParam({ name: 'productId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
-  async deleteProduct(@Param('productId') productId: string) {
+  async deleteProduct(@Req() req: AuthenticatedRequest, @Param('productId') productId: string) {
+    this.requireAdmin(req);
+
     try {
-      return await firstValueFrom(
-        this.coreService.deleteProduct(productId).pipe(timeout(8000)),
-      );
+      const response = await firstValueFrom(this.coreService.deleteProduct(productId).pipe(timeout(8000)));
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.broadcastRealtimeEvent({
+          event: 'catalog.product.deleted',
+          data: { productId, ...response },
+        });
+      }
+
+      return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete product';
       this.logger.error('Failed to delete product', message);
+      return { success: false, message };
+    }
+  }
+
+  @Post('admin/products/:productId/stock-adjustments')
+  @ApiOperation({ summary: 'Adjust product stock (admin)' })
+  @ApiParam({ name: 'productId', type: 'string' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        quantityChange: { type: 'number' },
+        balanceTo: { type: 'number' },
+        note: { type: 'string' },
+      },
+    },
+  })
+  async adjustProductStock(
+    @Req() req: AuthenticatedRequest,
+    @Param('productId') productId: string,
+    @Body() body: { quantityChange?: number; balanceTo?: number; note?: string },
+  ) {
+    const adminUser = this.requireAdmin(req);
+
+    try {
+      const response = await firstValueFrom(
+        this.coreService.adjustProductStock(productId, { ...body, createdBy: adminUser.id }).pipe(timeout(8000)),
+      );
+
+      if (this.isSuccessfulResponse(response)) {
+        this.coreService.broadcastRealtimeEvent({
+          event: 'catalog.product.stock.updated',
+          data: response,
+        });
+      }
+
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to adjust product stock';
+      this.logger.error('Failed to adjust product stock', message);
+      return { success: false, message };
+    }
+  }
+
+  @Get('admin/categories')
+  @ApiOperation({ summary: 'List catalog categories (admin)' })
+  async listAdminCategories(@Req() req: AuthenticatedRequest) {
+    this.requireAdmin(req);
+
+    try {
+      return await firstValueFrom(this.coreService.listAdminCategories().pipe(timeout(8000)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to list categories';
+      this.logger.error('Failed to list categories', message);
+      return { success: false, message, data: { categories: [] } };
+    }
+  }
+
+  @Post('admin/categories')
+  @ApiOperation({ summary: 'Create category (admin)' })
+  async createCategory(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { name: string; nameSi?: string },
+  ) {
+    this.requireAdmin(req);
+
+    try {
+      return await firstValueFrom(this.coreService.createCategory(body).pipe(timeout(8000)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create category';
+      this.logger.error('Failed to create category', message);
+      return { success: false, message };
+    }
+  }
+
+  @Patch('admin/categories/:categoryId')
+  @ApiOperation({ summary: 'Update category (admin)' })
+  async updateCategory(
+    @Req() req: AuthenticatedRequest,
+    @Param('categoryId') categoryId: string,
+    @Body() body: { name?: string; nameSi?: string },
+  ) {
+    this.requireAdmin(req);
+
+    try {
+      return await firstValueFrom(this.coreService.updateCategory(categoryId, body).pipe(timeout(8000)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update category';
+      this.logger.error('Failed to update category', message);
+      return { success: false, message };
+    }
+  }
+
+  @Delete('admin/categories/:categoryId')
+  @ApiOperation({ summary: 'Delete category (admin)' })
+  async deleteCategory(@Req() req: AuthenticatedRequest, @Param('categoryId') categoryId: string) {
+    this.requireAdmin(req);
+
+    try {
+      return await firstValueFrom(this.coreService.deleteCategory(categoryId).pipe(timeout(8000)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete category';
+      this.logger.error('Failed to delete category', message);
       return { success: false, message };
     }
   }
