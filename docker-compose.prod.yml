@@ -1,0 +1,279 @@
+x-node-environment: &node-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+  DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-2}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-production-secret-minimum-32-chars}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  BASE_URL: ${BASE_URL:-http://localhost:3000}
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+  RABBITMQ_URI: ${RABBITMQ_URI:-amqp://smartretailx:smartretailx@rabbitmq:5672}
+  CORE_SERVICE_QUEUE: ${CORE_SERVICE_QUEUE:-core_queue}
+  BI_DASHBOARD_SERVICE_QUEUE: ${BI_DASHBOARD_SERVICE_QUEUE:-bi_dashboard_queue}
+  WEBSOCKET_SERVICE_QUEUE: ${WEBSOCKET_SERVICE_QUEUE:-websocket_queue}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx} -d ${POSTGRES_DB:-smartretailx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-smartretailx}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-smartretailx}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    image: smart-retail-x/api-gateway:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        NX_PROJECT: api-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *node-environment
+      AGENT_HTTP_TIMEOUT_MS: ${AGENT_HTTP_TIMEOUT_MS:-180000}
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      AGENT_TCP_HOST: ${AGENT_TCP_HOST:-agent-service}
+      AGENT_TCP_PORT: ${AGENT_TCP_PORT:-8877}
+      AGENT_TCP_TIMEOUT_MS: ${AGENT_TCP_TIMEOUT_MS:-10000}
+      AGENT_VOICE_TRANSPORT: ${AGENT_VOICE_TRANSPORT:-http-first}
+      API_GATEWAY_HOST: 0.0.0.0
+      API_GATEWAY_PORT: 3000
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
+      OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
+      PROMOTION_ENGINE_URL: ${PROMOTION_ENGINE_URL:-http://promotion-engine:8001}
+    ports:
+      - "${API_GATEWAY_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  core-service:
+    image: smart-retail-x/core-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        NX_PROJECT: core-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *node-environment
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+
+  bi-dashboard-services-gateway:
+    image: smart-retail-x/bi-dashboard-services-gateway:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        NX_PROJECT: bi-dashboard-services-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      bi-dashboard-ml-service:
+        condition: service_healthy
+    environment:
+      <<: *node-environment
+      BI_DASHBOARD_HTTP_MODE: ${BI_DASHBOARD_HTTP_MODE:-false}
+      BI_DASHBOARD_PORT: 3001
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
+    ports:
+      - "${BI_DASHBOARD_PORT:-3001}:3001"
+
+  websocket-service:
+    image: smart-retail-x/websocket-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        NX_PROJECT: websocket-service
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *node-environment
+      WEBSOCKET_SERVICE_PORT: 3004
+    ports:
+      - "${WEBSOCKET_SERVICE_PORT:-3004}:3004"
+
+  web:
+    image: smart-retail-x/web:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+  bi-dashboard-ml-service:
+    image: smart-retail-x/bi-dashboard-ml-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/python-fastapi.Dockerfile
+      args:
+        APP_DIR: apps/bi-dashboard-ml-service
+        APP_MODULE: main:app
+        APP_PORT: 8000
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+      ML_SERVICE_HOST: 0.0.0.0
+      ML_SERVICE_PORT: 8000
+    ports:
+      - "${ML_SERVICE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  promotion-engine:
+    image: smart-retail-x/promotion-engine:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/python-fastapi.Dockerfile
+      args:
+        APP_DIR: apps/personalized-promotion-engine-ml-service
+        APP_MODULE: api.main:app
+        APP_PORT: 8001
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+    ports:
+      - "${PROMOTION_ENGINE_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  segmentation-service:
+    image: smart-retail-x/segmentation-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/python-fastapi.Dockerfile
+      args:
+        APP_DIR: apps/segmentation-service
+        APP_MODULE: app.main:app
+        APP_PORT: 8002
+        APP_WORKDIR: /app/src
+        REQUIREMENTS_FILE: src/requirements.txt
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+    ports:
+      - "${SEGMENTATION_SERVICE_PORT:-8002}:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/docs || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  agent-service:
+    image: smart-retail-x/agent-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/python-fastapi.Dockerfile
+      args:
+        APP_DIR: apps/agent-service
+        APP_MODULE: main:app
+        APP_PORT: 8010
+    restart: unless-stopped
+    environment:
+      AGENT_HTTP_PORT: 8010
+      AGENT_TCP_HOST: 0.0.0.0
+      AGENT_TCP_PORT: 8877
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
+      OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
+    ports:
+      - "${AGENT_HTTP_PORT:-8010}:8010"
+      - "${AGENT_TCP_PORT:-8877}:8877"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8010/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  assistant-model:
+    image: smart-retail-x/assistant-model:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/assistant-model.Dockerfile
+    profiles:
+      - assistant-model
+    restart: unless-stopped
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    ports:
+      - "${ASSISTANT_MODEL_PORT:-7860}:7860"
+
+volumes:
+  postgres-data:
+  rabbitmq-data:

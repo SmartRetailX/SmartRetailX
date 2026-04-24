@@ -60,7 +60,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   async getOrCreateSession(userId: string): Promise<VoiceChatSessionDto> {
     const created = await this.pool.query<VoiceChatSessionRow>(
       `
-      INSERT INTO "agent_chat_session" ("id", "user_id", "agent_session_id")
+      INSERT INTO "auth"."agent_chat_session" ("id", "user_id", "agent_session_id")
       VALUES ($1, $2, $3)
       ON CONFLICT ("user_id")
       DO UPDATE SET "updated_at" = NOW()
@@ -88,7 +88,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     const query = await this.pool.query<VoiceChatMessageRow>(
       `
       SELECT "id", "role", "channel", "content", "transcription", "language", "created_at"
-      FROM "agent_chat_message"
+      FROM "auth"."agent_chat_message"
       WHERE "chat_session_id" = $1
       ORDER BY "created_at" ASC
       LIMIT $2
@@ -140,7 +140,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
       await client.query(
         `
-        UPDATE "agent_chat_session"
+        UPDATE "auth"."agent_chat_session"
         SET "updated_at" = NOW(), "last_message_at" = NOW()
         WHERE "id" = $1
         `,
@@ -170,7 +170,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     await client.query(
       `
-      INSERT INTO "agent_chat_message" (
+      INSERT INTO "auth"."agent_chat_message" (
         "id",
         "chat_session_id",
         "user_id",
@@ -209,9 +209,13 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
   private async ensureSchema(): Promise<void> {
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS "agent_chat_session" (
+      CREATE SCHEMA IF NOT EXISTS "auth";
+    `);
+
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS "auth"."agent_chat_session" (
         "id" TEXT PRIMARY KEY,
-        "user_id" TEXT NOT NULL UNIQUE REFERENCES "user"("id") ON DELETE CASCADE,
+        "user_id" TEXT NOT NULL UNIQUE REFERENCES "auth"."user"("id") ON DELETE CASCADE,
         "agent_session_id" TEXT NOT NULL,
         "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -220,10 +224,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS "agent_chat_message" (
+      CREATE TABLE IF NOT EXISTS "auth"."agent_chat_message" (
         "id" TEXT PRIMARY KEY,
-        "chat_session_id" TEXT NOT NULL REFERENCES "agent_chat_session"("id") ON DELETE CASCADE,
-        "user_id" TEXT NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+        "chat_session_id" TEXT NOT NULL REFERENCES "auth"."agent_chat_session"("id") ON DELETE CASCADE,
+        "user_id" TEXT NOT NULL REFERENCES "auth"."user"("id") ON DELETE CASCADE,
         "role" TEXT NOT NULL CHECK ("role" IN ('user', 'assistant')),
         "channel" TEXT NOT NULL CHECK ("channel" IN ('text', 'voice')),
         "content" TEXT NOT NULL,
@@ -235,11 +239,11 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS "idx_agent_chat_message_session_created"
-      ON "agent_chat_message" ("chat_session_id", "created_at");
+      ON "auth"."agent_chat_message" ("chat_session_id", "created_at");
     `);
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS "idx_agent_chat_message_user_created"
-      ON "agent_chat_message" ("user_id", "created_at");
+      ON "auth"."agent_chat_message" ("user_id", "created_at");
     `);
   }
 }

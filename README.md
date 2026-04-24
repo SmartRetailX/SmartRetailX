@@ -3,11 +3,11 @@
 **AI-powered e-commerce platform with microservices architecture**
 
 A modern, scalable e-commerce platform featuring AI voice assistance in Sinhala,
-built with NestJS microservices, React 19, and React Native.
+built with NestJS microservices, React 18, and React Native.
 
 [![Nx](https://img.shields.io/badge/Nx-Monorepo-143055?style=flat&logo=nx)](https://nx.dev)
 [![NestJS](https://img.shields.io/badge/NestJS-Microservices-E0234E?style=flat&logo=nestjs)](https://nestjs.com)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)](https://react.dev)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://react.dev)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Message%20Queue-FF6600?style=flat&logo=rabbitmq)](https://www.rabbitmq.com)
 
 ---
@@ -42,7 +42,7 @@ built with NestJS microservices, React 19, and React Native.
 - 🐰 **Event-Driven Architecture** - RabbitMQ message queue for scalability
 - 🌐 **Unified API Gateway** - Single HTTP entry point with integrated authentication
 - 📦 **Microservices** - Scalable, loosely-coupled architecture
-- 🎨 **Modern UI** - React 19 with TailwindCSS and shadcn/ui components
+- 🎨 **Modern UI** - React 18 with TailwindCSS and shadcn/ui components
 - 📱 **Mobile App** - Cross-platform Expo app for iOS, Android & Web
 - 🔒 **Type-Safe** - Full TypeScript with environment validation using Zod
 
@@ -53,7 +53,7 @@ built with NestJS microservices, React 19, and React Native.
 ```
 ┌──────────────┐         ┌──────────────┐
 │   Web Client │         │  Mobile App  │
-│   React 19   │         │   Expo/RN    │
+│   React 18   │         │   Expo/RN    │
 │  Port 5173   │         │ iOS/Android  │
 └──────┬───────┘         └──────┬───────┘
        │                        │
@@ -212,12 +212,10 @@ DATABASE_POOL_MIN=2
 DATABASE_POOL_MAX=10
 
 # ============================================
-# Authentication (JWT)
+# Authentication (Better Auth)
 # ============================================
-JWT_SECRET=change-me-to-a-secure-secret-minimum-32-characters-long
-JWT_REFRESH_SECRET=change-me-to-another-secure-secret-minimum-32-chars
-JWT_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
+BETTER_AUTH_SECRET=change-me-to-a-secure-secret-minimum-32-characters-long
+BETTER_AUTH_URL=http://localhost:3000
 
 # ============================================
 # CORS Configuration
@@ -265,18 +263,39 @@ pnpm dev:all
 | Health Check | http://localhost:3000/api/health |
 | RabbitMQ UI  | http://localhost:15672           |
 
+### Remote Container Development
+
+This repo includes a VS Code-compatible devcontainer in `.devcontainer/`.
+Opening the project in a remote container gives you Node.js, pnpm, Python,
+PostgreSQL, RabbitMQ, Docker CLI access, and the ports used by the services.
+
+```bash
+# Runs automatically when the devcontainer is created:
+pnpm install --frozen-lockfile
+pnpm exec prisma generate --schema libs/database/prisma/schema.prisma
+```
+
+The devcontainer starts PostgreSQL and RabbitMQ as sidecar containers. Run app
+services from the workspace container:
+
+```bash
+pnpm dev:backend
+pnpm dev:frontend
+pnpm biml:serve
+pnpm dev:ml
+```
+
 ---
 
 ## 🔧 Environment Configuration
 
 ### Required Variables
 
-| Variable             | Description                              | Example                                          |
-| -------------------- | ---------------------------------------- | ------------------------------------------------ |
-| `DATABASE_URL`       | PostgreSQL connection string             | `postgresql://user:pass@host/db?sslmode=require` |
-| `JWT_SECRET`         | Secret for signing JWT (min 32 chars)    | `your-super-secret-jwt-key-at-least-32-chars`    |
-| `JWT_REFRESH_SECRET` | Secret for refresh tokens (min 32 chars) | `your-refresh-secret-key-at-least-32-chars`      |
-| `RABBITMQ_URI`       | RabbitMQ connection URI                  | `amqp://guest:guest@localhost:5672`              |
+| Variable             | Description                                  | Example                                          |
+| -------------------- | -------------------------------------------- | ------------------------------------------------ |
+| `DATABASE_URL`       | PostgreSQL connection string                 | `postgresql://user:pass@host/db?sslmode=require` |
+| `BETTER_AUTH_SECRET` | Better Auth session secret (min 32 chars)    | `your-super-secret-key-at-least-32-chars`        |
+| `RABBITMQ_URI`       | RabbitMQ connection URI                      | `amqp://guest:guest@localhost:5672`              |
 
 ### Optional Variables (with defaults)
 
@@ -288,10 +307,10 @@ pnpm dev:all
 | `CORS_ORIGIN`             | `http://localhost:5173` | Allowed CORS origins                        |
 | `DATABASE_POOL_MIN`       | `2`                     | Min database connections                    |
 | `DATABASE_POOL_MAX`       | `10`                    | Max database connections                    |
-| `JWT_EXPIRES_IN`          | `15m`                   | JWT token expiry                            |
-| `JWT_REFRESH_EXPIRES_IN`  | `7d`                    | Refresh token expiry                        |
 | `LOG_LEVEL`               | `info`                  | Logging level                               |
-| `ASSISTANT_SERVICE_QUEUE` | `assistant_queue`       | RabbitMQ queue name                         |
+| `CORE_SERVICE_QUEUE`      | `core_queue`            | Core service RabbitMQ queue                 |
+| `BI_DASHBOARD_SERVICE_QUEUE` | `bi_dashboard_queue` | BI dashboard RabbitMQ queue                 |
+| `WEBSOCKET_SERVICE_QUEUE` | `websocket_queue`       | WebSocket service RabbitMQ queue            |
 
 ### Generating Secure Secrets
 
@@ -411,56 +430,35 @@ docker exec rabbitmq rabbitmqctl purge_queue assistant_queue
 
 ```
 smart-retail-x/
+├── .devcontainer/               # Remote container development workspace
+├── docker/                      # Reusable production Dockerfiles and Nginx config
 ├── apps/
 │   ├── api-gateway/              # Unified API Gateway (Port 3000)
 │   │   ├── migrations/           # Database migrations
 │   │   └── src/
 │   │       ├── app/              # App module & controllers
 │   │       ├── auth/             # Authentication module (Better Auth)
-│   │       ├── config/           # Type-safe configuration with Zod
 │   │       ├── lib/              # Better Auth instance setup
-│   │       └── main.ts           # HTTP + RabbitMQ hybrid server
+│   │       └── main.ts           # HTTP API server
 │   │
-│   ├── api-gateway-e2e/          # API Gateway E2E tests
-│   │
-│   ├── assistant-service/        # Voice AI Service (RabbitMQ only)
-│   │   └── src/
-│   │       ├── app/              # Message handlers
-│   │       └── main.ts           # Pure microservice (no HTTP)
-│   │
-│   ├── assistant-service-e2e/    # Assistant Service E2E tests
-│   │
-│   ├── personalized-promotion-engine-ml-service/  # AI Promotion Engine (Python/ML)
-│   │   ├── data/
-│   │   │   ├── raw/              # Generated datasets (CSV)
-│   │   │   └── processed/        # ML-ready features
-│   │   ├── data_generation/      # Dataset creation scripts
-│   │   ├── data_analysis/        # Feature engineering
-│   │   ├── models/               # ML models (Random Forest, CF, etc.)
-│   │   ├── evaluation/           # Model evaluation & metrics
-│   │   ├── campaign_outputs/     # Generated promotion campaigns
-│   │   └── notebooks/            # Jupyter analysis notebooks
-│   │
-│   ├── client/                   # React Web App (Port 5173)
-│   │   └── src/
-│   │       ├── lib/              # Auth client, utilities
-│   │       ├── components/       # UI components (shadcn/ui)
-│   │       ├── providers/        # Auth provider
-│   │       └── routes/           # Page components
-│   │
-│   ├── mobile-app/               # Mobile App (Expo/React Native)
-│   │   ├── src/
-│   │   │   ├── lib/              # Auth client, env config
-│   │   │   └── screens/          # Screen components
-│   │   ├── app.json              # Expo configuration
-│   │   └── eas.json              # EAS Build config
-│   │
-│   └── mobile-app-e2e/           # Mobile App E2E tests (Detox)
+│   ├── agent-service/            # FastAPI voice agent (HTTP + TCP)
+│   ├── bi-dashboard-services-gateway/     # BI NestJS gateway (HTTP + RabbitMQ)
+│   ├── bi-dashboard-ml-service/           # Forecasting/XAI FastAPI service
+│   ├── core-service/             # Catalog, cart, and order RabbitMQ service
+│   ├── personalized-promotion-engine-ml-service/  # Promotion ML FastAPI service
+│   ├── segmentation-service/     # Customer segmentation FastAPI service
+│   ├── web/                      # React web app (Port 5173)
+│   └── websocket-service/        # Socket.IO + RabbitMQ bridge
 │
 ├── libs/
-│   └── shared-types/             # Shared TypeScript types
+│   ├── config/                   # Shared NestJS environment validation
+│   ├── database/                 # Shared Prisma client/module
+│   ├── messaging/                # RabbitMQ helpers
+│   └── shared-types/             # Shared TypeScript contracts
 │
 ├── .env                          # Environment variables (root)
+├── .env.production.example       # Production compose environment template
+├── docker-compose.prod.yml       # Production deployment compose file
 ├── nx.json                       # Nx workspace configuration
 ├── package.json                  # Root package.json
 └── tsconfig.base.json            # Base TypeScript config
@@ -475,8 +473,16 @@ smart-retail-x/
 ```bash
 # Development
 pnpm dev:frontend       # Start web client only
-pnpm dev:backend        # Start api-gateway + assistant-service
+pnpm dev:backend        # Start API, core, BI, websocket, and agent services
 pnpm dev:all            # Start all services + web client
+pnpm biml:serve         # Start BI dashboard ML service
+pnpm dev:ml             # Start personalized promotion engine
+
+# Production Docker
+pnpm docker:prod:config # Validate production compose config
+pnpm docker:prod:build  # Build production images
+pnpm docker:prod:up     # Start production stack
+pnpm docker:prod:down   # Stop production stack
 
 # Mobile App
 pnpm mobile:start       # Start Expo dev server
@@ -539,40 +545,27 @@ nx prune-lockfile api-gateway                     # Generate pruned package.json
 nx copy-workspace-modules api-gateway             # Copy workspace modules
 ```
 
-### Assistant Service Commands
+### Agent Service Commands
 
 ```bash
 # Development
-nx serve assistant-service                        # Start in dev mode
-
-# Build
-nx build assistant-service                        # Production build
-
-# Code Quality
-nx lint assistant-service                         # Run ESLint
-nx lint assistant-service --fix                   # Lint and fix
-
-# Deployment
-nx prune assistant-service                        # Prune for deployment
+nx run agent-service:install                      # Create venv and install deps
+nx serve agent-service                            # Start FastAPI HTTP + TCP service
 ```
 
-### Client (Web) Commands
+### Web Commands
 
 ```bash
 # Development
-nx serve client                                   # Start dev server (port 5173)
-nx preview client                                 # Preview production build
+nx run web:dev                                    # Start dev server (port 5173)
+nx run web:preview                                # Preview production build
 
 # Build
-nx build client                                   # Production build
+nx build web                                      # Production build
 
 # Code Quality
-nx lint client                                    # Run ESLint
-nx lint:fix client                                # Lint and fix
-nx typecheck client                               # TypeScript type checking
-nx format client                                  # Format with Prettier
-nx format:check client                            # Check formatting
-nx check client                                   # Run all checks (typecheck + lint + format)
+nx lint web                                       # Run ESLint
+nx run web:typecheck                              # TypeScript type checking
 ```
 
 ### Mobile App Commands
@@ -611,19 +604,9 @@ nx lint shared-types                              # Run ESLint
 ### E2E Testing Commands
 
 ```bash
-# API Gateway E2E
-nx e2e api-gateway-e2e                            # Run E2E tests
-nx lint api-gateway-e2e                           # Lint E2E tests
-
-# Assistant Service E2E
-nx e2e assistant-service-e2e                      # Run E2E tests
-nx lint assistant-service-e2e                     # Lint E2E tests
-
-# Mobile App E2E (Detox)
-nx build mobile-app-e2e                           # Build for E2E
-nx test mobile-app-e2e                            # Run Detox tests
-nx start mobile-app-e2e                           # Start Detox server
-nx lint mobile-app-e2e                            # Lint E2E tests
+# BI Dashboard Services Gateway E2E
+nx e2e bi-dashboard-services-gateway-e2e          # Run E2E tests
+nx lint bi-dashboard-services-gateway-e2e         # Lint E2E tests
 ```
 
 ### Utility Commands
@@ -646,8 +629,8 @@ nx graph
 
 # Show project details
 nx show project api-gateway
-nx show project client
-nx show project mobile-app
+nx show project web
+nx show project core-service
 ```
 
 ---
@@ -693,9 +676,9 @@ AI-powered system that predicts customer purchase behavior and generates targete
 
 ### Web Client (Port 5173)
 
-React 19 web application with TanStack Router and shadcn/ui.
+React 18 web application with TanStack Router and shadcn/ui.
 
-**Technology:** React 19, TailwindCSS, shadcn/ui, TanStack Router, Rsbuild
+**Technology:** React 18, TailwindCSS, shadcn/ui, TanStack Router, Rsbuild
 
 ### Mobile App (Expo)
 
@@ -1095,22 +1078,46 @@ npx expo start --clear
 
 ## 🚀 Production Deployment
 
+### Docker Compose
+
+Production container configuration lives at the repo root and under `docker/`:
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.prod.yml config
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+Default services:
+
+- `web` - Nginx-served React build
+- `api-gateway`, `core-service`, `bi-dashboard-services-gateway`, `websocket-service`
+- `agent-service`, `bi-dashboard-ml-service`, `promotion-engine`, `segmentation-service`
+- `postgres`, `rabbitmq`
+
+Optional large model service:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile assistant-model up -d --build assistant-model
+```
+
 ### Environment Variables
 
 ```env
 NODE_ENV=production
 DATABASE_URL=postgresql://...
 RABBITMQ_URI=amqp://...
-JWT_SECRET=production-secret-minimum-32-characters
-JWT_REFRESH_SECRET=production-refresh-secret-minimum-32-chars
+BETTER_AUTH_SECRET=production-secret-minimum-32-characters
+BETTER_AUTH_URL=https://api.yourdomain.com
 CORS_ORIGIN=https://yourdomain.com
 API_GATEWAY_HOST=0.0.0.0
 BASE_URL=https://api.yourdomain.com
+PUBLIC_BASE_URL=https://api.yourdomain.com
 ```
 
 ### Security Checklist
 
-- [ ] Change all JWT secrets to strong random values
+- [ ] Change all Better Auth, PostgreSQL, and RabbitMQ secrets to strong random values
 - [ ] Use hosted PostgreSQL with SSL
 - [ ] Use hosted RabbitMQ with authentication
 - [ ] Set CORS_ORIGIN to specific domain (not \*)
@@ -1145,7 +1152,7 @@ BASE_URL=https://api.yourdomain.com
 
 ### Frontend
 
-- **React 19** - Web UI framework
+- **React 18** - Web UI framework
 - **React Native + Expo** - Mobile framework
 - **TanStack Router** - Web routing
 - **TailwindCSS** - Styling
@@ -1156,7 +1163,7 @@ BASE_URL=https://api.yourdomain.com
 
 - **Nx** - Monorepo management
 - **pnpm** - Package manager
-- **Docker** - RabbitMQ containerization
+- **Docker** - Development container and production deployment
 
 ---
 
@@ -1187,7 +1194,7 @@ BASE_URL=https://api.yourdomain.com
 - [ ] Product catalog microservice
 - [ ] Order management microservice
 - [ ] Payment gateway integration
-- [ ] Docker containerization
+- [x] Docker containerization
 - [ ] Kubernetes deployment
 - [ ] Monitoring (Prometheus, Grafana)
 
@@ -1200,7 +1207,7 @@ BASE_URL=https://api.yourdomain.com
 - [ ] RabbitMQ running (Docker or hosted)
 - [ ] PostgreSQL database created
 - [ ] Root `.env` file configured
-- [ ] Strong JWT secrets generated (32+ chars)
+- [ ] Strong Better Auth secret generated (32+ chars)
 - [ ] Database migrations executed
 - [ ] All backend services start without errors
 - [ ] Health check passes

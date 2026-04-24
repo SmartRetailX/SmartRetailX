@@ -8,6 +8,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
+COPY agent_service ./agent_service
 
 EXPOSE 8010 8877
 

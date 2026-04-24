@@ -1,6 +1,6 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@smart-retail-x/config';
-import { Pool } from 'pg';
+import { Injectable, Logger } from '@nestjs/common';
+import { OrderStatus as PrismaOrderStatus, Prisma } from '@prisma/client';
+import { PrismaService } from '@smart-retail-x/database';
 
 import { CartService } from '../cart/cart.service';
 
@@ -65,200 +65,118 @@ export type CreateOrderInput = {
 };
 
 @Injectable()
-export class OrderService implements OnModuleInit, OnModuleDestroy {
+export class OrderService {
   private readonly logger = new Logger(OrderService.name);
-  private readonly pool: Pool;
 
   constructor(
-    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
     private readonly cartService: CartService,
-  ) {
-    this.pool = new Pool({
-      connectionString: this.configService.databaseUrl,
-      min: this.configService.databasePoolMin,
-      max: this.configService.databasePoolMax,
-      connectionTimeoutMillis: 10_000,
-      idleTimeoutMillis: 30_000,
-      keepAlive: true,
-    });
-
-    this.pool.on('error', (error) => {
-      this.logger.error(`Order pool error: ${error.message}`);
-    });
-  }
-
-  async onModuleInit(): Promise<void> {
-    this.logger.log('Order service initialized');
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.pool.end();
-  }
+  ) {}
 
   async createOrder(input: CreateOrderInput): Promise<OrderResponse> {
-    const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
-
-      // Get user's cart
       const cartResponse = await this.cartService.getOrCreateCart(input.userId);
       if (!cartResponse.success || !cartResponse.data) {
-        throw new Error('Failed to get cart');
+        return { success: false, message: 'Failed to get cart' };
       }
 
       const cart = cartResponse.data;
       if (cart.items.length === 0) {
-        throw new Error('Cart is empty');
+        return { success: false, message: 'Cart is empty' };
       }
 
-      // Validate stock and calculate totals
-      let subtotal = 0;
+      // Validate stock
       for (const item of cart.items) {
         if (item.currentStock < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.productName}`);
+          return { success: false, message: `Insufficient stock for ${item.productName}` };
         }
-        subtotal += item.totalPrice;
       }
 
-      const discount = 0; // Can be extended for promo codes
-      const tax = 0; // Can be extended for tax calculation
+      const subtotal = cart.items.reduce((sum, i) => sum + i.totalPrice, 0);
+      const discount = 0;
+      const tax = 0;
       const total = subtotal - discount + tax;
-
-      // Generate order number
       const orderNumber = `ORD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // Create order
-      const orderResult = await client.query<{ id: string }>(
-        `INSERT INTO public.orders (
-          order_number, user_id, status, subtotal, discount, tax, total,
-          shipping_address, billing_address, notes
-        ) VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id`,
-        [
-          orderNumber,
-          input.userId,
-          subtotal,
-          discount,
-          tax,
-          total,
-          input.shippingAddress ? JSON.stringify(input.shippingAddress) : null,
-          input.billingAddress ? JSON.stringify(input.billingAddress) : null,
-          input.notes || null,
-        ],
-      );
+      const order = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.order.create({
+          data: {
+            orderNumber,
+            userId: input.userId,
+            status: PrismaOrderStatus.pending,
+            subtotal,
+            discount,
+            tax,
+            total,
+            shippingAddress: input.shippingAddress ? JSON.stringify(input.shippingAddress) : null,
+            billingAddress: input.billingAddress ? JSON.stringify(input.billingAddress) : null,
+            notes: input.notes ?? null,
+            items: {
+              create: cart.items.map((item) => ({
+                productId: item.productId,
+                productName: item.productName,
+                productNameSi: item.productNameSi ?? null,
+                productSku: item.sku,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.totalPrice,
+              })),
+            },
+          },
+          include: { items: true },
+        });
 
-      const orderId = orderResult.rows[0].id;
+        // Decrement stock for each item
+        for (const item of cart.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQuantity: { decrement: item.quantity } },
+          });
+        }
 
-      // Create order items and update stock
-      for (const item of cart.items) {
-        await client.query(
-          `INSERT INTO public.order_items (
-            order_id, product_id, product_name, product_name_si, product_sku,
-            quantity, unit_price, total_price
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            orderId,
-            item.productId,
-            item.productName,
-            item.productNameSi || null,
-            item.sku,
-            item.quantity,
-            item.unitPrice,
-            item.totalPrice,
-          ],
-        );
+        // Mark cart as converted
+        await tx.cart.update({
+          where: { id: cart.id },
+          data: { status: 'converted' },
+        });
 
-        // Decrease stock
-        await client.query(
-          `UPDATE public.products SET stock_quantity = COALESCE(stock_quantity, 0) - $2
-           WHERE id = $1`,
-          [item.productId, item.quantity],
-        );
-      }
+        return created;
+      });
 
-      // Mark cart as converted and clear items
-      await client.query(
-        `UPDATE public.carts SET status = 'converted', updated_at = NOW()
-         WHERE id = $1`,
-        [cart.id],
-      );
-
-      await client.query('COMMIT');
-
-      // Return the created order
-      return this.getOrder(input.userId, orderId);
+      return { success: true, data: this.toOrder(order) };
     } catch (error) {
-      await client.query('ROLLBACK');
-      this.logger.error(`Failed to create order: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to create order' };
-    } finally {
-      client.release();
+      this.logger.error(`Failed to create order: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message || 'Failed to create order' };
     }
   }
 
   async getOrder(userId: string, orderId: string): Promise<OrderResponse> {
     try {
-      const orderResult = await this.pool.query<{
-        id: string;
-        order_number: string;
-        user_id: string;
-        status: OrderStatus;
-        subtotal: number;
-        discount: number;
-        tax: number;
-        total: number;
-        shipping_address: Record<string, string> | null;
-        billing_address: Record<string, string> | null;
-        notes: string | null;
-        created_at: Date;
-        updated_at: Date;
-      }>(
-        `SELECT * FROM public.orders WHERE id = $1 AND user_id = $2`,
-        [orderId, userId],
-      );
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId, userId },
+        include: { items: { orderBy: { createdAt: 'asc' } } },
+      });
 
-      if (orderResult.rows.length === 0) {
-        return { success: false, message: 'Order not found' };
-      }
-
-      const order = await this.buildOrderResponse(orderResult.rows[0]);
-      return { success: true, data: order };
+      if (!order) return { success: false, message: 'Order not found' };
+      return { success: true, data: this.toOrder(order) };
     } catch (error) {
-      this.logger.error(`Failed to get order: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to get order' };
+      this.logger.error(`Failed to get order: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message || 'Failed to get order' };
     }
   }
 
   async getOrderByNumber(userId: string, orderNumber: string): Promise<OrderResponse> {
     try {
-      const orderResult = await this.pool.query<{
-        id: string;
-        order_number: string;
-        user_id: string;
-        status: OrderStatus;
-        subtotal: number;
-        discount: number;
-        tax: number;
-        total: number;
-        shipping_address: Record<string, string> | null;
-        billing_address: Record<string, string> | null;
-        notes: string | null;
-        created_at: Date;
-        updated_at: Date;
-      }>(
-        `SELECT * FROM public.orders WHERE order_number = $1 AND user_id = $2`,
-        [orderNumber, userId],
-      );
+      const order = await this.prisma.order.findFirst({
+        where: { orderNumber, userId },
+        include: { items: { orderBy: { createdAt: 'asc' } } },
+      });
 
-      if (orderResult.rows.length === 0) {
-        return { success: false, message: 'Order not found' };
-      }
-
-      const order = await this.buildOrderResponse(orderResult.rows[0]);
-      return { success: true, data: order };
+      if (!order) return { success: false, message: 'Order not found' };
+      return { success: true, data: this.toOrder(order) };
     } catch (error) {
-      this.logger.error(`Failed to get order: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to get order' };
+      this.logger.error(`Failed to get order: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message || 'Failed to get order' };
     }
   }
 
@@ -268,150 +186,82 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
   ): Promise<OrderListResponse> {
     try {
       const safePage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
-      const safeLimit = Number.isFinite(params.limit)
-        ? Math.max(1, Math.min(Math.floor(params.limit!), 50))
-        : 10;
+      const safeLimit = Number.isFinite(params.limit) ? Math.max(1, Math.min(Math.floor(params.limit!), 50)) : 10;
 
-      const whereParts: string[] = ['user_id = $1'];
-      const values: (string | number)[] = [userId];
+      const where = {
+        userId,
+        ...(params.status ? { status: params.status as PrismaOrderStatus } : {}),
+      };
 
-      if (params.status) {
-        values.push(params.status);
-        whereParts.push(`status = $${values.length}`);
-      }
-
-      const whereClause = whereParts.join(' AND ');
-
-      const countResult = await this.pool.query<{ total: number }>(
-        `SELECT count(*)::int AS total FROM public.orders WHERE ${whereClause}`,
-        values,
-      );
-
-      const total = Number(countResult.rows[0]?.total || 0);
-      const totalPages = total > 0 ? Math.ceil(total / safeLimit) : 0;
-      const offset = (safePage - 1) * safeLimit;
-
-      const ordersResult = await this.pool.query<{
-        id: string;
-        order_number: string;
-        user_id: string;
-        status: OrderStatus;
-        subtotal: number;
-        discount: number;
-        tax: number;
-        total: number;
-        created_at: Date;
-        updated_at: Date;
-        item_count: number;
-      }>(
-        `SELECT o.*, 
-          (SELECT COALESCE(SUM(quantity), 0)::int FROM public.order_items WHERE order_id = o.id) as item_count
-         FROM public.orders o
-         WHERE ${whereClause}
-         ORDER BY o.created_at DESC
-         LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-        [...values, safeLimit, offset],
-      );
-
-      const orders: OrderListItem[] = ordersResult.rows.map((row) => ({
-        id: row.id,
-        orderNumber: row.order_number,
-        userId: row.user_id,
-        status: row.status,
-        itemCount: row.item_count,
-        subtotal: Number(row.subtotal),
-        discount: Number(row.discount),
-        tax: Number(row.tax),
-        total: Number(row.total),
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
-      }));
+      const [total, rows] = await Promise.all([
+        this.prisma.order.count({ where }),
+        this.prisma.order.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (safePage - 1) * safeLimit,
+          take: safeLimit,
+          include: { items: { select: { quantity: true } } },
+        }),
+      ]);
 
       return {
         success: true,
         data: {
-          orders,
+          orders: rows.map((o) => this.toOrderListItem(o)),
           pagination: {
             page: safePage,
             limit: safeLimit,
             total,
-            totalPages,
+            totalPages: total > 0 ? Math.ceil(total / safeLimit) : 0,
           },
         },
       };
     } catch (error) {
-      this.logger.error(`Failed to list orders: ${error.message}`);
+      this.logger.error(`Failed to list orders: ${(error as Error).message}`);
       return {
         success: true,
-        data: {
-          orders: [],
-          pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
-        },
+        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
       };
     }
   }
 
   async cancelOrder(userId: string, orderId: string): Promise<OrderResponse> {
-    const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      const result = await this.prisma.$transaction(async (tx) => {
+        const order = await tx.order.findFirst({
+          where: { id: orderId, userId },
+          include: { items: { select: { productId: true, quantity: true } } },
+        });
 
-      // Get order
-      const orderResult = await client.query<{
-        id: string;
-        status: OrderStatus;
-      }>(
-        `SELECT id, status FROM public.orders WHERE id = $1 AND user_id = $2`,
-        [orderId, userId],
-      );
+        if (!order) throw new Error('Order not found');
+        if (order.status !== PrismaOrderStatus.pending && order.status !== PrismaOrderStatus.confirmed) {
+          throw new Error('Cannot cancel order in current status');
+        }
 
-      if (orderResult.rows.length === 0) {
-        throw new Error('Order not found');
-      }
+        // Restore stock
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQuantity: { increment: item.quantity } },
+          });
+        }
 
-      const order = orderResult.rows[0];
-      if (order.status !== 'pending' && order.status !== 'confirmed') {
-        throw new Error('Cannot cancel order in current status');
-      }
+        return tx.order.update({
+          where: { id: orderId },
+          data: { status: PrismaOrderStatus.cancelled },
+          include: { items: { orderBy: { createdAt: 'asc' } } },
+        });
+      });
 
-      // Get order items to restore stock
-      const itemsResult = await client.query<{
-        product_id: string;
-        quantity: number;
-      }>(
-        `SELECT product_id, quantity FROM public.order_items WHERE order_id = $1`,
-        [orderId],
-      );
-
-      // Restore stock
-      for (const item of itemsResult.rows) {
-        await client.query(
-          `UPDATE public.products SET stock_quantity = COALESCE(stock_quantity, 0) + $2
-           WHERE id = $1`,
-          [item.product_id, item.quantity],
-        );
-      }
-
-      // Update order status
-      await client.query(
-        `UPDATE public.orders SET status = 'cancelled', updated_at = NOW()
-         WHERE id = $1`,
-        [orderId],
-      );
-
-      await client.query('COMMIT');
-
-      return this.getOrder(userId, orderId);
+      return { success: true, data: this.toOrder(result) };
     } catch (error) {
-      await client.query('ROLLBACK');
-      this.logger.error(`Failed to cancel order: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to cancel order' };
-    } finally {
-      client.release();
+      this.logger.error(`Failed to cancel order: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message || 'Failed to cancel order' };
     }
   }
 
-  // Admin methods
+  // ── Admin ────────────────────────────────────────────────────────────────
+
   async listAllOrders(params: {
     page?: number;
     limit?: number;
@@ -420,207 +270,167 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
   }): Promise<OrderListResponse> {
     try {
       const safePage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
-      const safeLimit = Number.isFinite(params.limit)
-        ? Math.max(1, Math.min(Math.floor(params.limit!), 50))
-        : 10;
+      const safeLimit = Number.isFinite(params.limit) ? Math.max(1, Math.min(Math.floor(params.limit!), 50)) : 10;
 
-      const whereParts: string[] = [];
-      const values: (string | number)[] = [];
-
-      if (params.status) {
-        values.push(params.status);
-        whereParts.push(`status = $${values.length}`);
-      }
-
+      const where: Parameters<typeof this.prisma.order.findMany>[0]['where'] = {};
+      if (params.status) where.status = params.status as PrismaOrderStatus;
       if (params.search) {
-        values.push(`%${params.search}%`);
-        const searchIdx = values.length;
-        whereParts.push(`(order_number ILIKE $${searchIdx} OR user_id ILIKE $${searchIdx})`);
+        where.OR = [
+          { orderNumber: { contains: params.search, mode: 'insensitive' } },
+          { userId: { contains: params.search, mode: 'insensitive' } },
+        ];
       }
 
-      const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
-
-      const countResult = await this.pool.query<{ total: number }>(
-        `SELECT count(*)::int AS total FROM public.orders ${whereClause}`,
-        values,
-      );
-
-      const total = Number(countResult.rows[0]?.total || 0);
-      const totalPages = total > 0 ? Math.ceil(total / safeLimit) : 0;
-      const offset = (safePage - 1) * safeLimit;
-
-      const ordersResult = await this.pool.query<{
-        id: string;
-        order_number: string;
-        user_id: string;
-        status: OrderStatus;
-        subtotal: number;
-        discount: number;
-        tax: number;
-        total: number;
-        created_at: Date;
-        updated_at: Date;
-        item_count: number;
-      }>(
-        `SELECT o.*, 
-          (SELECT COALESCE(SUM(quantity), 0)::int FROM public.order_items WHERE order_id = o.id) as item_count
-         FROM public.orders o
-         ${whereClause}
-         ORDER BY o.created_at DESC
-         LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-        [...values, safeLimit, offset],
-      );
-
-      const orders: OrderListItem[] = ordersResult.rows.map((row) => ({
-        id: row.id,
-        orderNumber: row.order_number,
-        userId: row.user_id,
-        status: row.status,
-        itemCount: row.item_count,
-        subtotal: Number(row.subtotal),
-        discount: Number(row.discount),
-        tax: Number(row.tax),
-        total: Number(row.total),
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
-      }));
+      const [total, rows] = await Promise.all([
+        this.prisma.order.count({ where }),
+        this.prisma.order.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (safePage - 1) * safeLimit,
+          take: safeLimit,
+          include: { items: { select: { quantity: true } } },
+        }),
+      ]);
 
       return {
         success: true,
         data: {
-          orders,
+          orders: rows.map((o) => this.toOrderListItem(o)),
           pagination: {
             page: safePage,
             limit: safeLimit,
             total,
-            totalPages,
+            totalPages: total > 0 ? Math.ceil(total / safeLimit) : 0,
           },
         },
       };
     } catch (error) {
-      this.logger.error(`Failed to list all orders: ${error.message}`);
+      this.logger.error(`Failed to list all orders: ${(error as Error).message}`);
       return {
         success: true,
-        data: {
-          orders: [],
-          pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
-        },
+        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
       };
     }
   }
 
   async updateOrderStatus(orderId: string, status: OrderStatus): Promise<OrderResponse> {
     try {
-      const orderResult = await this.pool.query<{ user_id: string }>(
-        `UPDATE public.orders SET status = $2, updated_at = NOW()
-         WHERE id = $1 RETURNING user_id`,
-        [orderId, status],
-      );
+      const order = await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: status as PrismaOrderStatus },
+        include: { items: { orderBy: { createdAt: 'asc' } } },
+      });
 
-      if (orderResult.rows.length === 0) {
-        return { success: false, message: 'Order not found' };
-      }
-
-      return this.getOrder(orderResult.rows[0].user_id, orderId);
+      return { success: true, data: this.toOrder(order) };
     } catch (error) {
-      this.logger.error(`Failed to update order status: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to update order status' };
+      const err = error as { code?: string; message?: string };
+      this.logger.error(`Failed to update order status: ${err.message}`);
+      if (err.code === 'P2025') return { success: false, message: 'Order not found' };
+      return { success: false, message: err.message || 'Failed to update order status' };
     }
   }
 
   async getOrderAdmin(orderId: string): Promise<OrderResponse> {
     try {
-      const orderResult = await this.pool.query<{
-        id: string;
-        order_number: string;
-        user_id: string;
-        status: OrderStatus;
-        subtotal: number;
-        discount: number;
-        tax: number;
-        total: number;
-        shipping_address: Record<string, string> | null;
-        billing_address: Record<string, string> | null;
-        notes: string | null;
-        created_at: Date;
-        updated_at: Date;
-      }>(
-        `SELECT * FROM public.orders WHERE id = $1`,
-        [orderId],
-      );
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: { orderBy: { createdAt: 'asc' } } },
+      });
 
-      if (orderResult.rows.length === 0) {
-        return { success: false, message: 'Order not found' };
-      }
-
-      const order = await this.buildOrderResponse(orderResult.rows[0]);
-      return { success: true, data: order };
+      if (!order) return { success: false, message: 'Order not found' };
+      return { success: true, data: this.toOrder(order) };
     } catch (error) {
-      this.logger.error(`Failed to get order: ${error.message}`);
-      return { success: false, message: error.message || 'Failed to get order' };
+      this.logger.error(`Failed to get order: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message || 'Failed to get order' };
     }
   }
 
-  private async buildOrderResponse(orderRow: {
-    id: string;
-    order_number: string;
-    user_id: string;
-    status: OrderStatus;
-    subtotal: number;
-    discount: number;
-    tax: number;
-    total: number;
-    shipping_address: Record<string, string> | null;
-    billing_address: Record<string, string> | null;
-    notes: string | null;
-    created_at: Date;
-    updated_at: Date;
-  }): Promise<Order> {
-    const itemsResult = await this.pool.query<{
-      id: string;
-      product_id: string;
-      product_name: string;
-      product_name_si: string | null;
-      product_sku: string;
-      quantity: number;
-      unit_price: number;
-      total_price: number;
-    }>(
-      `SELECT id, product_id, product_name, product_name_si, product_sku, quantity, unit_price, total_price
-       FROM public.order_items WHERE order_id = $1 ORDER BY created_at ASC`,
-      [orderRow.id],
-    );
+  // ── Mappers ──────────────────────────────────────────────────────────────
 
-    const items: OrderItem[] = itemsResult.rows.map((row) => ({
-      id: row.id,
-      productId: row.product_id,
-      productName: row.product_name,
-      productNameSi: row.product_name_si,
-      productSku: row.product_sku || '',
-      quantity: row.quantity,
-      unitPrice: Number(row.unit_price),
-      totalPrice: Number(row.total_price),
+  private toOrder(
+    row: {
+      id: string;
+      orderNumber: string;
+      userId: string;
+      status: PrismaOrderStatus;
+      subtotal: Prisma.Decimal;
+      discount: Prisma.Decimal;
+      tax: Prisma.Decimal;
+      total: Prisma.Decimal;
+      shippingAddress: string | null;
+      billingAddress: string | null;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      items: Array<{
+        id: string;
+        productId: string;
+        productName: string;
+        productNameSi: string | null;
+        productSku: string;
+        quantity: number;
+        unitPrice: Prisma.Decimal;
+        totalPrice: Prisma.Decimal;
+      }>;
+    },
+  ): Order {
+    const items: OrderItem[] = row.items.map((i) => ({
+      id: i.id,
+      productId: i.productId,
+      productName: i.productName,
+      productNameSi: i.productNameSi,
+      productSku: i.productSku,
+      quantity: i.quantity,
+      unitPrice: Number(i.unitPrice),
+      totalPrice: Number(i.totalPrice),
     }));
 
-    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
     return {
-      id: orderRow.id,
-      orderNumber: orderRow.order_number,
-      userId: orderRow.user_id,
-      status: orderRow.status,
+      id: row.id,
+      orderNumber: row.orderNumber,
+      userId: row.userId,
+      status: row.status as OrderStatus,
       items,
-      itemCount,
-      subtotal: Number(orderRow.subtotal),
-      discount: Number(orderRow.discount),
-      tax: Number(orderRow.tax),
-      total: Number(orderRow.total),
-      shippingAddress: orderRow.shipping_address,
-      billingAddress: orderRow.billing_address,
-      notes: orderRow.notes,
-      createdAt: orderRow.created_at.toISOString(),
-      updatedAt: orderRow.updated_at.toISOString(),
+      itemCount: items.reduce((s, i) => s + i.quantity, 0),
+      subtotal: Number(row.subtotal),
+      discount: Number(row.discount),
+      tax: Number(row.tax),
+      total: Number(row.total),
+      shippingAddress: row.shippingAddress ? (JSON.parse(row.shippingAddress) as Record<string, string>) : null,
+      billingAddress: row.billingAddress ? (JSON.parse(row.billingAddress) as Record<string, string>) : null,
+      notes: row.notes,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     };
   }
 
+  private toOrderListItem(
+    row: {
+      id: string;
+      orderNumber: string;
+      userId: string;
+      status: PrismaOrderStatus;
+      subtotal: Prisma.Decimal;
+      discount: Prisma.Decimal;
+      tax: Prisma.Decimal;
+      total: Prisma.Decimal;
+      createdAt: Date;
+      updatedAt: Date;
+      items: Array<{ quantity: number }>;
+    },
+  ): OrderListItem {
+    return {
+      id: row.id,
+      orderNumber: row.orderNumber,
+      userId: row.userId,
+      status: row.status as OrderStatus,
+      itemCount: row.items.reduce((s, i) => s + i.quantity, 0),
+      subtotal: Number(row.subtotal),
+      discount: Number(row.discount),
+      tax: Number(row.tax),
+      total: Number(row.total),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
 }

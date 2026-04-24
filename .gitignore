@@ -40,13 +40,18 @@ Thumbs.db
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.*.local
 !.env.example
 !.env.*.example
+credentials.txt
+*.session.sql
+apps/**/.git/
 
 # Prisma generated clients
 apps/api-gateway/src/generated/prisma/
+apps/core-service/src/generated/prisma/
 
 .nx/cache
 .nx/workspace-data
