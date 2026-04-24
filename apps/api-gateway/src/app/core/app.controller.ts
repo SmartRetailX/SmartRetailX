@@ -55,8 +55,44 @@ export class CoreController {
 
   private isSuccessfulResponse(response: unknown): response is GatewayResponse {
     return Boolean(
-      response && typeof response === 'object' && 'success' in response && (response as GatewayResponse).success,
+      response &&
+        typeof response === 'object' &&
+        'success' in response &&
+        (response as GatewayResponse).success,
     );
+  }
+
+  private parsePaginationQuery(
+    page: string | undefined,
+    limit: string | undefined,
+    offset: string | undefined,
+    defaultLimit: number,
+    maxLimit: number,
+  ) {
+    const parsedLimit = Number(limit);
+    const safeLimit = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(Math.floor(parsedLimit), maxLimit))
+      : defaultLimit;
+
+    const parsedOffset = Number(offset);
+    if (Number.isFinite(parsedOffset) && parsedOffset >= 0) {
+      const safeOffset = Math.floor(parsedOffset);
+
+      return {
+        page: Math.floor(safeOffset / safeLimit) + 1,
+        limit: safeLimit,
+        offset: safeOffset,
+      };
+    }
+
+    const parsedPage = Number(page);
+    const safePage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+
+    return {
+      page: safePage,
+      limit: safeLimit,
+      offset: (safePage - 1) * safeLimit,
+    };
   }
 
   @Get('health')
@@ -87,6 +123,7 @@ export class CoreController {
   @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'sortBy', required: false, type: String, example: 'name' })
   @ApiQuery({ name: 'sortDir', required: false, type: String, example: 'asc' })
   @ApiResponse({ status: 200, description: 'Catalog products retrieved successfully' })
@@ -95,11 +132,11 @@ export class CoreController {
     @Query('category') category?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
   ) {
-    const parsedPage = Number.isFinite(Number(page)) ? Number(page) : 1;
-    const parsedLimit = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+    const pagination = this.parsePaginationQuery(page, limit, offset, 20, 100);
 
     try {
       return await firstValueFrom(
@@ -107,8 +144,7 @@ export class CoreController {
           .getCatalogProducts({
             search,
             category,
-            page: parsedPage,
-            limit: parsedLimit,
+            ...pagination,
             sortBy,
             sortDir,
           })
@@ -122,8 +158,9 @@ export class CoreController {
         data: {
           products: [],
           pagination: {
-            page: parsedPage,
-            limit: parsedLimit,
+            page: pagination.page,
+            limit: pagination.limit,
+            offset: pagination.offset,
             total: 0,
             totalPages: 0,
           },
@@ -161,7 +198,9 @@ export class CoreController {
     const parsedLimit = Number.isFinite(Number(limit)) ? Number(limit) : 200;
 
     try {
-      return await firstValueFrom(this.coreService.getCatalogCategories(parsedLimit).pipe(timeout(8000)));
+      return await firstValueFrom(
+        this.coreService.getCatalogCategories(parsedLimit).pipe(timeout(8000)),
+      );
     } catch (error) {
       this.logger.error('Failed to retrieve catalog categories', error.message);
       return {
@@ -271,14 +310,13 @@ export class CoreController {
   @ApiOperation({ summary: 'Remove item from cart' })
   @ApiParam({ name: 'productId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Item removed from cart' })
-  async removeFromCart(
-    @Req() req: AuthenticatedRequest,
-    @Param('productId') productId: string,
-  ) {
+  async removeFromCart(@Req() req: AuthenticatedRequest, @Param('productId') productId: string) {
     const user = this.requireUser(req);
 
     try {
-      const response = await firstValueFrom(this.coreService.removeFromCart(user.id, productId).pipe(timeout(8000)));
+      const response = await firstValueFrom(
+        this.coreService.removeFromCart(user.id, productId).pipe(timeout(8000)),
+      );
 
       if (this.isSuccessfulResponse(response)) {
         this.coreService.sendRealtimeEventToUser({
@@ -302,7 +340,9 @@ export class CoreController {
     const user = this.requireUser(req);
 
     try {
-      const response = await firstValueFrom(this.coreService.clearCart(user.id).pipe(timeout(8000)));
+      const response = await firstValueFrom(
+        this.coreService.clearCart(user.id).pipe(timeout(8000)),
+      );
 
       if (this.isSuccessfulResponse(response)) {
         this.coreService.sendRealtimeEventToUser({
@@ -352,7 +392,8 @@ export class CoreController {
   @ApiResponse({ status: 200, description: 'Order created successfully' })
   async createOrder(
     @Req() req: AuthenticatedRequest,
-    @Body() body: {
+    @Body()
+    body: {
       shippingAddress?: Record<string, string>;
       billingAddress?: Record<string, string>;
       notes?: string;
@@ -396,22 +437,24 @@ export class CoreController {
   @ApiOperation({ summary: 'List user orders' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
   async listOrders(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
     @Query('status') status?: string,
   ) {
     const user = this.requireUser(req);
+    const pagination = this.parsePaginationQuery(page, limit, offset, 10, 50);
 
     try {
       return await firstValueFrom(
         this.coreService
           .listOrders(user.id, {
-            page: page ? Number(page) : undefined,
-            limit: limit ? Number(limit) : undefined,
+            ...pagination,
             status,
           })
           .pipe(timeout(8000)),
@@ -421,7 +464,7 @@ export class CoreController {
       return {
         success: false,
         message: error.message || 'Failed to list orders',
-        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
+        data: { orders: [], pagination: { ...pagination, total: 0, totalPages: 0 } },
       };
     }
   }
@@ -430,10 +473,7 @@ export class CoreController {
   @ApiOperation({ summary: 'Get order details' })
   @ApiParam({ name: 'orderId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Order retrieved successfully' })
-  async getOrder(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-  ) {
+  async getOrder(@Req() req: AuthenticatedRequest, @Param('orderId') orderId: string) {
     const user = this.requireUser(req);
 
     try {
@@ -448,14 +488,13 @@ export class CoreController {
   @ApiOperation({ summary: 'Cancel an order' })
   @ApiParam({ name: 'orderId', type: 'string' })
   @ApiResponse({ status: 200, description: 'Order cancelled successfully' })
-  async cancelOrder(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-  ) {
+  async cancelOrder(@Req() req: AuthenticatedRequest, @Param('orderId') orderId: string) {
     const user = this.requireUser(req);
 
     try {
-      const response = await firstValueFrom(this.coreService.cancelOrder(user.id, orderId).pipe(timeout(8000)));
+      const response = await firstValueFrom(
+        this.coreService.cancelOrder(user.id, orderId).pipe(timeout(8000)),
+      );
 
       if (this.isSuccessfulResponse(response)) {
         this.coreService.sendRealtimeEventToUser({
@@ -476,6 +515,7 @@ export class CoreController {
   @ApiOperation({ summary: 'List all orders (admin)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
@@ -483,17 +523,18 @@ export class CoreController {
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
     this.requireAdmin(req);
+    const pagination = this.parsePaginationQuery(page, limit, offset, 10, 50);
 
     try {
       return await firstValueFrom(
         this.coreService
           .listAllOrders({
-            page: page ? Number(page) : undefined,
-            limit: limit ? Number(limit) : undefined,
+            ...pagination,
             status,
             search,
           })
@@ -504,7 +545,7 @@ export class CoreController {
       return {
         success: false,
         message: error.message || 'Failed to list orders',
-        data: { orders: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
+        data: { orders: [], pagination: { ...pagination, total: 0, totalPages: 0 } },
       };
     }
   }
@@ -582,6 +623,7 @@ export class CoreController {
   @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortDir', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
@@ -591,10 +633,12 @@ export class CoreController {
     @Query('category') category?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
   ) {
     this.requireAdmin(req);
+    const pagination = this.parsePaginationQuery(page, limit, offset, 20, 200);
 
     try {
       return await firstValueFrom(
@@ -602,8 +646,7 @@ export class CoreController {
           .getCatalogProducts({
             search,
             category,
-            page: page ? Number(page) : undefined,
-            limit: limit ? Number(limit) : undefined,
+            ...pagination,
             sortBy,
             sortDir,
             activeOnly: false,
@@ -615,7 +658,7 @@ export class CoreController {
       return {
         success: false,
         message: error.message || 'Failed to list products',
-        data: { products: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } },
+        data: { products: [], pagination: { ...pagination, total: 0, totalPages: 0 } },
       };
     }
   }
@@ -644,7 +687,9 @@ export class CoreController {
     this.requireAdmin(req);
 
     try {
-      return await firstValueFrom(this.coreService.translateProductFields(body).pipe(timeout(15000)));
+      return await firstValueFrom(
+        this.coreService.translateProductFields(body).pipe(timeout(15000)),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to translate product fields';
       this.logger.error('Failed to translate product fields', message);
@@ -684,7 +729,8 @@ export class CoreController {
   @ApiResponse({ status: 200, description: 'Product created successfully' })
   async createProduct(
     @Req() req: AuthenticatedRequest,
-    @Body() body: {
+    @Body()
+    body: {
       sku: string;
       name: string;
       nameSi?: string;
@@ -745,7 +791,8 @@ export class CoreController {
   async updateProduct(
     @Req() req: AuthenticatedRequest,
     @Param('productId') productId: string,
-    @Body() body: {
+    @Body()
+    body: {
       name?: string;
       nameSi?: string;
       description?: string;
@@ -763,7 +810,9 @@ export class CoreController {
 
     try {
       const response = await firstValueFrom(
-        this.coreService.updateProduct(productId, { ...body, createdBy: adminUser.id }).pipe(timeout(8000)),
+        this.coreService
+          .updateProduct(productId, { ...body, createdBy: adminUser.id })
+          .pipe(timeout(8000)),
       );
 
       if (this.isSuccessfulResponse(response)) {
@@ -788,7 +837,9 @@ export class CoreController {
     this.requireAdmin(req);
 
     try {
-      const response = await firstValueFrom(this.coreService.deleteProduct(productId).pipe(timeout(8000)));
+      const response = await firstValueFrom(
+        this.coreService.deleteProduct(productId).pipe(timeout(8000)),
+      );
 
       if (this.isSuccessfulResponse(response)) {
         this.coreService.broadcastRealtimeEvent({
@@ -827,7 +878,9 @@ export class CoreController {
 
     try {
       const response = await firstValueFrom(
-        this.coreService.adjustProductStock(productId, { ...body, createdBy: adminUser.id }).pipe(timeout(8000)),
+        this.coreService
+          .adjustProductStock(productId, { ...body, createdBy: adminUser.id })
+          .pipe(timeout(8000)),
       );
 
       if (this.isSuccessfulResponse(response)) {
@@ -886,7 +939,9 @@ export class CoreController {
     this.requireAdmin(req);
 
     try {
-      return await firstValueFrom(this.coreService.updateCategory(categoryId, body).pipe(timeout(8000)));
+      return await firstValueFrom(
+        this.coreService.updateCategory(categoryId, body).pipe(timeout(8000)),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update category';
       this.logger.error('Failed to update category', message);

@@ -1,5 +1,8 @@
+import { useRouterState } from '@tanstack/react-router';
+
 import { User, USER_ROLE } from '@/types/auth';
 
+import { AdminShell } from './admin-shell';
 import { Footer } from './footer';
 import { Header } from './header';
 
@@ -11,6 +14,17 @@ interface LayoutProps {
 }
 
 export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isAdminRoute = pathname.startsWith('/admin');
+
+  if (isAdminRoute && user?.role === USER_ROLE.ADMIN) {
+    return (
+      <AdminShell user={user} signOut={signOut}>
+        {children}
+      </AdminShell>
+    );
+  }
+
   const showFooter = !user || (user && user.role !== USER_ROLE.ADMIN);
   return (
     <div className="min-h-screen bg-background flex flex-col">

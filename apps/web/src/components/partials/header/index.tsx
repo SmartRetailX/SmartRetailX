@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { LogOut, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
 
 import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
@@ -19,22 +19,32 @@ import { User } from '@/types/auth';
 
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
   const cartQuery = useCartQuery();
   const categoriesQuery = useCatalogCategoriesQuery();
   const cartCount = cartQuery.data?.data?.itemCount ?? 0;
   const categories = categoriesQuery.data?.data?.categories?.slice(0, 6) ?? [];
 
+  const navigateToCatalog = (updater: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(window.location.search);
+    updater(params);
+
+    const nextSearch = Object.fromEntries(params.entries());
+    void navigate({
+      to: '/',
+      search: nextSearch,
+    });
+  };
+
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const params = new URLSearchParams(window.location.search);
-
-    if (search.trim()) {
-      params.set('search', search.trim());
-    } else {
-      params.delete('search');
-    }
-
-    window.location.assign(`/${params.toString() ? `?${params.toString()}` : ''}`);
+    navigateToCatalog((params) => {
+      if (search.trim()) {
+        params.set('search', search.trim());
+      } else {
+        params.delete('search');
+      }
+    });
   };
 
   return (
@@ -153,7 +163,12 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
         <div className="container mx-auto flex h-full items-center gap-8 px-4 text-sm font-semibold tracking-wide">
           <button
             type="button"
-            onClick={() => window.location.assign('/')}
+            onClick={() =>
+              navigateToCatalog((params) => {
+                params.delete('category');
+                params.delete('search');
+              })
+            }
             className="uppercase transition-colors hover:text-amber-300"
           >
             All Products
@@ -162,7 +177,11 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
             <button
               key={category}
               type="button"
-              onClick={() => window.location.assign(`/?category=${encodeURIComponent(category)}`)}
+              onClick={() =>
+                navigateToCatalog((params) => {
+                  params.set('category', category);
+                })
+              }
               className="uppercase transition-colors hover:text-amber-300"
             >
               {category}

@@ -18,6 +18,7 @@ export class CatalogController {
     category?: string;
     page?: number;
     limit?: number;
+    offset?: number;
     sortBy?: string;
     sortDir?: string;
     activeOnly?: boolean;

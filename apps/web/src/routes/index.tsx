@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
-import { AlertCircle, Package, ShieldCheck, ShoppingBag, Truck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { AlertCircle, ImageOff, Package, ShieldCheck, ShoppingBag, Truck } from 'lucide-react';
 
-import { useAuth, useCatalogCategoriesQuery, useCatalogProductsQuery, useStoreMutations } from '@/hooks';
+import { useAuth, useCatalogCategoriesQuery, useInfiniteCatalogProductsQuery, useStoreMutations } from '@/hooks';
 import { PageContainer } from '@/components/partials/container/page-container';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -10,29 +10,112 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 
+type CatalogRouteSearch = {
+  search?: string;
+  category?: string;
+};
+
+function normalizeSearchValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function buildCatalogSearch(search?: string, category?: string): CatalogRouteSearch {
+  return {
+    ...(search ? { search } : {}),
+    ...(category ? { category } : {}),
+  };
+}
+
 export const Route = createFileRoute('/')({
+  beforeLoad: ({ context }) => {
+    if (context.auth.user?.role === 'admin') {
+      throw redirect({
+        to: '/admin',
+        replace: true,
+      });
+    }
+  },
+  validateSearch: (search): CatalogRouteSearch => ({
+    search: normalizeSearchValue(search.search),
+    category: normalizeSearchValue(search.category),
+  }),
   component: RouteComponent,
 });
 
+function ProductImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
+  const [hasError, setHasError] = useState(false);
+  const shouldShowImage = Boolean(imageUrl) && !hasError;
+
+  if (!shouldShowImage) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 text-sm">
+          <ImageOff className="h-6 w-6" />
+          <span>Image unavailable</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl || undefined}
+      alt={name}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
 function RouteComponent() {
-  const searchParams = new URLSearchParams(window.location.search);
-  const search = searchParams.get('search') || '';
-  const category = searchParams.get('category') || '';
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { search, category } = Route.useSearch() as CatalogRouteSearch;
   const { user, signOut } = useAuth();
-  const productsQuery = useCatalogProductsQuery({ search, category, limit: 24 });
+  const productsQuery = useInfiniteCatalogProductsQuery({ search, category, limit: 24 });
   const categoriesQuery = useCatalogCategoriesQuery();
   const { addToCart } = useStoreMutations();
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const products = productsQuery.data?.data?.products ?? [];
+  const products = productsQuery.data?.pages.flatMap((page) => page.data.products) ?? [];
   const categories = categoriesQuery.data?.data?.categories ?? [];
-  const heroMetrics = useMemo(
-    () => [
-      { label: 'Live Catalog', value: `${productsQuery.data?.data?.pagination.total ?? 0}+ items`, icon: Package },
-      { label: 'Fast Checkout', value: 'Cart to order in one flow', icon: ShoppingBag },
-      { label: 'Order Tracking', value: 'Status updates from pending to delivered', icon: Truck },
-    ],
-    [productsQuery.data?.data?.pagination.total],
-  );
+  const totalProducts = productsQuery.data?.pages[0]?.data.pagination.total ?? 0;
+  const heroMetrics = [
+    { label: 'Live Catalog', value: `${totalProducts}+ items`, icon: Package },
+    { label: 'Fast Checkout', value: 'Cart to order in one flow', icon: ShoppingBag },
+    { label: 'Order Tracking', value: 'Status updates from pending to delivered', icon: Truck },
+  ];
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !productsQuery.hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && !productsQuery.isFetchingNextPage) {
+          void productsQuery.fetchNextPage();
+        }
+      },
+      { rootMargin: '240px 0px' },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [
+    productsQuery.fetchNextPage,
+    productsQuery.hasNextPage,
+    productsQuery.isFetchingNextPage,
+    totalProducts,
+  ]);
+
+  const updateFilters = (next: CatalogRouteSearch) =>
+    navigate({
+      to: '/',
+      search: buildCatalogSearch(next.search, next.category),
+    });
 
   return (
     <PageContainer>
@@ -85,7 +168,7 @@ function RouteComponent() {
           <div className="flex flex-wrap items-center gap-3">
             {search && <Badge variant="outline">Search: {search}</Badge>}
             {category && <Badge variant="outline">Category: {category}</Badge>}
-            <Button variant="ghost" onClick={() => window.location.assign('/')}>
+            <Button variant="ghost" onClick={() => void updateFilters({})}>
               Clear Filters
             </Button>
           </div>
@@ -107,7 +190,11 @@ function RouteComponent() {
               <CardTitle>Browse by category</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant={!category ? 'default' : 'outline'} className="w-full justify-start" onClick={() => window.location.assign('/')}>
+              <Button
+                variant={!category ? 'default' : 'outline'}
+                className="w-full justify-start"
+                onClick={() => void updateFilters({ search })}
+              >
                 All categories
               </Button>
               {categories.map((item) => (
@@ -115,7 +202,7 @@ function RouteComponent() {
                   key={item}
                   variant={category === item ? 'default' : 'outline'}
                   className="w-full justify-start"
-                  onClick={() => window.location.assign(`/?category=${encodeURIComponent(item)}`)}
+                  onClick={() => void updateFilters({ search, category: item })}
                 >
                   {item}
                 </Button>
@@ -128,7 +215,7 @@ function RouteComponent() {
               <div>
                 <h2 className="text-2xl font-bold">Catalog</h2>
                 <p className="text-sm text-muted-foreground">
-                  {productsQuery.data?.data?.pagination.total ?? 0} products ready for checkout
+                  {totalProducts} products ready for checkout
                 </p>
               </div>
               {user?.role === 'admin' && (
@@ -143,49 +230,71 @@ function RouteComponent() {
               <div className="flex min-h-56 items-center justify-center rounded-3xl border border-dashed">
                 <Spinner className="h-6 w-6" />
               </div>
+            ) : products.length === 0 ? (
+              <div className="flex min-h-56 flex-col items-center justify-center rounded-3xl border border-dashed px-6 text-center">
+                <div className="text-lg font-semibold">No products found</div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Try a different category or clear the current filters.
+                </p>
+              </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {products.map((product) => (
-                  <Card key={product.id} className="border-border/60">
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <CardTitle>{product.name}</CardTitle>
-                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                            {product.sku}
-                          </p>
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {products.map((product) => (
+                    <Card key={product.id} className="overflow-hidden border-border/60">
+                      <div className="relative aspect-[4/3] bg-muted/40">
+                        <ProductImage imageUrl={product.imageUrl} name={product.name} />
+                      </div>
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <CardTitle>{product.name}</CardTitle>
+                            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              {product.sku}
+                            </p>
+                          </div>
+                          <Badge variant={product.status === 'OUT_OF_STOCK' ? 'destructive' : 'secondary'}>
+                            {product.status.replace(/_/g, ' ')}
+                          </Badge>
                         </div>
-                        <Badge variant={product.status === 'OUT_OF_STOCK' ? 'destructive' : 'secondary'}>
-                          {product.status.replace(/_/g, ' ')}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="text-sm text-muted-foreground">
-                        {product.description || 'Fresh catalog item ready to sell.'}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="text-2xl font-bold">${product.price.toFixed(2)}</div>
-                        <div className="text-sm text-muted-foreground">Stock {product.currentStock}</div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-between gap-3">
-                      <div className="text-xs text-muted-foreground">{product.category}</div>
-                      {user?.role === 'admin' ? (
-                        <Button variant="outline" onClick={() => window.location.assign('/admin')}>
-                          Manage
-                        </Button>
-                      ) : (
-                        <Button
-                          disabled={!user || product.currentStock <= 0 || addToCart.isPending}
-                          onClick={() => addToCart.mutate({ productId: product.id })}
-                        >
-                          {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
-                        </Button>
-                      )}
-                    </CardFooter>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                          {product.description || 'Fresh catalog item ready to sell.'}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-2xl font-bold">${product.price.toFixed(2)}</div>
+                          <div className="text-sm text-muted-foreground">Stock {product.currentStock}</div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="justify-between gap-3">
+                        <div className="text-xs text-muted-foreground">{product.category}</div>
+                        {user?.role === 'admin' ? (
+                          <Button variant="outline" onClick={() => window.location.assign('/admin')}>
+                            Manage
+                          </Button>
+                        ) : (
+                          <Button
+                            disabled={!user || product.currentStock <= 0 || addToCart.isPending}
+                            onClick={() => addToCart.mutate({ productId: product.id })}
+                          >
+                            {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
+                          </Button>
+                        )}
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+
+                <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center">
+                  {productsQuery.isFetchingNextPage ? (
+                    <Spinner className="h-6 w-6" />
+                  ) : productsQuery.hasNextPage ? (
+                    <p className="text-sm text-muted-foreground">Scroll to load more products</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">You&apos;ve reached the end of the catalog</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

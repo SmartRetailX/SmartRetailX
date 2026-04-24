@@ -33,14 +33,14 @@ export const Route = createFileRoute('/_public/$auth')({
   beforeLoad: ({
     params,
     context: {
-      auth: { isAuthenticated },
+      auth: { isAuthenticated, user },
     },
   }) => {
     const validViews: AuthViewMode[] = ['sign-in', 'sign-up'];
 
     if (isAuthenticated) {
       throw redirect({
-        to: '/',
+        to: user?.role === 'admin' ? '/admin' : '/',
         replace: true,
       });
     }

@@ -33,11 +33,13 @@ export class OrderController {
     userId: string;
     page?: number;
     limit?: number;
+    offset?: number;
     status?: OrderStatus;
   }) {
     return this.orderService.listOrders(data.userId, {
       page: data.page,
       limit: data.limit,
+      offset: data.offset,
       status: data.status,
     });
   }
@@ -52,6 +54,7 @@ export class OrderController {
   async listAllOrders(data: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: OrderStatus;
     search?: string;
   }) {

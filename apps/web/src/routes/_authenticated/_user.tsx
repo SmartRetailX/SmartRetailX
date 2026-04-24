@@ -7,7 +7,8 @@ export const Route = createFileRoute('/_authenticated/_user')({
 
     if (user?.role !== 'user') {
       throw redirect({
-        to: '/',
+        to: user?.role === 'admin' ? '/admin' : '/$auth',
+        params: user?.role === 'admin' ? undefined : { auth: 'sign-in' },
       });
     }
   },
