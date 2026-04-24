@@ -1,12 +1,20 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import {
+  BroadcastPayload,
+  SendToUserPayload,
+  WEBSOCKET_PATTERNS,
+} from '@smart-retail-x/messaging';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class CoreService implements OnModuleInit {
   private readonly logger = new Logger(CoreService.name);
 
-  constructor(@Inject('CORE_SERVICE') private readonly coreClient: ClientProxy) {}
+  constructor(
+    @Inject('CORE_SERVICE') private readonly coreClient: ClientProxy,
+    @Inject('WEBSOCKET_SERVICE') private readonly websocketClient: ClientProxy,
+  ) {}
 
   /**
    * Eagerly connect RabbitMQ client on module initialization
@@ -16,8 +24,10 @@ export class CoreService implements OnModuleInit {
     try {
       await this.coreClient.connect();
       this.logger.log('✓ Core service client connected');
+      await this.websocketClient.connect();
+      this.logger.log('✓ Websocket service client connected');
     } catch (error) {
-      this.logger.error('Failed to connect core service client:', error);
+      this.logger.error('Failed to connect messaging clients:', error);
     }
   }
 
@@ -51,16 +61,19 @@ export class CoreService implements OnModuleInit {
     return this.coreClient.send({ cmd: 'catalog_get_product' }, { productId });
   }
 
+  translateProductFields(data: { name?: string; description?: string }): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_translate_product_fields' }, data);
+  }
+
   createProduct(data: {
     sku: string;
     name: string;
     nameSi?: string;
-    baseProduct?: string;
-    baseProductSi?: string;
     description?: string;
     descriptionSi?: string;
-    category?: string;
-    categorySi?: string;
+    categoryId?: string;
+    categoryName?: string;
+    categoryNameSi?: string;
     price: number;
     stockQuantity: number;
     imageUrl?: string;
@@ -75,19 +88,45 @@ export class CoreService implements OnModuleInit {
     data: {
       name?: string;
       nameSi?: string;
-      baseProduct?: string;
-      baseProductSi?: string;
       description?: string;
       descriptionSi?: string;
-      category?: string;
-      categorySi?: string;
+      categoryId?: string;
+      categoryName?: string;
+      categoryNameSi?: string;
       price?: number;
       stockQuantity?: number;
       imageUrl?: string;
       isActive?: boolean;
+      createdBy?: string;
     },
   ): Observable<unknown> {
     return this.coreClient.send({ cmd: 'catalog_update_product' }, { productId, ...data });
+  }
+
+  adjustProductStock(
+    productId: string,
+    data: { quantityChange?: number; balanceTo?: number; note?: string; createdBy?: string },
+  ): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_adjust_stock' }, { productId, ...data });
+  }
+
+  listAdminCategories(): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_admin_categories' }, {});
+  }
+
+  createCategory(data: { name: string; nameSi?: string }): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_create_category' }, data);
+  }
+
+  updateCategory(
+    categoryId: string,
+    data: { name?: string; nameSi?: string },
+  ): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_update_category' }, { categoryId, ...data });
+  }
+
+  deleteCategory(categoryId: string): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'catalog_delete_category' }, { categoryId });
   }
 
   deleteProduct(productId: string): Observable<unknown> {
@@ -160,5 +199,19 @@ export class CoreService implements OnModuleInit {
 
   updateOrderStatus(orderId: string, status: string): Observable<unknown> {
     return this.coreClient.send({ cmd: 'admin_order_update_status' }, { orderId, status });
+  }
+
+  sendRealtimeEventToUser(payload: SendToUserPayload): void {
+    this.websocketClient.emit(WEBSOCKET_PATTERNS.SEND_TO_USER, payload).subscribe({
+      error: (error) =>
+        this.logger.warn(`Failed to publish user websocket event: ${error?.message ?? error}`),
+    });
+  }
+
+  broadcastRealtimeEvent(payload: BroadcastPayload): void {
+    this.websocketClient.emit(WEBSOCKET_PATTERNS.BROADCAST, payload).subscribe({
+      error: (error) =>
+        this.logger.warn(`Failed to publish broadcast websocket event: ${error?.message ?? error}`),
+    });
   }
 }

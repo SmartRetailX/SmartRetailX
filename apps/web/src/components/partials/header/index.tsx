@@ -1,6 +1,8 @@
+import { FormEvent, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { LogOut, Menu, Search, ShoppingCart, UserIcon } from 'lucide-react';
+import { LogOut, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
 
+import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,14 +18,29 @@ import { Input } from '@/components/ui/input';
 import { User } from '@/types/auth';
 
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
-  const cartCount = 0;
+  const [search, setSearch] = useState('');
+  const cartQuery = useCartQuery();
+  const categoriesQuery = useCatalogCategoriesQuery();
+  const cartCount = cartQuery.data?.data?.itemCount ?? 0;
+  const categories = categoriesQuery.data?.data?.categories?.slice(0, 6) ?? [];
+
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+
+    if (search.trim()) {
+      params.set('search', search.trim());
+    } else {
+      params.delete('search');
+    }
+
+    window.location.assign(`/${params.toString() ? `?${params.toString()}` : ''}`);
+  };
+
   return (
-    <header className="sticky top-0 z-50 w-full h-30 flex flex-col bg-background border-b shadow-sm box-border">
+    <header className="sticky top-0 z-50 flex w-full flex-col border-b bg-background/95 shadow-sm backdrop-blur box-border">
       <div className="container mx-auto px-4 flex-1 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Menu className="h-6 w-6" />
-          </Button>
           <Link to="/" className="flex items-center gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-primary">
               Smart<span className="text-gray-800">RetailX</span>
@@ -31,18 +48,22 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
           </Link>
         </div>
 
-        <div className="flex-1 max-w-2xl hidden md:flex items-center relative mx-8">
+        <form
+          onSubmit={handleSearch}
+          className="relative mx-4 hidden max-w-2xl flex-1 items-center md:flex"
+        >
           <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search for fresh produce, groceries and more..."
             className="pl-5 pr-12 h-12 bg-muted border-transparent rounded-full focus-visible:ring-primary text-base"
           />
-          <Button size="icon" className="absolute right-1 h-10 w-10 rounded-full">
+          <Button type="submit" size="icon" className="absolute right-1 h-10 w-10 rounded-full">
             <Search className="h-5 w-5" />
           </Button>
-        </div>
+        </form>
 
         <div className="flex items-center gap-2 md:gap-6">
-          {/* Cart */}
           <Link to="/cart">
             <Button
               variant="ghost"
@@ -62,7 +83,6 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
             </Button>
           </Link>
 
-          {/* Account */}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -87,15 +107,14 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="p-3 text-base cursor-pointer rounded-lg">
                     <Link to="/orders" className="flex w-full text-gray-700">
-                      {' '}
-                      My Orders{' '}
+                      My Orders
                     </Link>
                   </DropdownMenuItem>
                   {user?.role === 'admin' && (
                     <DropdownMenuItem className="p-3 text-base cursor-pointer rounded-lg">
-                      <Link to="/admin" className="flex w-full text-gray-700">
-                        {' '}
-                        Admin Dashboard{' '}
+                      <Link to="/admin" className="flex w-full items-center gap-2 text-gray-700">
+                        <ShieldCheck className="h-4 w-4" />
+                        Admin Dashboard
                       </Link>
                     </DropdownMenuItem>
                   )}
@@ -130,30 +149,25 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
         </div>
       </div>
 
-      {/* Navigation Categories */}
       <div className="bg-primary text-white hidden md:block shadow-md h-12">
-        <div className="container mx-auto px-4 h-full flex items-center gap-8 text-sm font-semibold tracking-wide">
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Top Offers
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Vegetables
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Fruits
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Meat & Seafood
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Dairy & Chilled
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Bakery
-          </Link>
-          <Link to="/" className="hover:text-amber-300 transition-colors uppercase">
-            Beverages
-          </Link>
+        <div className="container mx-auto flex h-full items-center gap-8 px-4 text-sm font-semibold tracking-wide">
+          <button
+            type="button"
+            onClick={() => window.location.assign('/')}
+            className="uppercase transition-colors hover:text-amber-300"
+          >
+            All Products
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => window.location.assign(`/?category=${encodeURIComponent(category)}`)}
+              className="uppercase transition-colors hover:text-amber-300"
+            >
+              {category}
+            </button>
+          ))}
         </div>
       </div>
     </header>

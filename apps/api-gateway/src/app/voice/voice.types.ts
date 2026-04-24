@@ -3,10 +3,9 @@ export type CatalogSearchRaw = {
   sku: string;
   name: string;
   nameSi: string | null;
-  baseProduct: string | null;
-  baseProductSi: string | null;
-  category: string | null;
-  categorySi: string | null;
+  categoryId: string;
+  category: string;
+  categoryNameSi: string | null;
   price: number;
   currentStock: number;
   imageUrl: string | null;

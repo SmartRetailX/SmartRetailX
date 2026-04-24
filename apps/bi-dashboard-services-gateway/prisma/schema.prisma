@@ -1,9 +1,10 @@
-// Auth tables (user, session, account, verification) are owned by Better Auth
-// in the api-gateway via raw pg.Pool. Prisma only manages BI dashboard business models.
+// This schema shares the same PostgreSQL database as the main platform,
+// but stores its tables under the bi_dashboard schema.
 
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
+  output          = "../src/generated/prisma"
 }
 
 datasource db {

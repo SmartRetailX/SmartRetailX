@@ -1,6 +1,8 @@
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const { join } = require('path');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 module.exports = {
   externals: {
     '@prisma/client': 'commonjs @prisma/client',
@@ -31,7 +33,7 @@ module.exports = {
       assets: ['./src/assets'],
       optimization: false,
       outputHashing: 'none',
-      generatePackageJson: true,
+      generatePackageJson: isProduction,
       sourceMaps: true,
     }),
   ],

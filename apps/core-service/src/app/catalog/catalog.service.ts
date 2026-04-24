@@ -1,17 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, StockEntryType } from '@prisma/client';
 import { PrismaService } from '@smart-retail-x/database';
 import { buildCatalogQueryTokens, normalizeCatalogQuery } from '@smart-retail-x/shared-types';
+
+import { CatalogTranslationService } from './catalog-translation.service';
+import { InventoryService } from './inventory.service';
 
 type CatalogMatch = {
   productId: string;
   sku: string;
   name: string;
   nameSi: string | null;
-  baseProduct: string | null;
-  baseProductSi: string | null;
-  category: string | null;
-  categorySi: string | null;
+  categoryId: string;
+  category: string;
+  categoryNameSi: string | null;
   price: number;
   currentStock: number;
   imageUrl: string | null;
@@ -24,23 +26,36 @@ type CatalogSearchResponse = {
   matches: CatalogMatch[];
 };
 
+type ProductStockEntry = {
+  id: string;
+  quantityChange: number;
+  balanceAfter: number;
+  type: StockEntryType;
+  note: string | null;
+  referenceId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+};
+
 type CatalogListProduct = {
   id: string;
   sku: string;
   name: string;
   nameSi: string | null;
-  baseProduct: string | null;
-  baseProductSi: string | null;
   description: string | null;
   descriptionSi: string | null;
-  category: string | null;
-  categorySi: string | null;
+  categoryId: string;
+  category: string;
+  categoryNameSi: string | null;
   price: number;
   currentStock: number;
   imageUrl: string | null;
   isActive: boolean;
   status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+  createdBy: string | null;
   createdAt: string;
+  updatedAt?: string;
+  stockEntries?: ProductStockEntry[];
 };
 
 type CatalogListResponse = {
@@ -63,16 +78,31 @@ type CatalogCategoriesResponse = {
   };
 };
 
+type AdminCategory = {
+  id: string;
+  name: string;
+  nameSi: string | null;
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AdminCategoryListResponse = {
+  success: boolean;
+  data: {
+    categories: AdminCategory[];
+  };
+};
+
 type ProductInput = {
   sku: string;
   name: string;
   nameSi?: string;
-  baseProduct?: string;
-  baseProductSi?: string;
   description?: string;
   descriptionSi?: string;
-  category?: string;
-  categorySi?: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryNameSi?: string;
   price: number;
   stockQuantity: number;
   imageUrl?: string;
@@ -80,7 +110,20 @@ type ProductInput = {
   createdBy?: string;
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+type ProductUpdateInput = Partial<Omit<ProductInput, 'sku' | 'createdBy' | 'stockQuantity'>> & {
+  stockQuantity?: number;
+  createdBy?: string;
+};
+
+type ProductRow = Prisma.ProductGetPayload<{
+  include: {
+    category: true;
+    stockEntries: {
+      orderBy: { createdAt: 'desc' };
+      take: 10;
+    };
+  };
+}>;
 
 function stockStatus(qty: number): CatalogListProduct['status'] {
   if (qty <= 0) return 'OUT_OF_STOCK';
@@ -88,51 +131,56 @@ function stockStatus(qty: number): CatalogListProduct['status'] {
   return 'IN_STOCK';
 }
 
-function toListProduct(row: {
-  id: string;
-  sku: string;
-  name: string;
-  nameSi: string | null;
-  baseProduct: string | null;
-  baseProductSi: string | null;
-  description: string | null;
-  descriptionSi: string | null;
-  category: string | null;
-  categorySi: string | null;
-  price: Prisma.Decimal;
-  stockQuantity: number;
-  imageUrl: string | null;
-  isActive: boolean;
-  createdAt: Date;
-}): CatalogListProduct {
-  const currentStock = row.stockQuantity;
+function toStockEntry(entry: ProductRow['stockEntries'][number]): ProductStockEntry {
   return {
+    id: entry.id,
+    quantityChange: entry.quantityChange,
+    balanceAfter: entry.balanceAfter,
+    type: entry.type,
+    note: entry.note,
+    referenceId: entry.referenceId,
+    createdBy: entry.createdBy,
+    createdAt: entry.createdAt.toISOString(),
+  };
+}
+
+function toProduct(row: ProductRow, includeStockEntries = false): CatalogListProduct {
+  const result: CatalogListProduct = {
     id: row.id,
     sku: row.sku,
     name: row.name,
     nameSi: row.nameSi,
-    baseProduct: row.baseProduct,
-    baseProductSi: row.baseProductSi,
     description: row.description,
     descriptionSi: row.descriptionSi,
-    category: row.category,
-    categorySi: row.categorySi,
+    categoryId: row.categoryId,
+    category: row.category.name,
+    categoryNameSi: row.category.nameSi,
     price: Number(row.price),
-    currentStock,
+    currentStock: row.stockQuantity,
     imageUrl: row.imageUrl,
     isActive: row.isActive,
-    status: stockStatus(currentStock),
+    status: stockStatus(row.stockQuantity),
+    createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
-}
 
-// ── Service ────────────────────────────────────────────────────────────────
+  if (includeStockEntries) {
+    result.stockEntries = row.stockEntries.map(toStockEntry);
+  }
+
+  return result;
+}
 
 @Injectable()
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+    private readonly catalogTranslationService: CatalogTranslationService,
+  ) {}
 
   async search(term: string, limit = 5): Promise<CatalogSearchResponse> {
     const normalizedTerm = normalizeCatalogQuery(term);
@@ -144,18 +192,15 @@ export class CatalogService {
     const queryTokens = buildCatalogQueryTokens(normalizedTerm);
     const searchTokens = queryTokens.length > 0 ? queryTokens : [normalizedTerm];
 
-    // Raw SQL retained: token-scoring query with unnest cannot be expressed via
-    // Prisma's query builder without multiple round-trips.
     const rows = await this.prisma.$queryRaw<
       Array<{
         id: string;
         sku: string;
         name: string;
         name_si: string | null;
-        base_product: string | null;
-        base_product_si: string | null;
-        category: string | null;
-        category_si: string | null;
+        category_id: string;
+        category_name: string;
+        category_name_si: string | null;
         price: string;
         stock_quantity: number;
         image_url: string | null;
@@ -163,52 +208,53 @@ export class CatalogService {
       }>
     >(
       Prisma.sql`
-        SELECT id, sku, name, name_si, base_product, base_product_si,
-               category, category_si, price, stock_quantity, image_url, is_active
-        FROM core.products
-        WHERE is_active = true
+        SELECT p.id,
+               p.sku,
+               p.name,
+               p.name_si,
+               p.category_id,
+               c.name AS category_name,
+               c.name_si AS category_name_si,
+               p.price,
+               p.stock_quantity,
+               p.image_url,
+               p.is_active
+        FROM core.products p
+        INNER JOIN core.categories c ON c.id = p.category_id
+        WHERE p.is_active = true
           AND EXISTS (
             SELECT 1 FROM unnest(${searchTokens}::text[]) AS token
-            WHERE lower(coalesce(name,''))            LIKE '%' || token || '%'
-               OR lower(coalesce(name_si,''))         LIKE '%' || token || '%'
-               OR lower(coalesce(base_product,''))    LIKE '%' || token || '%'
-               OR lower(coalesce(base_product_si,'')) LIKE '%' || token || '%'
-               OR lower(coalesce(category,''))        LIKE '%' || token || '%'
-               OR lower(coalesce(category_si,''))     LIKE '%' || token || '%'
-               OR lower(coalesce(sku,''))             LIKE '%' || token || '%'
+            WHERE lower(coalesce(p.name, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(p.name_si, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(p.description, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(p.description_si, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(c.name, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(c.name_si, '')) LIKE '%' || token || '%'
+               OR lower(coalesce(p.sku, '')) LIKE '%' || token || '%'
           )
         ORDER BY
-          (lower(coalesce(name,''))=lower(${normalizedTerm})
-            OR lower(coalesce(name_si,''))=lower(${normalizedTerm})
-            OR lower(coalesce(base_product,''))=lower(${normalizedTerm})
-            OR lower(coalesce(base_product_si,''))=lower(${normalizedTerm})) DESC,
-          (lower(coalesce(name,'')) LIKE lower(${normalizedTerm}) || '%'
-            OR lower(coalesce(name_si,'')) LIKE lower(${normalizedTerm}) || '%'
-            OR lower(coalesce(base_product,'')) LIKE lower(${normalizedTerm}) || '%'
-            OR lower(coalesce(base_product_si,'')) LIKE lower(${normalizedTerm}) || '%') DESC,
-          name ASC
+          (lower(coalesce(p.name, '')) = lower(${normalizedTerm})
+            OR lower(coalesce(p.name_si, '')) = lower(${normalizedTerm})) DESC,
+          (lower(coalesce(p.name, '')) LIKE lower(${normalizedTerm}) || '%'
+            OR lower(coalesce(p.name_si, '')) LIKE lower(${normalizedTerm}) || '%') DESC,
+          p.name ASC
         LIMIT ${safeLimit}
       `,
     );
 
-    const matches: CatalogMatch[] = rows.map((row) => ({
+    const matches = rows.map((row) => ({
       productId: row.id,
       sku: row.sku,
       name: row.name,
       nameSi: row.name_si,
-      baseProduct: row.base_product,
-      baseProductSi: row.base_product_si,
-      category: row.category,
-      categorySi: row.category_si,
+      categoryId: row.category_id,
+      category: row.category_name,
+      categoryNameSi: row.category_name_si,
       price: Number(row.price),
-      currentStock: Number(row.stock_quantity),
+      currentStock: row.stock_quantity,
       imageUrl: row.image_url,
       isActive: row.is_active,
     }));
-
-    if (matches.length > 0) {
-      this.logger.log(`Catalog match found: term="${normalizedTerm}" results=${matches.length}`);
-    }
 
     return { success: true, term: normalizedTerm, matches };
   }
@@ -226,12 +272,10 @@ export class CatalogService {
     const safeLimit = Number.isFinite(params.limit)
       ? Math.max(1, Math.min(Math.floor(params.limit as number), 1000))
       : 20;
-
     const normalizedSearch = normalizeCatalogQuery(params.search || '');
     const normalizedCategory = normalizeCatalogQuery(params.category || '');
 
     const where: Prisma.ProductWhereInput = {};
-
     if (params.activeOnly !== false) {
       where.isActive = true;
     }
@@ -242,9 +286,11 @@ export class CatalogService {
         OR: [
           { name: { contains: normalizedSearch, mode: 'insensitive' } },
           { nameSi: { contains: normalizedSearch, mode: 'insensitive' } },
-          { baseProduct: { contains: normalizedSearch, mode: 'insensitive' } },
-          { baseProductSi: { contains: normalizedSearch, mode: 'insensitive' } },
+          { description: { contains: normalizedSearch, mode: 'insensitive' } },
+          { descriptionSi: { contains: normalizedSearch, mode: 'insensitive' } },
           { sku: { contains: normalizedSearch, mode: 'insensitive' } },
+          { category: { name: { contains: normalizedSearch, mode: 'insensitive' } } },
+          { category: { nameSi: { contains: normalizedSearch, mode: 'insensitive' } } },
         ],
       });
     }
@@ -252,8 +298,9 @@ export class CatalogService {
     if (normalizedCategory) {
       andFilters.push({
         OR: [
-          { category: { equals: normalizedCategory, mode: 'insensitive' } },
-          { categorySi: { equals: normalizedCategory, mode: 'insensitive' } },
+          { category: { name: { equals: normalizedCategory, mode: 'insensitive' } } },
+          { category: { nameSi: { equals: normalizedCategory, mode: 'insensitive' } } },
+          { categoryId: normalizedCategory },
         ],
       });
     }
@@ -265,7 +312,11 @@ export class CatalogService {
     const normalizedSortBy = (params.sortBy || 'name').toLowerCase();
     const dir = params.sortDir?.toLowerCase() === 'desc' ? 'desc' : 'asc';
     const orderBy: Prisma.ProductOrderByWithRelationInput =
-      normalizedSortBy === 'price' ? { price: dir } : { name: dir };
+      normalizedSortBy === 'price'
+        ? { price: dir }
+        : normalizedSortBy === 'stock'
+          ? { stockQuantity: dir }
+          : { name: dir };
 
     const [total, rows] = await Promise.all([
       this.prisma.product.count({ where }),
@@ -274,22 +325,12 @@ export class CatalogService {
         orderBy,
         skip: (safePage - 1) * safeLimit,
         take: safeLimit,
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          nameSi: true,
-          baseProduct: true,
-          baseProductSi: true,
-          description: true,
-          descriptionSi: true,
+        include: {
           category: true,
-          categorySi: true,
-          price: true,
-          stockQuantity: true,
-          imageUrl: true,
-          isActive: true,
-          createdAt: true,
+          stockEntries: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
       }),
     ]);
@@ -297,7 +338,7 @@ export class CatalogService {
     return {
       success: true,
       data: {
-        products: rows.map(toListProduct),
+        products: rows.map((row) => toProduct(row)),
         pagination: {
           page: safePage,
           limit: safeLimit,
@@ -312,22 +353,12 @@ export class CatalogService {
     try {
       const row = await this.prisma.product.findUnique({
         where: { id: productId },
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          nameSi: true,
-          baseProduct: true,
-          baseProductSi: true,
-          description: true,
-          descriptionSi: true,
+        include: {
           category: true,
-          categorySi: true,
-          price: true,
-          stockQuantity: true,
-          imageUrl: true,
-          isActive: true,
-          createdAt: true,
+          stockEntries: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
         },
       });
 
@@ -335,115 +366,378 @@ export class CatalogService {
         return { success: false, message: 'Product not found' };
       }
 
-      return { success: true, data: toListProduct(row) };
+      return { success: true, data: toProduct(row, true) };
     } catch (error) {
       this.logger.error(`Failed to get product: ${(error as Error).message}`);
       return { success: false, message: (error as Error).message || 'Failed to get product' };
     }
   }
 
-  async createProduct(input: ProductInput): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
-    try {
-      const row = await this.prisma.product.create({
-        data: {
-          sku: input.sku,
-          name: input.name,
-          nameSi: input.nameSi ?? null,
-          baseProduct: input.baseProduct ?? null,
-          baseProductSi: input.baseProductSi ?? null,
-          description: input.description ?? null,
-          descriptionSi: input.descriptionSi ?? null,
-          category: input.category ?? null,
-          categorySi: input.categorySi ?? null,
-          price: input.price,
-          stockQuantity: input.stockQuantity,
-          imageUrl: input.imageUrl ?? null,
-          isActive: input.isActive !== false,
-          createdBy: input.createdBy ?? null,
+  async listCategories(limit = 200): Promise<CatalogCategoriesResponse> {
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(Math.floor(limit), 500)) : 200;
+    const rows = await this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+      take: safeLimit,
+      select: { name: true, nameSi: true },
+    });
+
+    return {
+      success: true,
+      data: {
+        categories: rows.map((row) => row.nameSi || row.name),
+      },
+    };
+  }
+
+  async listAdminCategories(): Promise<AdminCategoryListResponse> {
+    const rows = await this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { products: true },
         },
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          nameSi: true,
-          baseProduct: true,
-          baseProductSi: true,
-          description: true,
-          descriptionSi: true,
-          category: true,
-          categorySi: true,
-          price: true,
-          stockQuantity: true,
-          imageUrl: true,
-          isActive: true,
-          createdAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        categories: rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          nameSi: row.nameSi,
+          productCount: row._count.products,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        })),
+      },
+    };
+  }
+
+  async createCategory(input: {
+    name: string;
+    nameSi?: string;
+  }): Promise<{ success: boolean; data?: AdminCategory; message?: string }> {
+    try {
+      const category = await this.prisma.category.create({
+        data: {
+          name: input.name.trim(),
+          nameSi: input.nameSi?.trim() || null,
+        },
+        include: {
+          _count: {
+            select: { products: true },
+          },
         },
       });
 
-      return { success: true, data: toListProduct(row) };
+      return {
+        success: true,
+        data: {
+          id: category.id,
+          name: category.name,
+          nameSi: category.nameSi,
+          productCount: category._count.products,
+          createdAt: category.createdAt.toISOString(),
+          updatedAt: category.updatedAt.toISOString(),
+        },
+      };
     } catch (error) {
       const err = error as { code?: string; message?: string };
-      this.logger.error(`Failed to create product: ${err.message}`);
+      if (err.code === 'P2002') {
+        return { success: false, message: 'Category already exists' };
+      }
+
+      return { success: false, message: err.message || 'Failed to create category' };
+    }
+  }
+
+  async previewProductTranslation(input: {
+    name?: string;
+    description?: string;
+  }): Promise<{ success: boolean; data: { nameSi: string | null; descriptionSi: string | null } }> {
+    const data = await this.catalogTranslationService.translateProductFields(input);
+    return { success: true, data };
+  }
+
+  async updateCategory(
+    categoryId: string,
+    input: { name?: string; nameSi?: string },
+  ): Promise<{ success: boolean; data?: AdminCategory; message?: string }> {
+    try {
+      const category = await this.prisma.category.update({
+        where: { id: categoryId },
+        data: {
+          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+          ...(input.nameSi !== undefined ? { nameSi: input.nameSi?.trim() || null } : {}),
+        },
+        include: {
+          _count: {
+            select: { products: true },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        data: {
+          id: category.id,
+          name: category.name,
+          nameSi: category.nameSi,
+          productCount: category._count.products,
+          createdAt: category.createdAt.toISOString(),
+          updatedAt: category.updatedAt.toISOString(),
+        },
+      };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2025') {
+        return { success: false, message: 'Category not found' };
+      }
+
+      if (err.code === 'P2002') {
+        return { success: false, message: 'Category already exists' };
+      }
+
+      return { success: false, message: err.message || 'Failed to update category' };
+    }
+  }
+
+  async deleteCategory(categoryId: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      await this.prisma.category.delete({ where: { id: categoryId } });
+      return { success: true, message: 'Category deleted successfully' };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2025') {
+        return { success: false, message: 'Category not found' };
+      }
+
+      if (err.code === 'P2003') {
+        return { success: false, message: 'Category is still referenced by products' };
+      }
+
+      return { success: false, message: err.message || 'Failed to delete category' };
+    }
+  }
+
+  async createProduct(input: ProductInput): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
+    try {
+      const englishName = input.name.trim();
+      const englishDescription = input.description?.trim() || null;
+      const translated = await this.catalogTranslationService.translateProductFields({
+        name: englishName,
+        description: englishDescription,
+      });
+
+      const data = await this.prisma.$transaction(async (tx) => {
+        const categoryId = await this.resolveCategoryId(
+          {
+            categoryId: input.categoryId,
+            categoryName: input.categoryName,
+            categoryNameSi: input.categoryNameSi,
+          },
+          tx,
+        );
+
+        const product = await tx.product.create({
+          data: {
+            sku: input.sku.trim(),
+            name: englishName,
+            nameSi: input.nameSi?.trim() || translated.nameSi || null,
+            description: englishDescription,
+            descriptionSi: input.descriptionSi?.trim() || translated.descriptionSi || null,
+            categoryId,
+            price: new Prisma.Decimal(input.price),
+            stockQuantity: 0,
+            imageUrl: input.imageUrl?.trim() || null,
+            isActive: input.isActive !== false,
+            createdBy: input.createdBy ?? null,
+          },
+          include: {
+            category: true,
+            stockEntries: {
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+            },
+          },
+        });
+
+        await this.inventoryService.adjustStock(
+          {
+            productId: product.id,
+            balanceTo: input.stockQuantity,
+            type: StockEntryType.initial,
+            note: 'Initial stock created with product',
+            createdBy: input.createdBy ?? null,
+          },
+          tx,
+        );
+
+        return tx.product.findUniqueOrThrow({
+          where: { id: product.id },
+          include: {
+            category: true,
+            stockEntries: {
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+            },
+          },
+        });
+      });
+
+      return { success: true, data: toProduct(data, true) };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
       if (err.code === 'P2002') {
         return { success: false, message: 'Product with this SKU already exists' };
       }
+
       return { success: false, message: err.message || 'Failed to create product' };
     }
   }
 
   async updateProduct(
     productId: string,
-    input: Partial<ProductInput>,
+    input: ProductUpdateInput,
   ): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
     try {
-      const data: Prisma.ProductUpdateInput = {};
-      if (input.name !== undefined) data.name = input.name;
-      if (input.nameSi !== undefined) data.nameSi = input.nameSi ?? null;
-      if (input.baseProduct !== undefined) data.baseProduct = input.baseProduct ?? null;
-      if (input.baseProductSi !== undefined) data.baseProductSi = input.baseProductSi ?? null;
-      if (input.description !== undefined) data.description = input.description ?? null;
-      if (input.descriptionSi !== undefined) data.descriptionSi = input.descriptionSi ?? null;
-      if (input.category !== undefined) data.category = input.category ?? null;
-      if (input.categorySi !== undefined) data.categorySi = input.categorySi ?? null;
-      if (input.price !== undefined) data.price = input.price;
-      if (input.stockQuantity !== undefined) data.stockQuantity = input.stockQuantity;
-      if (input.imageUrl !== undefined) data.imageUrl = input.imageUrl ?? null;
-      if (input.isActive !== undefined) data.isActive = input.isActive;
+      const row = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            nameSi: true,
+            descriptionSi: true,
+          },
+        });
 
-      if (Object.keys(data).length === 0) {
-        return this.getProduct(productId);
-      }
+        const nextName = input.name !== undefined ? input.name.trim() : existing.name;
+        const nextDescription =
+          input.description !== undefined ? input.description?.trim() || null : existing.description;
+        const shouldTranslateName = input.name !== undefined && input.nameSi === undefined;
+        const shouldTranslateDescription =
+          input.description !== undefined && input.descriptionSi === undefined;
+        const translated =
+          shouldTranslateName || shouldTranslateDescription
+            ? await this.catalogTranslationService.translateProductFields({
+                name: shouldTranslateName ? nextName : undefined,
+                description: shouldTranslateDescription ? nextDescription : undefined,
+              })
+            : { nameSi: null, descriptionSi: null };
 
-      const row = await this.prisma.product.update({
-        where: { id: productId },
-        data,
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          nameSi: true,
-          baseProduct: true,
-          baseProductSi: true,
-          description: true,
-          descriptionSi: true,
-          category: true,
-          categorySi: true,
-          price: true,
-          stockQuantity: true,
-          imageUrl: true,
-          isActive: true,
-          createdAt: true,
-        },
+        const data: Prisma.ProductUpdateInput = {};
+        if (input.name !== undefined) data.name = nextName;
+        if (input.nameSi !== undefined) data.nameSi = input.nameSi?.trim() || null;
+        else if (shouldTranslateName && translated.nameSi) data.nameSi = translated.nameSi;
+        if (input.description !== undefined) data.description = nextDescription;
+        if (input.descriptionSi !== undefined) data.descriptionSi = input.descriptionSi?.trim() || null;
+        else if (shouldTranslateDescription && translated.descriptionSi) data.descriptionSi = translated.descriptionSi;
+        if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
+        if (input.imageUrl !== undefined) data.imageUrl = input.imageUrl?.trim() || null;
+        if (input.isActive !== undefined) data.isActive = input.isActive;
+
+        if (input.categoryId !== undefined || input.categoryName !== undefined) {
+          data.category = {
+            connect: {
+              id: await this.resolveCategoryId(
+                {
+                  categoryId: input.categoryId,
+                  categoryName: input.categoryName,
+                  categoryNameSi: input.categoryNameSi,
+                },
+                tx,
+              ),
+            },
+          };
+        }
+
+        await tx.product.update({
+          where: { id: productId },
+          data,
+        });
+
+        if (input.stockQuantity !== undefined) {
+          await this.inventoryService.adjustStock(
+            {
+              productId,
+              balanceTo: input.stockQuantity,
+              type: StockEntryType.rebalance,
+              note: 'Stock balance updated by admin',
+              createdBy: input.createdBy ?? null,
+            },
+            tx,
+          );
+        }
+
+        return tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          include: {
+            category: true,
+            stockEntries: {
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+            },
+          },
+        });
       });
 
-      return { success: true, data: toListProduct(row) };
+      return { success: true, data: toProduct(row, true) };
     } catch (error) {
       const err = error as { code?: string; message?: string };
-      this.logger.error(`Failed to update product: ${err.message}`);
       if (err.code === 'P2025') {
         return { success: false, message: 'Product not found' };
       }
+
       return { success: false, message: err.message || 'Failed to update product' };
+    }
+  }
+
+  async adjustProductStock(
+    productId: string,
+    input: {
+      quantityChange?: number;
+      balanceTo?: number;
+      note?: string;
+      createdBy?: string;
+    },
+  ): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        await this.inventoryService.adjustStock(
+          {
+            productId,
+            quantityChange: input.quantityChange,
+            balanceTo: input.balanceTo,
+            type: input.balanceTo !== undefined ? StockEntryType.rebalance : StockEntryType.adjustment,
+            note: input.note?.trim() || null,
+            createdBy: input.createdBy ?? null,
+          },
+          tx,
+        );
+
+        return tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          include: {
+            category: true,
+            stockEntries: {
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+            },
+          },
+        });
+      });
+
+      return { success: true, data: toProduct(row, true) };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2025' || err.message === 'Product not found') {
+        return { success: false, message: 'Product not found' };
+      }
+
+      return { success: false, message: err.message || 'Failed to adjust stock' };
     }
   }
 
@@ -453,12 +747,10 @@ export class CatalogService {
       return { success: true, message: 'Product deleted successfully' };
     } catch (error) {
       const err = error as { code?: string; message?: string };
-
       if (err.code === 'P2025') {
         return { success: false, message: 'Product not found' };
       }
 
-      // P2003 = FK constraint; archive instead of hard-delete
       if (err.code === 'P2003') {
         try {
           await this.prisma.product.update({ where: { id: productId }, data: { isActive: false } });
@@ -468,33 +760,52 @@ export class CatalogService {
           };
         } catch (archiveError) {
           const ae = archiveError as { message?: string };
-          this.logger.error(`Failed to archive product after delete conflict: ${ae.message}`);
           return { success: false, message: ae.message || 'Failed to archive product' };
         }
       }
 
-      this.logger.error(`Failed to delete product: ${err.message}`);
       return { success: false, message: err.message || 'Failed to delete product' };
     }
   }
 
-  async listCategories(limit = 200): Promise<CatalogCategoriesResponse> {
-    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(Math.floor(limit), 500)) : 200;
+  private async resolveCategoryId(
+    input: {
+      categoryId?: string;
+      categoryName?: string;
+      categoryNameSi?: string;
+    },
+    tx: Prisma.TransactionClient,
+  ) {
+    if (input.categoryId) {
+      const category = await tx.category.findUnique({
+        where: { id: input.categoryId },
+        select: { id: true },
+      });
 
-    const rows = await this.prisma.$queryRaw<Array<{ category: string }>>(
-      Prisma.sql`
-        SELECT DISTINCT trim(coalesce(category_si, category, '')) AS category
-        FROM core.products
-        WHERE is_active = true
-          AND trim(coalesce(category_si, category, '')) <> ''
-        ORDER BY category ASC
-        LIMIT ${safeLimit}
-      `,
-    );
+      if (!category) {
+        throw new Error('Category not found');
+      }
 
-    return {
-      success: true,
-      data: { categories: rows.map((r) => r.category) },
-    };
+      return category.id;
+    }
+
+    const categoryName = input.categoryName?.trim();
+    if (!categoryName) {
+      throw new Error('Category is required');
+    }
+
+    const category = await tx.category.upsert({
+      where: { name: categoryName },
+      update: {
+        ...(input.categoryNameSi !== undefined ? { nameSi: input.categoryNameSi?.trim() || null } : {}),
+      },
+      create: {
+        name: categoryName,
+        nameSi: input.categoryNameSi?.trim() || null,
+      },
+      select: { id: true },
+    });
+
+    return category.id;
   }
 }

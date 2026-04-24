@@ -33,6 +33,10 @@ type VoiceChatMessageRow = {
 export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VoiceChatRepository.name);
   private readonly pool: Pool;
+  private userTableRef = '"user"';
+  private sessionTableRef = '"agent_chat_session"';
+  private messageTableRef = '"agent_chat_message"';
+  private persistenceEnabled = true;
 
   constructor(private readonly configService: ConfigService) {
     this.pool = new Pool({
@@ -50,7 +54,8 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.ensureSchema();
+    await this.resolveTableRefs();
+    await this.ensureSchemaIfPossible();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -58,9 +63,13 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   async getOrCreateSession(userId: string): Promise<VoiceChatSessionDto> {
+    if (!this.persistenceEnabled) {
+      return this.buildEphemeralSession(userId);
+    }
+
     const created = await this.pool.query<VoiceChatSessionRow>(
       `
-      INSERT INTO "auth"."agent_chat_session" ("id", "user_id", "agent_session_id")
+      INSERT INTO ${this.sessionTableRef} ("id", "user_id", "agent_session_id")
       VALUES ($1, $2, $3)
       ON CONFLICT ("user_id")
       DO UPDATE SET "updated_at" = NOW()
@@ -82,13 +91,17 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   async getSessionWithMessages(userId: string, limit = 100): Promise<VoiceChatSessionDto> {
+    if (!this.persistenceEnabled) {
+      return this.buildEphemeralSession(userId);
+    }
+
     const session = await this.getOrCreateSession(userId);
     const max = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 200)) : 100;
 
     const query = await this.pool.query<VoiceChatMessageRow>(
       `
       SELECT "id", "role", "channel", "content", "transcription", "language", "created_at"
-      FROM "auth"."agent_chat_message"
+      FROM ${this.messageTableRef}
       WHERE "chat_session_id" = $1
       ORDER BY "created_at" ASC
       LIMIT $2
@@ -108,6 +121,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     assistantText: string;
     transcription?: string;
   }): Promise<void> {
+    if (!this.persistenceEnabled) {
+      return;
+    }
+
     const session = await this.getOrCreateSession(params.userId);
     const client = await this.pool.connect();
 
@@ -140,7 +157,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
       await client.query(
         `
-        UPDATE "auth"."agent_chat_session"
+        UPDATE ${this.sessionTableRef}
         SET "updated_at" = NOW(), "last_message_at" = NOW()
         WHERE "id" = $1
         `,
@@ -170,7 +187,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     await client.query(
       `
-      INSERT INTO "auth"."agent_chat_message" (
+      INSERT INTO ${this.messageTableRef} (
         "id",
         "chat_session_id",
         "user_id",
@@ -207,15 +224,85 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private buildEphemeralSession(userId: string): VoiceChatSessionDto {
+    return {
+      id: `ephemeral-${userId}`,
+      userId,
+      agentSessionId: `agent-${userId}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      messages: [],
+    };
+  }
+
+  private async resolveTableRefs(): Promise<void> {
+    const userTableSchema = await this.detectExistingSchema('user');
+    const sessionSchema = await this.detectExistingSchema('agent_chat_session');
+    const messageSchema = await this.detectExistingSchema('agent_chat_message');
+
+    this.userTableRef = this.qualifyTable(userTableSchema, 'user');
+    this.sessionTableRef = this.qualifyTable(sessionSchema, 'agent_chat_session');
+    this.messageTableRef = this.qualifyTable(messageSchema, 'agent_chat_message');
+
+    this.logger.log(
+      `Voice chat tables resolved: user=${this.userTableRef}, session=${this.sessionTableRef}, message=${this.messageTableRef}`,
+    );
+  }
+
+  private async detectExistingSchema(tableName: string): Promise<string | null> {
+    const result = await this.pool.query<{ schema_name: string }>(
+      `
+      SELECT table_schema AS schema_name
+      FROM information_schema.tables
+      WHERE table_name = $1
+        AND table_schema IN ('public', 'auth')
+      ORDER BY CASE table_schema WHEN 'public' THEN 0 ELSE 1 END
+      LIMIT 1
+      `,
+      [tableName],
+    );
+
+    return result.rows[0]?.schema_name ?? null;
+  }
+
+  private qualifyTable(schemaName: string | null, tableName: string): string {
+    return schemaName && schemaName !== 'public' ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+  }
+
+  private async ensureSchemaIfPossible(): Promise<void> {
+    if (!(await this.hasUserTable())) {
+      this.persistenceEnabled = false;
+      this.logger.warn(
+        'Voice chat persistence disabled because the Better Auth user table is missing in the current database.',
+      );
+      return;
+    }
+
+    this.persistenceEnabled = true;
+    await this.ensureSchema();
+  }
+
+  private async hasUserTable(): Promise<boolean> {
+    const result = await this.pool.query<{ exists: boolean }>(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_name = 'user'
+          AND table_schema IN ('public', 'auth')
+      ) AS exists
+      `,
+    );
+
+    return Boolean(result.rows[0]?.exists);
+  }
+
   private async ensureSchema(): Promise<void> {
     await this.pool.query(`
-      CREATE SCHEMA IF NOT EXISTS "auth";
-    `);
-
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS "auth"."agent_chat_session" (
+      CREATE TABLE IF NOT EXISTS ${this.sessionTableRef} (
         "id" TEXT PRIMARY KEY,
-        "user_id" TEXT NOT NULL UNIQUE REFERENCES "auth"."user"("id") ON DELETE CASCADE,
+        "user_id" TEXT NOT NULL UNIQUE REFERENCES ${this.userTableRef}("id") ON DELETE CASCADE,
         "agent_session_id" TEXT NOT NULL,
         "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -224,10 +311,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS "auth"."agent_chat_message" (
+      CREATE TABLE IF NOT EXISTS ${this.messageTableRef} (
         "id" TEXT PRIMARY KEY,
-        "chat_session_id" TEXT NOT NULL REFERENCES "auth"."agent_chat_session"("id") ON DELETE CASCADE,
-        "user_id" TEXT NOT NULL REFERENCES "auth"."user"("id") ON DELETE CASCADE,
+        "chat_session_id" TEXT NOT NULL REFERENCES ${this.sessionTableRef}("id") ON DELETE CASCADE,
+        "user_id" TEXT NOT NULL REFERENCES ${this.userTableRef}("id") ON DELETE CASCADE,
         "role" TEXT NOT NULL CHECK ("role" IN ('user', 'assistant')),
         "channel" TEXT NOT NULL CHECK ("channel" IN ('text', 'voice')),
         "content" TEXT NOT NULL,
@@ -239,11 +326,11 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS "idx_agent_chat_message_session_created"
-      ON "auth"."agent_chat_message" ("chat_session_id", "created_at");
+      ON ${this.messageTableRef} ("chat_session_id", "created_at");
     `);
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS "idx_agent_chat_message_user_created"
-      ON "auth"."agent_chat_message" ("user_id", "created_at");
+      ON ${this.messageTableRef} ("user_id", "created_at");
     `);
   }
 }

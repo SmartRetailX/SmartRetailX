@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OrderStatus as PrismaOrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus as PrismaOrderStatus, Prisma, StockEntryType } from '@prisma/client';
 import { PrismaService } from '@smart-retail-x/database';
 
 import { CartService } from '../cart/cart.service';
+import { InventoryService } from '../catalog/inventory.service';
 
 // Types
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -71,6 +72,7 @@ export class OrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async createOrder(input: CreateOrderInput): Promise<OrderResponse> {
@@ -83,13 +85,6 @@ export class OrderService {
       const cart = cartResponse.data;
       if (cart.items.length === 0) {
         return { success: false, message: 'Cart is empty' };
-      }
-
-      // Validate stock
-      for (const item of cart.items) {
-        if (item.currentStock < item.quantity) {
-          return { success: false, message: `Insufficient stock for ${item.productName}` };
-        }
       }
 
       const subtotal = cart.items.reduce((sum, i) => sum + i.totalPrice, 0);
@@ -126,12 +121,19 @@ export class OrderService {
           include: { items: true },
         });
 
-        // Decrement stock for each item
         for (const item of cart.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: { decrement: item.quantity } },
-          });
+          await this.inventoryService.requireAvailableStock(item.productId, item.quantity, tx);
+          await this.inventoryService.adjustStock(
+            {
+              productId: item.productId,
+              quantityChange: -item.quantity,
+              type: StockEntryType.sale,
+              note: `Order ${orderNumber} placed`,
+              referenceId: created.id,
+              createdBy: input.userId,
+            },
+            tx,
+          );
         }
 
         // Mark cart as converted
@@ -238,12 +240,18 @@ export class OrderService {
           throw new Error('Cannot cancel order in current status');
         }
 
-        // Restore stock
         for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: { increment: item.quantity } },
-          });
+          await this.inventoryService.adjustStock(
+            {
+              productId: item.productId,
+              quantityChange: item.quantity,
+              type: StockEntryType.cancellation,
+              note: `Order ${order.orderNumber} cancelled`,
+              referenceId: order.id,
+              createdBy: userId,
+            },
+            tx,
+          );
         }
 
         return tx.order.update({

@@ -242,7 +242,7 @@ export class VoiceRecommendationService implements VoiceCapability {
     }
 
     return expanded.map((product, index) => {
-      const categoryLabel = (product.categorySi || product.category || 'N/A').trim();
+      const categoryLabel = (product.categoryNameSi || product.category || 'N/A').trim();
       return [
         `${index + 1}) ${this.voiceProductService.getDisplayName(product)}`,
         `   මිල: ${this.voiceProductService.formatPrice(product.price)}`,
@@ -311,7 +311,7 @@ export class VoiceRecommendationService implements VoiceCapability {
     }
 
     const best = catalog.matches[0];
-    const offerCategory = normalizeCatalogQuery(best.categorySi || best.category || '');
+    const offerCategory = normalizeCatalogQuery(best.categoryNameSi || best.category || '');
     if (!offerCategory) {
       return false;
     }
@@ -326,7 +326,7 @@ export class VoiceRecommendationService implements VoiceCapability {
     const categories: string[] = [];
 
     for (const product of products) {
-      const label = (product.categorySi || product.category || '').trim();
+      const label = (product.categoryNameSi || product.category || '').trim();
       if (!label) {
         continue;
       }
@@ -350,7 +350,7 @@ export class VoiceRecommendationService implements VoiceCapability {
       return false;
     }
 
-    const fields = [product.categorySi || '', product.category || '', product.baseProductSi || '', product.baseProduct || '']
+    const fields = [product.categoryNameSi || '', product.category || '', product.nameSi || '', product.name || '']
       .map((value) => normalizeCatalogQuery(value))
       .filter(Boolean);
 

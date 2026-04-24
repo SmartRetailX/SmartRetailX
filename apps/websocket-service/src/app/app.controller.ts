@@ -1,4 +1,4 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { 
   WEBSOCKET_PATTERNS, 
@@ -16,6 +16,16 @@ export class AppController {
     private readonly gateway: AppWebSocketGateway,
     private readonly appService: AppService
   ) {}
+
+  @Get('health')
+  getHealth() {
+    return this.appService.getHealth();
+  }
+
+  @Get('stats')
+  getStats() {
+    return this.appService.getStats();
+  }
 
   @EventPattern(WEBSOCKET_PATTERNS.BROADCAST)
   handleBroadcast(@Payload() payload: BroadcastPayload) {

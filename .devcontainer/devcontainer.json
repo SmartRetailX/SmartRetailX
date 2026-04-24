@@ -55,7 +55,7 @@
       "label": "Agent TCP"
     },
     "15672": {
-      "label": "RabbitMQ Management"
+      "label": "RabbitMQ Explorer"
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
@@ -72,7 +72,7 @@
       "settings": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.formatOnSave": true,
-        "typescript.tsdk": "node_modules/typescript/lib"
+        "js/ts.tsdk.path": "node_modules/typescript/lib"
       }
     }
   }

@@ -1,8 +1,12 @@
 import { SessionResponse } from '@/schemas/auth/session.response';
 
-import { Session, UserMeta, UserSession } from '@/types/auth';
+import { Session, UserMeta, UserSession, USER_ROLE, type UserRole } from '@/types/auth';
 
 export function mapUser(user: SessionResponse['user']): UserMeta {
+  const role = user.role;
+  const normalizedRole: UserRole =
+    role === USER_ROLE.ADMIN || role === USER_ROLE.USER ? role : USER_ROLE.USER;
+
   return {
     id: user.id,
     name: user.name,
@@ -10,7 +14,7 @@ export function mapUser(user: SessionResponse['user']): UserMeta {
     image: user.image ?? undefined,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-    role: user.role ?? 'user',
+    role: normalizedRole,
     emailVerified: user.emailVerified ?? false,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
   };
