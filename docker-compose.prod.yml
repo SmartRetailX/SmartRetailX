@@ -14,6 +14,22 @@ x-node-environment: &node-environment
   WEBSOCKET_SERVICE_QUEUE: ${WEBSOCKET_SERVICE_QUEUE:-websocket_queue}
 
 services:
+  sinlama:
+    image: ${SINLAMA_IMAGE:-ghcr.io/polyglotai/sinlama-api:latest}
+    restart: unless-stopped
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - backend
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -21,8 +37,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-smartretailx}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
       POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -31,15 +47,18 @@ services:
       timeout: 5s
       retries: 5
 
+    networks:
+      - backend
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-smartretailx}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-smartretailx}
-    ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    expose:
+      - "5672"
+      - "15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -48,13 +67,14 @@ services:
       timeout: 5s
       retries: 5
 
+    networks:
+      - backend
+
   api-gateway:
     image: smart-retail-x/api-gateway:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/node-service.Dockerfile
-      args:
-        NX_PROJECT: api-gateway
+      dockerfile: apps/api-gateway/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -79,6 +99,9 @@ services:
       PROMOTION_ENGINE_URL: ${PROMOTION_ENGINE_URL:-http://promotion-engine:8001}
     ports:
       - "${API_GATEWAY_PORT:-3000}:3000"
+    networks:
+      - edge
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health/live || exit 1"]
       interval: 30s
@@ -90,9 +113,7 @@ services:
     image: smart-retail-x/core-service:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/node-service.Dockerfile
-      args:
-        NX_PROJECT: core-service
+      dockerfile: apps/core-service/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -103,14 +124,14 @@ services:
       <<: *node-environment
       AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+    networks:
+      - backend
 
   bi-dashboard-services-gateway:
     image: smart-retail-x/bi-dashboard-services-gateway:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/node-service.Dockerfile
-      args:
-        NX_PROJECT: bi-dashboard-services-gateway
+      dockerfile: apps/bi-dashboard-services-gateway/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -126,14 +147,15 @@ services:
       ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
     ports:
       - "${BI_DASHBOARD_PORT:-3001}:3001"
+    networks:
+      - edge
+      - backend
 
   websocket-service:
     image: smart-retail-x/websocket-service:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/node-service.Dockerfile
-      args:
-        NX_PROJECT: websocket-service
+      dockerfile: apps/websocket-service/Dockerfile
     restart: unless-stopped
     depends_on:
       rabbitmq:
@@ -141,14 +163,16 @@ services:
     environment:
       <<: *node-environment
       WEBSOCKET_SERVICE_PORT: 3004
-    ports:
-      - "${WEBSOCKET_SERVICE_PORT:-3004}:3004"
+    expose:
+      - "3004"
+    networks:
+      - backend
 
   web:
     image: smart-retail-x/web:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/web.Dockerfile
+      dockerfile: apps/web/Dockerfile
       args:
         PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     restart: unless-stopped
@@ -157,16 +181,15 @@ services:
         condition: service_healthy
     ports:
       - "${WEB_PORT:-8080}:80"
+    networks:
+      - edge
+      - backend
 
   bi-dashboard-ml-service:
     image: smart-retail-x/bi-dashboard-ml-service:${TAG:-latest}
     build:
-      context: .
-      dockerfile: docker/python-fastapi.Dockerfile
-      args:
-        APP_DIR: apps/bi-dashboard-ml-service
-        APP_MODULE: main:app
-        APP_PORT: 8000
+      context: ./apps/bi-dashboard-ml-service
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -175,105 +198,104 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
       ML_SERVICE_HOST: 0.0.0.0
       ML_SERVICE_PORT: 8000
-    ports:
-      - "${ML_SERVICE_PORT:-8000}:8000"
+    expose:
+      - "8000"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      - backend
 
   promotion-engine:
     image: smart-retail-x/promotion-engine:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/python-fastapi.Dockerfile
-      args:
-        APP_DIR: apps/personalized-promotion-engine-ml-service
-        APP_MODULE: api.main:app
-        APP_PORT: 8001
+      dockerfile: apps/personalized-promotion-engine-ml-service/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
-    ports:
-      - "${PROMOTION_ENGINE_PORT:-8001}:8001"
+    expose:
+      - "8001"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8001/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      - backend
 
   segmentation-service:
     image: smart-retail-x/segmentation-service:${TAG:-latest}
     build:
       context: .
-      dockerfile: docker/python-fastapi.Dockerfile
-      args:
-        APP_DIR: apps/segmentation-service
-        APP_MODULE: app.main:app
-        APP_PORT: 8002
-        APP_WORKDIR: /app/src
-        REQUIREMENTS_FILE: src/requirements.txt
+      dockerfile: apps/segmentation-service/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
-    ports:
-      - "${SEGMENTATION_SERVICE_PORT:-8002}:8002"
+    expose:
+      - "8002"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8002/docs || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      - backend
 
   agent-service:
     image: smart-retail-x/agent-service:${TAG:-latest}
     build:
-      context: .
-      dockerfile: docker/python-fastapi.Dockerfile
-      args:
-        APP_DIR: apps/agent-service
-        APP_MODULE: main:app
-        APP_PORT: 8010
+      context: ./apps/agent-service
+      dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      sinlama:
+        condition: service_started
     environment:
       AGENT_HTTP_PORT: 8010
       AGENT_TCP_HOST: 0.0.0.0
       AGENT_TCP_PORT: 8877
+      WHISPER_API_URL: ${WHISPER_API_URL:-}
+      WHISPER_API_TIMEOUT_MS: ${WHISPER_API_TIMEOUT_MS:-180000}
+      WHISPER_API_UPLOAD_FIELD: ${WHISPER_API_UPLOAD_FIELD:-file}
+      WHISPER_API_LANGUAGE_FIELD: ${WHISPER_API_LANGUAGE_FIELD:-language}
+      WHISPER_API_RESPONSE_FIELD: ${WHISPER_API_RESPONSE_FIELD:-transcription}
+      SINLAMA_API_URL: ${SINLAMA_API_URL:-http://sinlama:8080/generate}
+      SINLAMA_API_KEY: ${SINLAMA_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
       OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
-    ports:
-      - "${AGENT_HTTP_PORT:-8010}:8010"
-      - "${AGENT_TCP_PORT:-8877}:8877"
+    expose:
+      - "8010"
+      - "8877"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8010/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  assistant-model:
-    image: smart-retail-x/assistant-model:${TAG:-latest}
-    build:
-      context: .
-      dockerfile: docker/assistant-model.Dockerfile
-    profiles:
-      - assistant-model
-    restart: unless-stopped
-    environment:
-      HF_TOKEN: ${HF_TOKEN:-}
-    ports:
-      - "${ASSISTANT_MODEL_PORT:-7860}:7860"
+    networks:
+      - edge
+      - backend
 
 volumes:
   postgres-data:
   rabbitmq-data:
+
+networks:
+  edge:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true

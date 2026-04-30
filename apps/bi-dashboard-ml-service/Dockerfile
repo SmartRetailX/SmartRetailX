@@ -2,6 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -20,6 +25,11 @@ COPY . .
 
 # Create directories
 RUN mkdir -p models data
+
+RUN addgroup --system app && adduser --system --ingroup app app \
+    && chown -R app:app /app
+
+USER app
 
 # Expose port
 EXPOSE 8000
