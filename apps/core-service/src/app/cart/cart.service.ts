@@ -65,8 +65,8 @@ export class CartService {
       if (!cartResponse.success || !cartResponse.data) return cartResponse;
 
       const product = await this.prisma.product.findUnique({
-        where: { id: productId },
-        select: { id: true, price: true, stockQuantity: true },
+        where: { productId },
+        select: { productId: true, price: true, stockQuantity: true },
       });
 
       if (!product) return { success: false, message: 'Product not found' };
@@ -110,7 +110,7 @@ export class CartService {
         await this.prisma.cartItem.deleteMany({ where: { cartId, productId } });
       } else {
         const product = await this.prisma.product.findUnique({
-          where: { id: productId },
+          where: { productId },
           select: { stockQuantity: true },
         });
 
@@ -129,7 +129,7 @@ export class CartService {
           });
         } else {
           const productWithPrice = await this.prisma.product.findUnique({
-            where: { id: productId },
+            where: { productId },
             select: { price: true },
           });
 

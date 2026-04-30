@@ -139,9 +139,6 @@ evaluation/results/*.pdf
 .codexignore
 
 # Script related files
-scripts/data-insert-scripts/merged-files/
-scripts/data-insert-scripts/push-file/
-scripts/data-insert-scripts/splitted-files/
 scripts/data-insert-scripts/all_products.json
 scripts/data-insert-scripts/prompt.txt
 !scripts/README.md

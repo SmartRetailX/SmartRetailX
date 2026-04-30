@@ -18,6 +18,8 @@ export type Product = {
   categoryNameSi: string | null;
   price: number;
   currentStock: number;
+  brand: string;
+  purchaseFrequency: 'high' | 'medium' | 'low';
   imageUrl: string | null;
   isActive: boolean;
   status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';

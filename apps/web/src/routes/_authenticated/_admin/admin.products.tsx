@@ -75,6 +75,8 @@ function RouteComponent() {
     descriptionSi: '',
     price: '0',
     stockQuantity: '0',
+    brand: 'unbranded',
+    purchaseFrequency: 'medium',
     imageUrl: '',
     isActive: true,
   });
@@ -219,6 +221,8 @@ function RouteComponent() {
       descriptionSi: '',
       price: '0',
       stockQuantity: '0',
+      brand: 'unbranded',
+      purchaseFrequency: 'medium',
       imageUrl: '',
       isActive: true,
     });
@@ -248,6 +252,8 @@ function RouteComponent() {
       descriptionSi: product.descriptionSi || '',
       price: String(product.price),
       stockQuantity: String(product.currentStock),
+      brand: product.brand || 'unbranded',
+      purchaseFrequency: product.purchaseFrequency || 'medium',
       imageUrl: product.imageUrl || '',
       isActive: product.isActive,
     });
@@ -256,6 +262,12 @@ function RouteComponent() {
 
   const submitProduct = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const purchaseFrequency =
+      productForm.purchaseFrequency === 'high' ||
+      productForm.purchaseFrequency === 'medium' ||
+      productForm.purchaseFrequency === 'low'
+        ? productForm.purchaseFrequency
+        : 'medium';
 
     const payload = {
       sku: productForm.sku,
@@ -267,6 +279,8 @@ function RouteComponent() {
       categoryName: productForm.categoryName || undefined,
       price: Number(productForm.price),
       stockQuantity: Number(productForm.stockQuantity),
+      brand: productForm.brand || undefined,
+      purchaseFrequency,
       imageUrl: productForm.imageUrl || undefined,
       isActive: productForm.isActive,
     };
@@ -505,6 +519,26 @@ function RouteComponent() {
                     id="product-image-url"
                     value={productForm.imageUrl}
                     onChange={handleProductFormChange('imageUrl')}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="product-brand">Brand</FieldLabel>
+                  <Input
+                    id="product-brand"
+                    value={productForm.brand}
+                    onChange={handleProductFormChange('brand')}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="product-purchase-frequency">Purchase Frequency</FieldLabel>
+                  <Input
+                    id="product-purchase-frequency"
+                    value={productForm.purchaseFrequency}
+                    onChange={handleProductFormChange('purchaseFrequency')}
+                    placeholder="high | medium | low"
                   />
                 </Field>
               </div>

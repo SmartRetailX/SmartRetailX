@@ -1,5 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
+import { PurchaseFrequency } from '@prisma/client';
 
 import { CatalogService } from './catalog.service';
 
@@ -53,6 +54,8 @@ export class CatalogController {
     categoryNameSi?: string;
     price: number;
     stockQuantity: number;
+    brand?: string;
+    purchaseFrequency?: PurchaseFrequency;
     imageUrl?: string;
     isActive?: boolean;
     createdBy?: string;
@@ -72,6 +75,8 @@ export class CatalogController {
     categoryNameSi?: string;
     price?: number;
     stockQuantity?: number;
+    brand?: string;
+    purchaseFrequency?: PurchaseFrequency;
     imageUrl?: string;
     isActive?: boolean;
     createdBy?: string;

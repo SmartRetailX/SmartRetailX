@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, StockEntryType } from '@prisma/client';
+import { Prisma, PurchaseFrequency, StockEntryType } from '@prisma/client';
 import { PrismaService } from '@smart-retail-x/database';
 import { buildCatalogQueryTokens, normalizeCatalogQuery } from '@smart-retail-x/shared-types';
 
@@ -49,6 +49,8 @@ type CatalogListProduct = {
   categoryNameSi: string | null;
   price: number;
   currentStock: number;
+  brand: string;
+  purchaseFrequency: PurchaseFrequency;
   imageUrl: string | null;
   isActive: boolean;
   status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
@@ -106,6 +108,8 @@ type ProductInput = {
   categoryNameSi?: string;
   price: number;
   stockQuantity: number;
+  brand?: string;
+  purchaseFrequency?: PurchaseFrequency;
   imageUrl?: string;
   isActive?: boolean;
   createdBy?: string;
@@ -151,7 +155,7 @@ function toStockEntry(entry: ProductRow['stockEntries'][number]): ProductStockEn
 
 function toProduct(row: ProductRow, includeStockEntries = false): CatalogListProduct {
   const result: CatalogListProduct = {
-    id: row.id,
+    id: row.productId,
     sku: row.sku,
     name: row.name,
     nameSi: row.nameSi,
@@ -160,9 +164,11 @@ function toProduct(row: ProductRow, includeStockEntries = false): CatalogListPro
     categoryId: row.categoryId,
     category: row.category.name,
     categoryNameSi: row.category.nameSi,
-    price: Number(row.price),
-    currentStock: row.stockQuantity,
-    imageUrl: row.imageUrl,
+  price: Number(row.price),
+  currentStock: row.stockQuantity,
+  brand: row.brand,
+  purchaseFrequency: row.purchaseFrequency,
+  imageUrl: row.imageUrl,
     isActive: row.isActive,
     status: stockStatus(row.stockQuantity),
     createdBy: row.createdBy,
@@ -303,6 +309,7 @@ export class CatalogService {
           { description: { contains: normalizedSearch, mode: 'insensitive' } },
           { descriptionSi: { contains: normalizedSearch, mode: 'insensitive' } },
           { sku: { contains: normalizedSearch, mode: 'insensitive' } },
+          { brand: { contains: normalizedSearch, mode: 'insensitive' } },
           { category: { name: { contains: normalizedSearch, mode: 'insensitive' } } },
           { category: { nameSi: { contains: normalizedSearch, mode: 'insensitive' } } },
         ],
@@ -374,7 +381,7 @@ export class CatalogService {
   ): Promise<{ success: boolean; data?: CatalogListProduct; message?: string }> {
     try {
       const row = await this.prisma.product.findUnique({
-        where: { id: productId },
+        where: { productId },
         include: {
           category: true,
           stockEntries: {
@@ -574,6 +581,8 @@ export class CatalogService {
             categoryId,
             price: new Prisma.Decimal(input.price),
             stockQuantity: 0,
+            brand: input.brand?.trim() || 'unbranded',
+            purchaseFrequency: input.purchaseFrequency ?? PurchaseFrequency.medium,
             imageUrl: input.imageUrl?.trim() || null,
             isActive: input.isActive !== false,
             createdBy: input.createdBy ?? null,
@@ -589,7 +598,7 @@ export class CatalogService {
 
         await this.inventoryService.adjustStock(
           {
-            productId: product.id,
+            productId: product.productId,
             balanceTo: input.stockQuantity,
             type: StockEntryType.initial,
             note: 'Initial stock created with product',
@@ -599,7 +608,7 @@ export class CatalogService {
         );
 
         return tx.product.findUniqueOrThrow({
-          where: { id: product.id },
+          where: { productId: product.productId },
           include: {
             category: true,
             stockEntries: {
@@ -628,9 +637,9 @@ export class CatalogService {
     try {
       const row = await this.prisma.$transaction(async (tx) => {
         const existing = await tx.product.findUniqueOrThrow({
-          where: { id: productId },
+          where: { productId },
           select: {
-            id: true,
+            productId: true,
             name: true,
             description: true,
             nameSi: true,
@@ -664,6 +673,8 @@ export class CatalogService {
         else if (shouldTranslateDescription && translated.descriptionSi)
           data.descriptionSi = translated.descriptionSi;
         if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
+        if (input.brand !== undefined) data.brand = input.brand.trim() || 'unbranded';
+        if (input.purchaseFrequency !== undefined) data.purchaseFrequency = input.purchaseFrequency;
         if (input.imageUrl !== undefined) data.imageUrl = input.imageUrl?.trim() || null;
         if (input.isActive !== undefined) data.isActive = input.isActive;
 
@@ -683,7 +694,7 @@ export class CatalogService {
         }
 
         await tx.product.update({
-          where: { id: productId },
+          where: { productId },
           data,
         });
 
@@ -701,7 +712,7 @@ export class CatalogService {
         }
 
         return tx.product.findUniqueOrThrow({
-          where: { id: productId },
+          where: { productId },
           include: {
             category: true,
             stockEntries: {
@@ -748,7 +759,7 @@ export class CatalogService {
         );
 
         return tx.product.findUniqueOrThrow({
-          where: { id: productId },
+          where: { productId },
           include: {
             category: true,
             stockEntries: {
@@ -772,7 +783,7 @@ export class CatalogService {
 
   async deleteProduct(productId: string): Promise<{ success: boolean; message?: string }> {
     try {
-      await this.prisma.product.delete({ where: { id: productId } });
+      await this.prisma.product.delete({ where: { productId } });
       return { success: true, message: 'Product deleted successfully' };
     } catch (error) {
       const err = error as { code?: string; message?: string };
@@ -782,7 +793,7 @@ export class CatalogService {
 
       if (err.code === 'P2003') {
         try {
-          await this.prisma.product.update({ where: { id: productId }, data: { isActive: false } });
+          await this.prisma.product.update({ where: { productId }, data: { isActive: false } });
           return {
             success: true,
             message: 'Product has related records and was archived instead of hard-deleted',

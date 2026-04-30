@@ -4,6 +4,7 @@ import { Client } from 'pg';
 
 type SourceProduct = {
   category: string;
+  categorySi?: string | null;
   categoryId: number;
   itemID: number;
   itemCode: string;
@@ -18,6 +19,8 @@ type SourceProduct = {
   isAvailable?: boolean;
   discountPercentage?: number;
   stockQuantity?: number;
+  brand?: string | null;
+  purchaseFrequency?: 'high' | 'medium' | 'low' | string | null;
 };
 
 function readEnvValue(key: string) {
@@ -52,7 +55,7 @@ function readEnvValue(key: string) {
 }
 
 function loadProducts() {
-  const filePath = join(process.cwd(), 'scripts/data-insert-scripts/push-file/products.json');
+  const filePath = join(process.cwd(), 'scripts/data-insert-scripts/merged-files/products.json');
   return JSON.parse(readFileSync(filePath, 'utf8')) as SourceProduct[];
 }
 
@@ -70,6 +73,19 @@ function deriveDescription(product: SourceProduct) {
   }
 
   return product.uom ? `${product.name.trim()} (${product.uom.trim()})` : null;
+}
+
+function deriveBrand(product: SourceProduct) {
+  const value = product.brand?.trim();
+  return value && value.length > 0 ? value : 'unbranded';
+}
+
+function derivePurchaseFrequency(product: SourceProduct) {
+  const value = product.purchaseFrequency?.trim().toLowerCase();
+  if (value === 'high' || value === 'medium' || value === 'low') {
+    return value;
+  }
+  return 'medium';
 }
 
 async function pushToDatabase() {
@@ -92,14 +108,15 @@ async function pushToDatabase() {
 
       const categoryResult = await client.query<{ id: string }>(
         `
-          INSERT INTO core.categories (name, created_at, updated_at)
-          VALUES ($1, NOW(), NOW())
+          INSERT INTO core.categories (name, name_si, created_at, updated_at)
+          VALUES ($1, $2, NOW(), NOW())
           ON CONFLICT (name)
           DO UPDATE SET
+            name_si = COALESCE(EXCLUDED.name_si, core.categories.name_si),
             updated_at = NOW()
           RETURNING id
         `,
-        [product.category.trim()],
+        [product.category.trim(), product.categorySi?.trim() || null],
       );
 
       const categoryId = categoryResult.rows[0]?.id;
@@ -109,6 +126,8 @@ async function pushToDatabase() {
 
       const description = deriveDescription(product);
       const initialStock = deriveInitialStock(product);
+      const brand = deriveBrand(product);
+      const purchaseFrequency = derivePurchaseFrequency(product);
 
       const productResult = await client.query<{ id: string; stock_quantity: number }>(
         `
@@ -121,13 +140,15 @@ async function pushToDatabase() {
             category_id,
             price,
             stock_quantity,
+            brand,
+            purchase_frequency,
             image_url,
             is_active,
             created_by,
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, $11, $12, NOW(), NOW())
           ON CONFLICT (sku)
           DO UPDATE SET
             name = EXCLUDED.name,
@@ -136,6 +157,8 @@ async function pushToDatabase() {
             description_si = EXCLUDED.description_si,
             category_id = EXCLUDED.category_id,
             price = EXCLUDED.price,
+            brand = EXCLUDED.brand,
+            purchase_frequency = EXCLUDED.purchase_frequency,
             image_url = EXCLUDED.image_url,
             is_active = EXCLUDED.is_active,
             updated_at = NOW()
@@ -149,6 +172,8 @@ async function pushToDatabase() {
           product.descriptionSi?.trim() || null,
           categoryId,
           product.price,
+          brand,
+          purchaseFrequency,
           product.imageUrl?.trim() || null,
           true,
           'db_push_script',

@@ -30,57 +30,12 @@ services:
     networks:
       - backend
 
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-smartretailx}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
-      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
-    expose:
-      - "5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx} -d ${POSTGRES_DB:-smartretailx}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-    networks:
-      - backend
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-smartretailx}
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-smartretailx}
-    expose:
-      - "5672"
-      - "15672"
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-    networks:
-      - backend
-
   api-gateway:
     image: smart-retail-x/api-gateway:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     environment:
       <<: *node-environment
       AGENT_HTTP_TIMEOUT_MS: ${AGENT_HTTP_TIMEOUT_MS:-180000}
@@ -115,11 +70,6 @@ services:
       context: .
       dockerfile: apps/core-service/Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     environment:
       <<: *node-environment
       AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
@@ -134,10 +84,6 @@ services:
       dockerfile: apps/bi-dashboard-services-gateway/Dockerfile
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
       bi-dashboard-ml-service:
         condition: service_healthy
     environment:
@@ -157,9 +103,6 @@ services:
       context: .
       dockerfile: apps/websocket-service/Dockerfile
     restart: unless-stopped
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
       <<: *node-environment
       WEBSOCKET_SERVICE_PORT: 3004
@@ -191,9 +134,6 @@ services:
       context: ./apps/bi-dashboard-ml-service
       dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
       ML_SERVICE_HOST: 0.0.0.0
@@ -215,9 +155,6 @@ services:
       context: .
       dockerfile: apps/personalized-promotion-engine-ml-service/Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
     expose:
@@ -237,9 +174,6 @@ services:
       context: .
       dockerfile: apps/segmentation-service/Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
     expose:
@@ -289,13 +223,9 @@ services:
       - edge
       - backend
 
-volumes:
-  postgres-data:
-  rabbitmq-data:
-
 networks:
   edge:
     driver: bridge
   backend:
-    driver: bridge
-    internal: true
+    external: true
+    name: smart-retail-backend
