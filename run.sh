@@ -23,27 +23,23 @@ Usage:
   ./run.sh <service> [service...]
 
 Supported services:
-  api-gateway
-  core-service
-  websocket-service
+  api
+  core
   websocket
   web
   all
 
 Examples:
-  ./run.sh api-gateway core-service websocket
-  ./run.sh web api-gateway
+  ./run.sh api core websocket
+  ./run.sh web api
   ./run.sh all
 EOF
 }
 
 normalize_service() {
   case "$1" in
-    api-gateway|core-service|websocket-service|web)
+    api|core|websocket|web)
       printf '%s\n' "$1"
-      ;;
-    websocket)
-      printf 'websocket-service\n'
       ;;
     all)
       printf 'api-gateway\ncore-service\nwebsocket-service\nweb\n'
@@ -116,8 +112,7 @@ wait_for_file() {
 
 start_backend_service() {
   local service="$1"
-  local app_dir="$2"
-  local output_file="$3"
+  local output_file="$2"
 
   rm -f "$ROOT_DIR/$output_file"
 
@@ -137,14 +132,14 @@ start_backend_service() {
 
 start_service() {
   case "$1" in
-    api-gateway)
-      start_backend_service "api-gateway" "apps/api-gateway" "dist/apps/api-gateway/main.js"
+    api)
+      start_backend_service "api" "dist/apps/api-gateway/main.js"
       ;;
-    core-service)
-      start_backend_service "core-service" "apps/core-service" "dist/apps/core-service/main.js"
+    core)
+      start_backend_service "core" "dist/apps/core-service/main.js"
       ;;
-    websocket-service)
-      start_backend_service "websocket-service" "apps/websocket-service" "dist/apps/websocket-service/main.js"
+    websocket)
+      start_backend_service "websocket" "dist/apps/websocket-service/main.js"
       ;;
     web)
       printf 'Starting web dev server\n'
@@ -207,7 +202,7 @@ printf 'Launching services: %s\n' "${services[*]}"
 
 for service in "${services[@]}"; do
   case "$service" in
-    api-gateway|core-service)
+    api|core)
       ensure_database_is_ready
       break
       ;;

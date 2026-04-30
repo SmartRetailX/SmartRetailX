@@ -720,6 +720,8 @@ export class CoreController {
         categoryNameSi: { type: 'string' },
         price: { type: 'number' },
         stockQuantity: { type: 'number' },
+        brand: { type: 'string', default: 'unbranded' },
+        purchaseFrequency: { type: 'string', enum: ['high', 'medium', 'low'], default: 'medium' },
         imageUrl: { type: 'string' },
         isActive: { type: 'boolean' },
       },
@@ -741,6 +743,8 @@ export class CoreController {
       categoryNameSi?: string;
       price: number;
       stockQuantity: number;
+      brand?: string;
+      purchaseFrequency?: 'high' | 'medium' | 'low';
       imageUrl?: string;
       isActive?: boolean;
     },
@@ -782,6 +786,8 @@ export class CoreController {
         categoryNameSi: { type: 'string' },
         price: { type: 'number' },
         stockQuantity: { type: 'number' },
+        brand: { type: 'string' },
+        purchaseFrequency: { type: 'string', enum: ['high', 'medium', 'low'] },
         imageUrl: { type: 'string' },
         isActive: { type: 'boolean' },
       },
@@ -802,6 +808,8 @@ export class CoreController {
       categoryNameSi?: string;
       price?: number;
       stockQuantity?: number;
+      brand?: string;
+      purchaseFrequency?: 'high' | 'medium' | 'low';
       imageUrl?: string;
       isActive?: boolean;
     },

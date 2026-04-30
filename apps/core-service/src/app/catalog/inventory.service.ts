@@ -21,8 +21,8 @@ export class InventoryService {
   async adjustStock(input: StockAdjustmentInput, executor?: PrismaExecutor) {
     const client = executor ?? this.prisma;
     const product = await client.product.findUnique({
-      where: { id: input.productId },
-      select: { id: true, stockQuantity: true },
+      where: { productId: input.productId },
+      select: { productId: true, stockQuantity: true },
     });
 
     if (!product) {
@@ -38,7 +38,7 @@ export class InventoryService {
     }
 
     const updatedProduct = await client.product.update({
-      where: { id: input.productId },
+      where: { productId: input.productId },
       data: { stockQuantity: nextQuantity },
       select: { stockQuantity: true },
     });
@@ -64,8 +64,8 @@ export class InventoryService {
   async requireAvailableStock(productId: string, requiredQuantity: number, executor?: PrismaExecutor) {
     const client = executor ?? this.prisma;
     const product = await client.product.findUnique({
-      where: { id: productId },
-      select: { id: true, stockQuantity: true, isActive: true, name: true },
+      where: { productId },
+      select: { productId: true, stockQuantity: true, isActive: true, name: true },
     });
 
     if (!product || !product.isActive) {

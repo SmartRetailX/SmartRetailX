@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx} -d ${POSTGRES_DB:-smartretailx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-smartretailx}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-smartretailx}
+    expose:
+      - "5672"
+      - "15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+
+networks:
+  backend:
+    name: smart-retail-backend
+    driver: bridge
