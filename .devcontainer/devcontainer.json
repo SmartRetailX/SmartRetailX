@@ -13,6 +13,10 @@
     }
   },
   "forwardPorts": [
+    8081,
+    19000,
+    19001,
+    19002,
     3000,
     3001,
     3004,
@@ -27,6 +31,18 @@
     15672
   ],
   "portsAttributes": {
+    "8081": {
+      "label": "Metro Bundler"
+    },
+    "19000": {
+      "label": "Expo Dev Server"
+    },
+    "19001": {
+      "label": "Expo LAN"
+    },
+    "19002": {
+      "label": "Expo DevTools"
+    },
     "3000": {
       "label": "API Gateway"
     },
