@@ -42,7 +42,7 @@ normalize_service() {
       printf '%s\n' "$1"
       ;;
     all)
-      printf 'api-gateway\ncore-service\nwebsocket-service\nweb\n'
+      printf 'api\ncore\nwebsocket\nweb\n'
       ;;
     *)
       return 1
@@ -111,35 +111,36 @@ wait_for_file() {
 }
 
 start_backend_service() {
-  local service="$1"
-  local output_file="$2"
+  local label="$1"
+  local project="$2"
+  local output_file="$3"
 
   rm -f "$ROOT_DIR/$output_file"
 
-  printf 'Starting %s build watcher\n' "$service"
+  printf 'Starting %s build watcher\n' "$label"
   start_prefixed_process \
-    "$service" \
-    "cd '$ROOT_DIR' && exec pnpm nx run $service:build:development --watch"
-  BUILDER_PIDS["$service"]="$LAST_STARTED_PID"
+    "$label" \
+    "cd '$ROOT_DIR' && exec pnpm nx run $project:build:development --watch"
+  BUILDER_PIDS["$label"]="$LAST_STARTED_PID"
 
-  wait_for_file "$service" "$ROOT_DIR/$output_file"
+  wait_for_file "$label" "$ROOT_DIR/$output_file"
 
-  printf 'Starting %s runtime watcher\n' "$service"
+  printf 'Starting %s runtime watcher\n' "$label"
   start_prefixed_process \
-    "$service" \
+    "$label" \
     "cd '$ROOT_DIR' && exec node --watch '$ROOT_DIR/$output_file'"
 }
 
 start_service() {
   case "$1" in
     api)
-      start_backend_service "api" "dist/apps/api-gateway/main.js"
+      start_backend_service "api" "api-gateway" "dist/apps/api-gateway/main.js"
       ;;
     core)
-      start_backend_service "core" "dist/apps/core-service/main.js"
+      start_backend_service "core" "core-service" "dist/apps/core-service/main.js"
       ;;
     websocket)
-      start_backend_service "websocket" "dist/apps/websocket-service/main.js"
+      start_backend_service "websocket" "websocket-service" "dist/apps/websocket-service/main.js"
       ;;
     web)
       printf 'Starting web dev server\n'

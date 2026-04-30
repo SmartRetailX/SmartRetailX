@@ -1101,6 +1101,16 @@ Optional large model service:
 docker compose --env-file .env.production -f docker-compose.prod.yml --profile assistant-model up -d --build assistant-model
 ```
 
+### Kubernetes
+
+Production Kubernetes manifests are available in `k8s/prod`:
+
+```bash
+cp k8s/prod/secret.example.yaml k8s/prod/secret.yaml
+# update secret values, then swap secret.example.yaml -> secret.yaml in k8s/prod/kustomization.yaml
+kubectl apply -k k8s/prod
+```
+
 ### Environment Variables
 
 ```env
