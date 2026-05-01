@@ -89,7 +89,7 @@ export class VoiceProductService implements VoiceCapability {
       return null;
     }
 
-    const scoredMatches = this.scoreCatalogMatches(queryText, mergedMatches);
+    const scoredMatches = this.scoreCatalogMatches(queryText, mergedMatches, queryVariants);
     const selectedMatches = this.selectCatalogMatches(queryText, scoredMatches);
     if (selectedMatches.length === 0) {
       return null;
@@ -145,9 +145,22 @@ export class VoiceProductService implements VoiceCapability {
       ['ස්ප්‍රෙඩ්', 'spread'],
       ['ජෑම්', 'jam'],
       ['කිරි', 'milk'],
+      ['crm', 'cream'],
+      ['crem', 'cream'],
+      ['icecrm', 'ice cream'],
+      ['icecrem', 'ice cream'],
+      ['icecram', 'ice cream'],
+      ['aice', 'ice'],
     ]);
 
     const variants: string[] = [queryText.trim()];
+    const normalizedWithPhraseFixes = normalized
+      .replace(/\bice\s*crm\b/g, 'ice cream')
+      .replace(/\bice\s*crem\b/g, 'ice cream')
+      .replace(/\bice\s*cram\b/g, 'ice cream');
+    if (normalizedWithPhraseFixes && normalizedWithPhraseFixes !== normalized) {
+      variants.push(normalizedWithPhraseFixes);
+    }
 
     if (tokens.length > 0) {
       const normalizedTokens = tokens.map((token) => synonyms.get(token) ?? token);
@@ -404,9 +417,15 @@ export class VoiceProductService implements VoiceCapability {
     return `[${label}](/products/${encodeURIComponent(product.productId)})`;
   }
 
-  private scoreCatalogMatches(queryText: string, rawMatches: CatalogSearchRaw[]): CatalogSearchMatch[] {
+  private scoreCatalogMatches(
+    queryText: string,
+    rawMatches: CatalogSearchRaw[],
+    queryVariants: string[] = [],
+  ): CatalogSearchMatch[] {
     const normalized = normalizeCatalogQuery(queryText);
     const queryTokens = buildCatalogQueryTokens(normalized);
+    const normalizedVariants = Array.from(new Set(queryVariants.map((variant) => normalizeCatalogQuery(variant))));
+    const scoringTexts = [normalized, ...normalizedVariants].filter(Boolean);
 
     return rawMatches.map((raw) => {
       const nameLower = (raw.name || '').toLowerCase();
@@ -426,11 +445,16 @@ export class VoiceProductService implements VoiceCapability {
         normalizeCatalogQuery(raw.sku || ''),
       ];
 
-      const exactHit = nameLower === normalized || nameSiLower === normalized;
-      const prefixHit = nameLower.startsWith(normalized) || nameSiLower.startsWith(normalized);
-      const phraseHit = normalizedSearchable.some((field) => Boolean(normalized && field.includes(normalized)));
+      const exactHit = scoringTexts.some((text) => nameLower === text || nameSiLower === text || skuLower === text);
+      const prefixHit = scoringTexts.some((text) => nameLower.startsWith(text) || nameSiLower.startsWith(text));
+      const phraseHit = normalizedSearchable.some((field) =>
+        scoringTexts.some((text) => Boolean(text && field.includes(text))),
+      );
 
-      const matchedTokens = queryTokens.filter((token) => searchable.some((field) => field.includes(token)));
+      const variantTokens = normalizedVariants.flatMap((variant) => buildCatalogQueryTokens(variant));
+      const matchedTokens = Array.from(new Set([...queryTokens, ...variantTokens])).filter((token) =>
+        searchable.some((field) => field.includes(token)),
+      );
       const tokenHits = matchedTokens.length;
 
       let matchScore = 0;
@@ -442,7 +466,15 @@ export class VoiceProductService implements VoiceCapability {
       const fuzzyScore = this.computeFuzzyNameScore(normalized, raw);
       matchScore = Math.max(matchScore, fuzzyScore);
 
-      return { ...raw, tokenHits, matchedTokens, exactHit, prefixHit, phraseHit, matchScore };
+      return {
+        ...raw,
+        tokenHits,
+        matchedTokens,
+        exactHit,
+        prefixHit,
+        phraseHit,
+        matchScore,
+      };
     });
   }
 
@@ -450,12 +482,27 @@ export class VoiceProductService implements VoiceCapability {
     const name = normalizeCatalogQuery(product.name || '');
     const nameSi = normalizeCatalogQuery(product.nameSi || '');
     const brand = normalizeCatalogQuery(product.brand || '');
-    const combined = [name, nameSi, brand].filter(Boolean).join(' ');
-    if (!combined) {
+    const fields = [name, nameSi, brand].filter(Boolean);
+    if (fields.length === 0) {
       return 0;
     }
 
-    const similarity = this.diceCoefficient(normalizedQuery, combined);
+    const queryTokens = buildCatalogQueryTokens(normalizedQuery);
+    const candidateQueries = [normalizedQuery, ...queryTokens].filter(Boolean);
+    let best = 0;
+    for (const candidate of candidateQueries) {
+      for (const field of fields) {
+        best = Math.max(best, this.diceCoefficient(candidate, field));
+      }
+    }
+
+    // Mild boost when query has latin-ish typo and candidate has direct token overlap.
+    const hasLatin = /[a-z]/.test(normalizedQuery);
+    if (hasLatin && queryTokens.some((token) => fields.some((field) => field.includes(token.slice(0, Math.max(3, token.length - 1)))))) {
+      best = Math.max(best, best + 0.08);
+    }
+
+    const similarity = Math.min(1, best);
     return Math.round(similarity * 100);
   }
 
@@ -524,8 +571,8 @@ export class VoiceProductService implements VoiceCapability {
   }
 
   private buildCatalogClarificationResponse(matches: CatalogSearchMatch[]): string {
-    const options = matches
-      .slice(0, 3)
+    const topMatches = matches.slice(0, 3);
+    const options = topMatches
       .map((product, index) =>
         [
           `| ${index + 1}`,
@@ -539,6 +586,8 @@ export class VoiceProductService implements VoiceCapability {
 
     return [
       '### ඔබ අදහස් කළ භාණ්ඩය මේවා අතරද?',
+      '',
+      this.buildCatalogChoiceExplanation(topMatches),
       '',
       '| # | භාණ්ඩය | මිල | තොගය | වර්ගය |',
       '| ---: | --- | ---: | --- | --- |',
@@ -554,6 +603,10 @@ export class VoiceProductService implements VoiceCapability {
     }
 
     if (match.matchScore >= 78) {
+      return true;
+    }
+
+    if (match.matchScore >= 62 && queryTokens.length <= 3 && match.tokenHits >= 1) {
       return true;
     }
 
@@ -581,6 +634,8 @@ export class VoiceProductService implements VoiceCapability {
     return [
       '### ගැලපෙන නිෂ්පාදන',
       '',
+      this.buildCatalogChoiceExplanation(topMatches),
+      '',
       '| # | භාණ්ඩය | මිල | තොගය | වර්ගය | ගැලපුනේ |',
       '| ---: | --- | ---: | --- | --- | --- |',
       ...lines,
@@ -599,7 +654,7 @@ export class VoiceProductService implements VoiceCapability {
       features: matches.slice(0, 3).map((product) => ({
         name: this.getDisplayName(product),
         weight: product.matchScore,
-        evidence: this.formatMatchReason(product),
+        evidence: `${this.formatMatchReason(product)}; ${this.formatPrice(product.price)}; ${this.formatStockLabel(product.currentStock)}`,
       })),
     };
   }
@@ -614,7 +669,7 @@ export class VoiceProductService implements VoiceCapability {
       `| වර්ගය | ${this.formatMarkdownCell(this.getDisplayCategory(product))} |`,
       `| මිල | ${this.formatMarkdownCell(this.formatPrice(product.price))} |`,
       `| තොගය | ${this.formatMarkdownCell(this.formatStockLabel(product.currentStock))} |`,
-      `| ගැලපුනේ | ${this.formatMarkdownCell(this.formatMatchReason(product))} |`,
+      `| ගැලපුනේ | ${this.formatMarkdownCell(this.formatCustomerMatchReason(product))} |`,
     ].join('\n');
   }
 
@@ -625,23 +680,83 @@ export class VoiceProductService implements VoiceCapability {
       this.formatPrice(product.price),
       this.formatStockLabel(product.currentStock),
       this.getDisplayCategory(product),
-      this.formatMatchReason(product),
+      this.formatCustomerMatchReason(product),
     ]
       .map((cell) => this.formatMarkdownCell(cell))
       .join(' | ') + ' |';
   }
 
-  private formatMatchReason(product: CatalogSearchMatch): string {
+  private buildCatalogChoiceExplanation(matches: CatalogSearchMatch[]): string {
+    if (matches.length === 0) {
+      return '';
+    }
+
+    const lowestPrice = matches.reduce((best, product) => (product.price < best.price ? product : best), matches[0]);
+    const bestStock = matches.reduce(
+      (best, product) => (product.currentStock > best.currentStock ? product : best),
+      matches[0],
+    );
+    const top = matches[0];
+    const allSameStock = matches.every((product) => product.currentStock === top.currentStock);
+    const allSameCategory = matches.every((product) => this.getDisplayCategory(product) === this.getDisplayCategory(top));
+    const cheapestIsTop = lowestPrice.productId === top.productId;
+    const bestStockIsTop = bestStock.productId === top.productId;
+    const priceRange =
+      matches.length > 1
+        ? `${this.formatPrice(Math.min(...matches.map((product) => product.price)))} - ${this.formatPrice(
+            Math.max(...matches.map((product) => product.price)),
+          )}`
+        : this.formatPrice(top.price);
+
+    const lines = [
+      cheapestIsTop
+        ? `ඔබ කියූ නමට හොඳින්ම ගැළපෙන අතර අඩුම මිලත් "${this.getDisplayName(top)}" (${this.formatPrice(top.price)}) එකටයි.`
+        : `නමට ගැළපීම අනුව "${this.getDisplayName(top)}" ඉදිරියෙන් තියෙනවා; අඩුම මිල නම් "${this.getDisplayName(
+            lowestPrice,
+          )}" (${this.formatPrice(lowestPrice.price)}).`,
+    ];
+
+    if (allSameStock) {
+      lines.push(`මේ තුනෙම තොග තත්ත්වය එක වගේ (${this.formatStockLabel(top.currentStock)}), ඒ නිසා මිල සහ ප්‍රමාණය බලලා තෝරගන්න.`);
+    } else if (bestStockIsTop) {
+      lines.push(`තොගයත් වැඩියෙන් තියෙන්නේ පළමු item එකටයි (${this.formatStockLabel(top.currentStock)}).`);
+    } else {
+      lines.push(`තොගය වැඩියෙන් අවශ්‍ය නම් "${this.getDisplayName(bestStock)}" (${this.formatStockLabel(bestStock.currentStock)}) බලන්න.`);
+    }
+
+    lines.push(
+      allSameCategory
+        ? `සියල්ලම ${this.getDisplayCategory(top)} කාණ්ඩයේ; මිල පරාසය ${priceRange}.`
+        : `කාණ්ඩ කිහිපයක ප්‍රතිඵල තියෙනවා; මිල පරාසය ${priceRange}.`,
+    );
+
+    return lines.join(' ');
+  }
+
+  private formatCustomerMatchReason(product: CatalogSearchMatch): string {
     if (product.exactHit) {
-      return 'නම සම්පූර්ණයෙන්ම ගැලපුණා';
+      return 'නම සම්පූර්ණයෙන් ගැළපුණා';
     }
 
     if (product.phraseHit || product.prefixHit) {
-      return 'නිෂ්පාදන නම/sku එක query එකට සෘජුව ගැලපුණා';
+      return 'නම/sku එක query එකට ගැළපුණා';
     }
 
     const terms = product.matchedTokens.slice(0, 4).join(', ');
-    return terms ? `සෙවූ වචන ගැලපුණා: ${terms}` : 'catalog ranking අනුව හොඳම ගැලපීම';
+    return terms ? `ගැළපුණු වචන: ${terms}` : 'හොඳම catalog ගැළපීම';
+  }
+
+  private formatMatchReason(product: CatalogSearchMatch): string {
+    if (product.exactHit) {
+      return 'නම සම්පූර්ණයෙන් ගැළපුණා';
+    }
+
+    if (product.phraseHit || product.prefixHit) {
+      return 'නිෂ්පාදන නම/sku එක query එකට ගැළපුණා';
+    }
+
+    const terms = product.matchedTokens.slice(0, 4).join(', ');
+    return terms ? `සෙවූ වචන ගැළපුණා: ${terms}` : 'catalog ranking අනුව හොඳම ගැළපීම';
   }
 
   private buildCatalogUnavailableResponse(

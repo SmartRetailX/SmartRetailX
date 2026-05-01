@@ -65,7 +65,14 @@ const DEFAULT_STOP_WORDS = [
 const CATALOG_STOP_WORDS = new Set<string>(DEFAULT_STOP_WORDS);
 
 export function normalizeCatalogQuery(input: string): string {
-  return input.toLowerCase().replace(/\s+/g, ' ').trim();
+  return input
+    .toLowerCase()
+    .replace(/([\u0d80-\u0dff])([a-z0-9])/g, '$1 $2')
+    .replace(/([a-z0-9])([\u0d80-\u0dff])/g, '$1 $2')
+    .replace(/([a-z])([0-9])/g, '$1 $2')
+    .replace(/([0-9])([a-z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function buildCatalogQueryTokens(normalizedQuery: string): string[] {

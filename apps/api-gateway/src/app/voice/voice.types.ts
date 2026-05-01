@@ -20,6 +20,8 @@ export type CatalogSearchMatch = CatalogSearchRaw & {
   prefixHit: boolean;
   phraseHit: boolean;
   matchScore: number;
+  modelScore?: number;
+  modelQuery?: string;
 };
 
 export type CatalogSearchResponse = {

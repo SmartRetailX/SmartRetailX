@@ -5,6 +5,7 @@ import { buildCatalogQueryTokens, normalizeCatalogQuery } from '@smart-retail-x/
 
 import { CatalogTranslationService } from './catalog-translation.service';
 import { InventoryService } from './inventory.service';
+import { findFuzzyProductCandidates } from './product-fuzzy-model';
 
 type CatalogMatch = {
   productId: string;
@@ -40,6 +41,13 @@ type CatalogScoredRow = {
   phrase: boolean;
   tokenHits: number;
   leadingTokenHit: boolean;
+  fuzzyScore: number;
+  dbScore: number;
+};
+
+type CatalogCandidateScoreRow = {
+  productId: string;
+  score: number;
 };
 
 type ProductStockEntry = {
@@ -202,6 +210,7 @@ function toProduct(row: ProductRow, includeStockEntries = false): CatalogListPro
 @Injectable()
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
+  private pgTrgmReady = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -218,41 +227,33 @@ export class CatalogService {
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 20)) : 5;
     const queryTokens = buildCatalogQueryTokens(normalizedTerm);
     const searchTokens = queryTokens.length > 0 ? queryTokens : [normalizedTerm];
-    const tokenFilters = searchTokens.map((token) => ({
-      OR: [
-        { name: { contains: token, mode: 'insensitive' as const } },
-        { nameSi: { contains: token, mode: 'insensitive' as const } },
-        { description: { contains: token, mode: 'insensitive' as const } },
-        { descriptionSi: { contains: token, mode: 'insensitive' as const } },
-        { sku: { contains: token, mode: 'insensitive' as const } },
-        { brand: { contains: token, mode: 'insensitive' as const } },
-        { category: { name: { contains: token, mode: 'insensitive' as const } } },
-        { category: { nameSi: { contains: token, mode: 'insensitive' as const } } },
-      ],
-    }));
-
-    const rows = await this.prisma.product.findMany({
-      where: {
-        isActive: true,
-        AND: tokenFilters.length > 0 ? [{ OR: tokenFilters.map((entry) => entry.OR).flat() }] : undefined,
-      },
-      include: {
-        category: true,
-      },
-      take: Math.max(safeLimit * 50, 500),
-      orderBy: [{ name: 'asc' }],
-    });
+    const rows = await this.fetchCatalogSearchCandidates(normalizedTerm, searchTokens, safeLimit);
+    const fuzzyScoreBySku = new Map(
+      findFuzzyProductCandidates(normalizedTerm, rows, Math.max(safeLimit * 5, 25)).map((entry) => [
+        entry.sku.toLowerCase(),
+        entry.score,
+      ]),
+    );
 
     const scoredRows = rows
-      .map((row) => this.scoreCatalogRow(row, normalizedTerm, searchTokens))
-      .filter((entry) => entry.tokenHits > 0)
+      .map((row) => this.scoreCatalogRow(row, normalizedTerm, searchTokens, fuzzyScoreBySku))
+      .filter(
+        (entry) =>
+          entry.tokenHits > 0 ||
+          entry.exact ||
+          entry.starts ||
+          entry.phrase ||
+          (entry.fuzzyScore >= 0.56 && entry.dbScore >= 72),
+      )
       .sort(
         (a, b) =>
           Number(b.exact) - Number(a.exact) ||
           Number(b.starts) - Number(a.starts) ||
           Number(b.phrase) - Number(a.phrase) ||
+          b.dbScore - a.dbScore ||
           b.tokenHits - a.tokenHits ||
           Number(b.leadingTokenHit) - Number(a.leadingTokenHit) ||
+          b.fuzzyScore - a.fuzzyScore ||
           b.row.stockQuantity - a.row.stockQuantity ||
           a.row.name.localeCompare(b.row.name),
       )
@@ -276,7 +277,12 @@ export class CatalogService {
     return { success: true, term: normalizedTerm, matches };
   }
 
-  private scoreCatalogRow(row: CatalogSearchRow, normalizedTerm: string, searchTokens: string[]): CatalogScoredRow {
+  private scoreCatalogRow(
+    row: CatalogSearchRow,
+    normalizedTerm: string,
+    searchTokens: string[],
+    fuzzyScoreBySku: Map<string, number>,
+  ): CatalogScoredRow {
     const searchableFields = [
       row.name,
       row.nameSi,
@@ -298,8 +304,246 @@ export class CatalogService {
     const tokenHits = searchTokens.filter((token) => searchableFields.some((field) => field.includes(token))).length;
     const leadingToken = searchTokens[0] || '';
     const leadingTokenHit = Boolean(leadingToken && searchableFields.some((field) => field.includes(leadingToken)));
+    const fuzzyScore = fuzzyScoreBySku.get(row.sku.toLowerCase()) || 0;
+    const dbScore = this.computeDbSearchScore(row, normalizedTerm, searchTokens);
 
-    return { row, exact, starts, phrase, tokenHits, leadingTokenHit };
+    return { row, exact, starts, phrase, tokenHits, leadingTokenHit, fuzzyScore, dbScore };
+  }
+
+  private async fetchCatalogSearchCandidates(
+    normalizedTerm: string,
+    searchTokens: string[],
+    safeLimit: number,
+  ): Promise<CatalogSearchRow[]> {
+    await this.ensurePgTrgmReady();
+
+    const trgmCandidates = await this.fetchTrgmCandidateIds(normalizedTerm, searchTokens, Math.max(safeLimit * 25, 120));
+    if (trgmCandidates.length > 0) {
+      const scoreById = new Map(trgmCandidates.map((row) => [row.productId, row.score]));
+      const rows = await this.prisma.product.findMany({
+        where: {
+          isActive: true,
+          productId: { in: trgmCandidates.map((row) => row.productId) },
+        },
+        include: {
+          category: true,
+        },
+      });
+
+      return rows.sort(
+        (a, b) =>
+          (scoreById.get(b.productId) || 0) - (scoreById.get(a.productId) || 0) ||
+          b.stockQuantity - a.stockQuantity ||
+          a.name.localeCompare(b.name),
+      );
+    }
+
+    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(0, 8);
+    const orFilters: Prisma.ProductWhereInput[] = tokenSet.flatMap((token) => [
+      { name: { contains: token, mode: 'insensitive' } },
+      { nameSi: { contains: token, mode: 'insensitive' } },
+      { description: { contains: token, mode: 'insensitive' } },
+      { descriptionSi: { contains: token, mode: 'insensitive' } },
+      { sku: { contains: token, mode: 'insensitive' } },
+      { brand: { contains: token, mode: 'insensitive' } },
+      { category: { name: { contains: token, mode: 'insensitive' } } },
+      { category: { nameSi: { contains: token, mode: 'insensitive' } } },
+    ]);
+
+    const strictCandidates = await this.prisma.product.findMany({
+      where: {
+        isActive: true,
+        OR: orFilters.length > 0 ? orFilters : undefined,
+      },
+      include: {
+        category: true,
+      },
+      take: Math.max(safeLimit * 40, 400),
+      orderBy: [{ name: 'asc' }],
+    });
+
+    if (strictCandidates.length >= Math.max(safeLimit * 3, 15)) {
+      return strictCandidates;
+    }
+
+    // Fallback candidate expansion so fuzzy-only user input can still resolve.
+    const relaxedCandidates = await this.prisma.product.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        category: true,
+      },
+      take: Math.max(safeLimit * 80, 800),
+      orderBy: [{ name: 'asc' }],
+    });
+
+    const bySku = new Map<string, CatalogSearchRow>();
+    for (const row of [...strictCandidates, ...relaxedCandidates]) {
+      bySku.set(row.sku.toLowerCase(), row);
+    }
+
+    return Array.from(bySku.values());
+  }
+
+  private async ensurePgTrgmReady(): Promise<void> {
+    if (this.pgTrgmReady) {
+      return;
+    }
+
+    try {
+      await this.prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+      this.pgTrgmReady = true;
+    } catch (error) {
+      this.logger.warn(`pg_trgm extension init failed, falling back to lexical search: ${(error as Error).message}`);
+    }
+  }
+
+  private async fetchTrgmCandidateIds(
+    normalizedTerm: string,
+    searchTokens: string[],
+    maxCandidates: number,
+  ): Promise<CatalogCandidateScoreRow[]> {
+    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(0, 8);
+
+    if (tokenSet.length === 0) {
+      return [];
+    }
+
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ product_id: string; score: number }>>(Prisma.sql`
+        WITH q AS (
+          SELECT ${normalizedTerm}::text AS term
+        ),
+        tokens AS (
+          SELECT unnest(${tokenSet}::text[]) AS token
+        ),
+        alias_scores AS (
+          SELECT
+            pa.product_id,
+            MAX(similarity(pa.alias_normalized, q.term)) AS alias_sim,
+            MAX(CASE WHEN pa.alias_normalized = q.term THEN 1 ELSE 0 END) AS alias_exact,
+            MAX(CASE WHEN pa.alias_normalized LIKE q.term || '%' THEN 1 ELSE 0 END) AS alias_prefix,
+            COUNT(*) FILTER (
+              WHERE EXISTS (
+                SELECT 1
+                FROM tokens t
+                WHERE pa.alias_normalized LIKE '%' || t.token || '%'
+              )
+            ) AS alias_token_hits
+          FROM core.product_aliases pa
+          CROSS JOIN q
+          WHERE pa.alias_normalized % q.term
+            OR EXISTS (
+              SELECT 1
+              FROM tokens t
+              WHERE pa.alias_normalized LIKE '%' || t.token || '%'
+            )
+          GROUP BY pa.product_id
+        ),
+        product_scores AS (
+          SELECT
+            p.id AS product_id,
+            GREATEST(
+              similarity(lower(p.name), q.term),
+              similarity(lower(COALESCE(p.name_si, '')), q.term),
+              similarity(lower(COALESCE(p.brand, '')), q.term),
+              similarity(lower(p.sku), q.term)
+            ) AS base_sim,
+            MAX(CASE WHEN lower(p.name) = q.term OR lower(p.sku) = q.term THEN 1 ELSE 0 END) AS exact_hit,
+            MAX(CASE WHEN lower(p.name) LIKE q.term || '%' THEN 1 ELSE 0 END) AS prefix_hit,
+            (
+              SELECT COUNT(*)
+              FROM tokens t
+              WHERE lower(p.name) LIKE '%' || t.token || '%'
+                OR lower(COALESCE(p.name_si, '')) LIKE '%' || t.token || '%'
+                OR lower(COALESCE(p.brand, '')) LIKE '%' || t.token || '%'
+                OR lower(p.sku) LIKE '%' || t.token || '%'
+            ) AS token_hits
+          FROM core.products p
+          CROSS JOIN q
+          WHERE p.is_active = true
+            AND (
+              lower(p.name) % q.term
+              OR lower(COALESCE(p.name_si, '')) % q.term
+              OR lower(COALESCE(p.brand, '')) % q.term
+              OR lower(p.sku) % q.term
+              OR EXISTS (
+                SELECT 1
+                FROM tokens t
+                WHERE lower(p.name) LIKE '%' || t.token || '%'
+                  OR lower(COALESCE(p.name_si, '')) LIKE '%' || t.token || '%'
+                  OR lower(COALESCE(p.brand, '')) LIKE '%' || t.token || '%'
+                  OR lower(p.sku) LIKE '%' || t.token || '%'
+              )
+            )
+          GROUP BY p.id
+        )
+        SELECT
+          ps.product_id,
+          (
+            (CASE WHEN ps.exact_hit > 0 THEN 120 ELSE 0 END) +
+            (CASE WHEN ps.prefix_hit > 0 THEN 30 ELSE 0 END) +
+            LEAST(ps.token_hits, 8) * 8 +
+            ps.base_sim * 100 +
+            COALESCE(as2.alias_sim, 0) * 80 +
+            COALESCE(as2.alias_exact, 0) * 45 +
+            COALESCE(as2.alias_prefix, 0) * 18 +
+            LEAST(COALESCE(as2.alias_token_hits, 0), 8) * 4
+          )::float AS score
+        FROM product_scores ps
+        LEFT JOIN alias_scores as2 ON as2.product_id = ps.product_id
+        WHERE ps.base_sim >= 0.08
+          OR ps.token_hits > 0
+          OR COALESCE(as2.alias_sim, 0) >= 0.12
+          OR COALESCE(as2.alias_token_hits, 0) > 0
+        ORDER BY score DESC
+        LIMIT ${maxCandidates}
+      `);
+
+      return rows.map((row) => ({ productId: row.product_id, score: Number(row.score) }));
+    } catch (error) {
+      this.logger.warn(`pg_trgm candidate query failed, fallback enabled: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  private computeDbSearchScore(row: CatalogSearchRow, normalizedTerm: string, searchTokens: string[]): number {
+    const fields = [
+      row.name,
+      row.nameSi,
+      row.description,
+      row.descriptionSi,
+      row.sku,
+      row.brand,
+      row.category.name,
+      row.category.nameSi,
+    ]
+      .map((value) => normalizeCatalogQuery(value || ''))
+      .filter(Boolean);
+
+    if (fields.length === 0) {
+      return 0;
+    }
+
+    let score = 0;
+    for (const field of fields) {
+      if (field === normalizedTerm) {
+        score = Math.max(score, 120);
+      } else if (field.startsWith(normalizedTerm)) {
+        score = Math.max(score, 95);
+      } else if (field.includes(normalizedTerm)) {
+        score = Math.max(score, 72);
+      }
+    }
+
+    const tokenCoverage =
+      searchTokens.length > 0
+        ? searchTokens.filter((token) => fields.some((field) => field.includes(token))).length / searchTokens.length
+        : 0;
+    score += Math.round(tokenCoverage * 20);
+
+    return score;
   }
 
   async listProducts(params: {
