@@ -237,7 +237,7 @@ export interface Alert {
   recommendedAction?: string
   confidence?: number
   estimatedStockoutDate?: string
-  status: 'pending' | 'accepted' | 'dismissed' | 'PENDING' | 'ACCEPTED' | 'DISMISSED'
+  status: 'pending' | 'accepted' | 'rejected' | 'PENDING' | 'ACCEPTED' | 'REJECTED'
   createdAt: string
   read?: boolean
 }

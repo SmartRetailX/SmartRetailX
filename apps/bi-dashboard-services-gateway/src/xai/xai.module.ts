@@ -53,7 +53,7 @@ class XaiController {
     description:
       'Get Explainable AI (XAI) feature importance and SHAP-like explanations for forecast predictions. Shows how each feature (seasonality, day of week, etc.) contributes to the prediction with bilingual descriptions.',
   })
-  @ApiQuery({ name: 'productId', required: true, type: String, example: 'PROD001' })
+  @ApiQuery({ name: 'productId', required: true, type: String, example: '70001' })
   @ApiResponse({
     status: 200,
     description: 'Forecast explanation retrieved',
@@ -128,7 +128,7 @@ class XaiController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async explainRestock(@Query() query) {
-    return this.xaiService.explainRestock(query.alertId);
+    return this.xaiService.explainRestock(query.alertId, query.lang || 'en');
   }
 }
 

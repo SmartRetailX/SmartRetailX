@@ -39,7 +39,7 @@ export class VoiceController {
           data: {
             products: [
               {
-                id: 'PROD001',
+                id: '70001',
                 name: 'Basmati Rice 5kg',
                 currentStock: 12,
                 reorderLevel: 20,

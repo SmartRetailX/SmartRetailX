@@ -38,7 +38,7 @@ export class InventoryController {
           },
           items: [
             {
-              productId: 'PROD001',
+              productId: '70001',
               productName: 'Basmati Rice 5kg',
               currentStock: 50,
               reorderLevel: 20,
@@ -65,7 +65,7 @@ export class InventoryController {
   @ApiBody({
     schema: {
       example: {
-        productId: 'PROD001',
+        productId: '70001',
         quantity: 100,
         cost: 4091.0,
         supplier: 'ABC Distributors',
@@ -81,7 +81,7 @@ export class InventoryController {
         success: true,
         data: {
           restockId: 'rst_1733318400000',
-          productId: 'PROD001',
+          productId: '70001',
           newStock: 150,
           timestamp: '2025-12-04T10:00:00Z',
         },

@@ -34,9 +34,10 @@ export function useDashboard({ period = 'month' }: DashboardParams = {}) {
           totalRevenue: { value: 0, change: 0, trend: 'stable' as const },
           totalOrders: { value: 0, change: 0, trend: 'stable' as const },
           activeAlerts: { value: 0, change: 0, trend: 'stable' as const },
+          criticalAlerts: { value: 0, change: 0, trend: 'stable' as const },
           forecastAccuracy: { value: 0, change: 0, trend: 'stable' as const },
-          customerRetention: { value: 0, change: 0, trend: 'stable' as const },
-          inventoryTurnover: { value: 0, change: 0, trend: 'stable' as const }
+          totalProducts: { value: 0, change: 0, trend: 'stable' as const },
+          lowStockProducts: { value: 0, change: 0, trend: 'stable' as const },
         },
         topProducts: data.topProducts || [],
         salesTrend: data.salesTrend || []

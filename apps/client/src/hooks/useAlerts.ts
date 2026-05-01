@@ -50,3 +50,43 @@ export function useAcceptAlert() {
     },
   })
 }
+
+// Generate alerts from ML service
+export function useGenerateAlerts() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post(API_ENDPOINTS.ALERTS.GENERATE)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    },
+    onError: (error) => {
+      const message = handleApiError(error)
+      console.error('Failed to generate alerts:', message)
+      throw new Error(message)
+    },
+  })
+}
+
+// Auto-dismiss resolved alerts
+export function useAutoDismissAlerts() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post(API_ENDPOINTS.ALERTS.AUTO_DISMISS)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    },
+    onError: (error) => {
+      const message = handleApiError(error)
+      console.error('Failed to auto-dismiss alerts:', message)
+      throw new Error(message)
+    },
+  })
+}

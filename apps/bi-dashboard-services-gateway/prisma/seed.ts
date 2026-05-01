@@ -1,8 +1,5 @@
-import { config } from 'dotenv';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-
-// Load .env from project root
-config({ path: resolve(__dirname, '../../../.env') });
 
 import { PrismaClient } from '@prisma/client';
 
@@ -13,53 +10,79 @@ async function main() {
   console.log('ℹ️  Note: User authentication is handled by Better Auth');
   console.log('ℹ️  Create users via /api/auth/sign-up/email endpoint\n');
 
+  const catalogCandidates = [
+    resolve(process.cwd(), 'apps/bi-dashboard-ml-service/data/product-catalog.json'),
+    resolve(__dirname, '../../../bi-dashboard-ml-service/data/product-catalog.json'),
+  ];
+  const catalogPath = catalogCandidates.find((candidate) => existsSync(candidate));
+
+  if (!catalogPath) {
+    throw new Error('Product catalog not found. Expected apps/bi-dashboard-ml-service/data/product-catalog.json');
+  }
+
+  const sourceCatalog = JSON.parse(readFileSync(catalogPath, 'utf-8')) as Array<{
+    itemID: number;
+    itemCode: string;
+    name: string;
+    category: string;
+    price: number;
+    uom: string;
+    imageUrl: string;
+    isAvailable: boolean;
+  }>;
+
   // Create Products (20 products matching Kaggle dataset)
   // Stock scaled to match ML model training data (~136 units/day avg demand).
   // Reorder level = ~1.5 days supply. Healthy stock = 3–5 days supply (~400–700 units).
-  // PROD002, PROD005, PROD009 intentionally below reorder to generate realistic alerts.
+  // itemID 70003, 70005, and 70009 intentionally remain below reorder to generate realistic alerts.
   const productData = [
-    { sku: 'GRO-PROD001', name: 'Basmati Rice 5kg', nameSi: 'බාස්මති සහල් 5kg', category: 'Groceries', categorySi: 'ආහාර', price: 54.55, cost: 40.91, stock: 420, reorder: 180, max: 900 },
-    { sku: 'TOY-PROD002', name: 'Building Blocks Set', nameSi: 'ගොඩනැගීමේ කුට්ටි කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.27, cost: 41.45, stock: 85, reorder: 180, max: 900 },
-    { sku: 'TOY-PROD003', name: 'Remote Control Car', nameSi: 'දුරස්ථ පාලන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.89, cost: 41.17, stock: 510, reorder: 200, max: 950 },
-    { sku: 'TOY-PROD004', name: 'Board Game Set', nameSi: 'මේස ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.54, cost: 41.66, stock: 480, reorder: 190, max: 900 },
-    { sku: 'ELE-PROD005', name: 'Bluetooth Speaker', nameSi: 'බ්ලූටූත් ශබ්ද විකාශක', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.02, cost: 41.27, stock: 110, reorder: 200, max: 900 },
-    { sku: 'GRO-PROD006', name: 'Fresh Milk 1L', nameSi: 'නැවුම් කිරි 1L', category: 'Groceries', categorySi: 'ආහාර', price: 54.77, cost: 41.08, stock: 650, reorder: 220, max: 1000 },
-    { sku: 'FUR-PROD007', name: 'Office Chair', nameSi: 'කාර්යාල පුටුව', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 54.92, cost: 41.19, stock: 390, reorder: 170, max: 850 },
-    { sku: 'CLO-PROD008', name: 'Cotton T-Shirt', nameSi: 'කපු ටී ෂර්ට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.35, cost: 41.51, stock: 560, reorder: 210, max: 950 },
-    { sku: 'ELE-PROD009', name: 'Wireless Mouse', nameSi: 'රැහැන් රහිත මූසිකය', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 55.16, cost: 41.37, stock: 140, reorder: 190, max: 900 },
-    { sku: 'TOY-PROD010', name: 'Action Figure Toy', nameSi: 'ක්‍රියාදාමී රූපයන්', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.36, cost: 41.52, stock: 470, reorder: 185, max: 900 },
-    { sku: 'FUR-PROD011', name: 'Study Desk', nameSi: 'අධ්‍යයන මේසය', category: 'Furniture', categorySi: 'ගෘහ භාණ්ඩ', price: 56.43, cost: 42.32, stock: 430, reorder: 175, max: 850 },
-    { sku: 'CLO-PROD012', name: 'Denim Jeans', nameSi: 'ඩෙනිම් ජීන්ස්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.96, cost: 41.22, stock: 500, reorder: 195, max: 950 },
-    { sku: 'TOY-PROD013', name: 'Puzzle Game Set', nameSi: 'ප්‍රහේලිකා ක්‍රීඩා කට්ටලය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.06, cost: 41.3, stock: 540, reorder: 200, max: 950 },
-    { sku: 'CLO-PROD014', name: 'Sports Jacket', nameSi: 'ක්‍රීඩා ජැකට්', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.76, cost: 41.82, stock: 460, reorder: 180, max: 900 },
-    { sku: 'CLO-PROD015', name: 'Running Shoes', nameSi: 'ධාවන සපත්තු', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.77, cost: 41.08, stock: 610, reorder: 210, max: 1000 },
-    { sku: 'ELE-PROD016', name: 'USB Flash Drive 32GB', nameSi: 'යූඑස්බී ෆ්ලෑෂ් ඩ්‍රයිව් 32GB', category: 'Electronics', categorySi: 'ඉලෙක්ට්‍රොනික', price: 54.83, cost: 41.12, stock: 490, reorder: 195, max: 950 },
-    { sku: 'TOY-PROD017', name: 'Toy Racing Car', nameSi: 'සෙල්ලම් ධාවන මෝටර් රථය', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 54.65, cost: 40.99, stock: 520, reorder: 200, max: 950 },
-    { sku: 'CLO-PROD018', name: 'Casual Shirt', nameSi: 'සාමාන්‍ය කමිසය', category: 'Clothing', categorySi: 'ඇඳුම්', price: 54.82, cost: 41.12, stock: 440, reorder: 175, max: 900 },
-    { sku: 'CLO-PROD019', name: 'Formal Trousers', nameSi: 'විධිමත් කලිසම', category: 'Clothing', categorySi: 'ඇඳුම්', price: 55.08, cost: 41.31, stock: 580, reorder: 215, max: 1000 },
-    { sku: 'TOY-PROD020', name: 'Educational Board Game', nameSi: 'අධ්‍යාපනික මේස ක්‍රීඩාව', category: 'Toys', categorySi: 'සෙල්ලම් බඩු', price: 55.52, cost: 41.64, stock: 530, reorder: 200, max: 950 },
+    { nameSi: 'බාස්මති සහල් 5kg', categorySi: 'ආහාර', cost: 40.91, stock: 420, reorder: 180, max: 900 },
+    { nameSi: 'ගොඩනැගීමේ කුට්ටි කට්ටලය', categorySi: 'සෙල්ලම් බඩු', cost: 41.45, stock: 85, reorder: 180, max: 900 },
+    { nameSi: 'දුරස්ථ පාලන මෝටර් රථය', categorySi: 'සෙල්ලම් බඩු', cost: 41.17, stock: 510, reorder: 200, max: 950 },
+    { nameSi: 'මේස ක්‍රීඩා කට්ටලය', categorySi: 'සෙල්ලම් බඩු', cost: 41.66, stock: 480, reorder: 190, max: 900 },
+    { nameSi: 'බ්ලූටූත් ශබ්ද විකාශක', categorySi: 'ඉලෙක්ට්‍රොනික', cost: 41.27, stock: 110, reorder: 200, max: 900 },
+    { nameSi: 'නැවුම් කිරි 1L', categorySi: 'ආහාර', cost: 41.08, stock: 650, reorder: 220, max: 1000 },
+    { nameSi: 'කාර්යාල පුටුව', categorySi: 'ගෘහ භාණ්ඩ', cost: 41.19, stock: 390, reorder: 170, max: 850 },
+    { nameSi: 'කපු ටී ෂර්ට්', categorySi: 'ඇඳුම්', cost: 41.51, stock: 560, reorder: 210, max: 950 },
+    { nameSi: 'රැහැන් රහිත මූසිකය', categorySi: 'ඉලෙක්ට්‍රොනික', cost: 41.37, stock: 140, reorder: 190, max: 900 },
+    { nameSi: 'ක්‍රියාදාමී රූපයන්', categorySi: 'සෙල්ලම් බඩු', cost: 41.52, stock: 470, reorder: 185, max: 900 },
+    { nameSi: 'අධ්‍යයන මේසය', categorySi: 'ගෘහ භාණ්ඩ', cost: 42.32, stock: 430, reorder: 175, max: 850 },
+    { nameSi: 'ඩෙනිම් ජීන්ස්', categorySi: 'ඇඳුම්', cost: 41.22, stock: 500, reorder: 195, max: 950 },
+    { nameSi: 'ප්‍රහේලිකා ක්‍රීඩා කට්ටලය', categorySi: 'සෙල්ලම් බඩු', cost: 41.3, stock: 540, reorder: 200, max: 950 },
+    { nameSi: 'ක්‍රීඩා ජැකට්', categorySi: 'ඇඳුම්', cost: 41.82, stock: 460, reorder: 180, max: 900 },
+    { nameSi: 'ධාවන සපත්තු', categorySi: 'ඇඳුම්', cost: 41.08, stock: 610, reorder: 210, max: 1000 },
+    { nameSi: 'යූඑස්බී ෆ්ලෑෂ් ඩ්‍රයිව් 32GB', categorySi: 'ඉලෙක්ට්‍රොනික', cost: 41.12, stock: 490, reorder: 195, max: 950 },
+    { nameSi: 'සෙල්ලම් ධාවන මෝටර් රථය', categorySi: 'සෙල්ලම් බඩු', cost: 40.99, stock: 520, reorder: 200, max: 950 },
+    { nameSi: 'සාමාන්‍ය කමිසය', categorySi: 'ඇඳුම්', cost: 41.12, stock: 440, reorder: 175, max: 900 },
+    { nameSi: 'විධිමත් කලිසම', categorySi: 'ඇඳුම්', cost: 41.31, stock: 580, reorder: 215, max: 1000 },
+    { nameSi: 'අධ්‍යාපනික මේස ක්‍රීඩාව', categorySi: 'සෙල්ලම් බඩු', cost: 41.64, stock: 530, reorder: 200, max: 950 },
   ];
 
   const products = await Promise.all(
     productData.map((p, idx) => {
-      const productId = `PROD${String(idx + 1).padStart(3, '0')}`;
+      const catalogProduct = sourceCatalog[idx % sourceCatalog.length];
+      const productId = String(catalogProduct.itemID);
+      const stockStatus = (p.stock > p.reorder ? 'IN_STOCK' : p.stock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK') as
+        | 'IN_STOCK'
+        | 'LOW_STOCK'
+        | 'OUT_OF_STOCK';
       const productData = {
-        sku: p.sku,
+        sku: catalogProduct.itemCode,
         barcode: `890${String(idx + 1).padStart(10, '0')}`,
-        name: p.name,
+        name: catalogProduct.name,
         nameSi: p.nameSi,
-        category: p.category,
+        category: catalogProduct.category,
         categorySi: p.categorySi,
-        price: p.price,
+        price: catalogProduct.price,
         cost: p.cost,
         currentStock: p.stock,
         reorderLevel: p.reorder,
         maxStock: p.max,
-        status: p.stock > p.reorder ? 'IN_STOCK' : p.stock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
+        status: stockStatus,
         supplier: 'Premium Suppliers Ltd',
         lastRestocked: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
         expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
-        imageUrl: `https://cdn.smartretailx.com/products/${productId}.jpg`,
+        imageUrl: catalogProduct.imageUrl || `https://cdn.smartretailx.com/products/${productId}.jpg`,
       };
       return prisma.product.upsert({
         where: { id: productId },
@@ -175,7 +198,7 @@ async function main() {
     discount: 15,
     startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     endDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-    status: 'ACTIVE',
+    status: 'ACTIVE' as const,
     targetedRevenue: 50000,
     actualRevenue: 32000,
     lift: 22.5,
@@ -194,9 +217,9 @@ async function main() {
   
   await prisma.promotionProduct.createMany({
     data: [
-      { promotionId: promotion.id, productId: 'PROD001' },
-      { promotionId: promotion.id, productId: 'PROD002' },
-      { promotionId: promotion.id, productId: 'PROD005' },
+      { promotionId: promotion.id, productId: String(sourceCatalog[0].itemID) },
+      { promotionId: promotion.id, productId: String(sourceCatalog[1].itemID) },
+      { promotionId: promotion.id, productId: String(sourceCatalog[4].itemID) },
     ],
   });
   console.log('✅ Promotion created/updated');

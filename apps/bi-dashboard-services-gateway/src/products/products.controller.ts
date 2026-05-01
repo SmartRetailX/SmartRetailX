@@ -69,10 +69,10 @@ export class ProductsController {
         success: true,
         data: [
           {
-            id: 'PROD001',
+            id: '70001',
             name: 'Basmati Rice 5kg',
             nameSi: 'බාස්මති සහල් 5kg',
-            sku: 'GRO-PROD001',
+            sku: '916001',
             barcode: '89000000000001',
             category: 'Groceries',
             categorySi: 'ආහාර',
@@ -105,7 +105,7 @@ export class ProductsController {
     description:
       'Retrieve detailed information about a specific product including stock levels and sales history.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product ID', example: '70001' })
   @ApiResponse({
     status: 200,
     description: 'Product retrieved successfully',
@@ -113,10 +113,10 @@ export class ProductsController {
       example: {
         success: true,
         data: {
-          id: 'PROD001',
+          id: '70001',
           name: 'Basmati Rice 5kg',
           nameSi: 'බාස්මති සහල් 5kg',
-          sku: 'GRO-PROD001',
+          sku: '916001',
           barcode: '89000000000001',
           category: 'Groceries',
           categorySi: 'ආහාර',
@@ -154,7 +154,7 @@ export class ProductsController {
       example: {
         success: true,
         data: {
-          id: 'PROD016',
+          id: '70016',
           name: 'Green Tea 100g',
           nameSi: 'හරිත තේ 100g',
           sku: 'SKU-TEA-001',
@@ -176,7 +176,7 @@ export class ProductsController {
     summary: 'Update product',
     description: 'Update product details including price, stock, and metadata.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product ID', example: '70001' })
   @ApiResponse({
     status: 200,
     description: 'Product updated successfully',
@@ -193,7 +193,7 @@ export class ProductsController {
     description:
       'Soft delete a product from the inventory. Product data is retained for historical records.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product ID', example: '70001' })
   @ApiResponse({
     status: 200,
     description: 'Product deleted successfully',

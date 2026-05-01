@@ -83,6 +83,8 @@ export const API_ENDPOINTS = {
   ALERTS: {
     LIST: '/api/bi/alerts',
     ACCEPT: (id: string) => `/api/bi/alerts/${id}/accept`,
+    GENERATE: '/api/bi/alerts/generate',
+    AUTO_DISMISS: '/api/bi/alerts/auto-dismiss',
   },
 
   // XAI

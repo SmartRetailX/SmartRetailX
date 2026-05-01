@@ -37,7 +37,7 @@ export class SalesController {
             timestamp: '2025-12-04T10:30:00Z',
             items: [
               {
-                productId: 'PROD001',
+                productId: '70001',
                 productName: 'Basmati Rice 5kg',
                 quantity: 4,
                 price: 54.55,
@@ -87,7 +87,7 @@ export class SalesController {
           averageOrderValue: 51.88,
           topProducts: [
             {
-              productId: 'PROD001',
+              productId: '70001',
               productName: 'Basmati Rice 5kg',
               totalQuantity: 150,
               totalRevenue: 8182.5,

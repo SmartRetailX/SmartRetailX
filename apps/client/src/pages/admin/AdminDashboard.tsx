@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { 
   DollarSign, 
   ShoppingCart, 
@@ -8,11 +9,14 @@ import {
   Package,
   ArrowUp,
   ArrowDown,
-  Plus,
-  HelpCircle
+  HelpCircle,
+  RefreshCw,
+  Zap,
+  ArchiveRestore,
+  PackageSearch
 } from 'lucide-react'
 import { useDashboard } from '@/hooks/useAnalytics'
-import { useAlerts, useAcceptAlert } from '@/hooks/useAlerts'
+import { useAlerts, useAcceptAlert, useGenerateAlerts, useAutoDismissAlerts } from '@/hooks/useAlerts'
 import { useRestockExplanation } from '@/hooks/useForecasts'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,16 +28,44 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 export default function AdminDashboard() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const isSinhala = i18n.language === 'si'
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [showXAIModal, setShowXAIModal] = useState(false)
   
-  const { data: dashboardData, isLoading } = useDashboard({
+  const { data: dashboardData, isLoading, refetch: refetchDashboard } = useDashboard({
     period: 'month',
   })
-  const { data: alerts } = useAlerts()
+  const { data: alerts, refetch: refetchAlerts } = useAlerts()
   const acceptAlertMutation = useAcceptAlert()
+  const generateAlertsMutation = useGenerateAlerts()
+  const autoDismissAlertsMutation = useAutoDismissAlerts()
   const { data: explanation } = useRestockExplanation(selectedAlertId || '')
+
+  const handleRefreshDashboard = async () => {
+    await Promise.all([
+      refetchDashboard(),
+      refetchAlerts(),
+    ])
+  }
+
+  const handleGenerateAlerts = async () => {
+    try {
+      await generateAlertsMutation.mutateAsync()
+      await handleRefreshDashboard()
+    } catch (error) {
+      console.error('Failed to generate alerts:', error)
+    }
+  }
+
+  const handleAutoDismissAlerts = async () => {
+    try {
+      await autoDismissAlertsMutation.mutateAsync()
+      await handleRefreshDashboard()
+    } catch (error) {
+      console.error('Failed to auto-dismiss alerts:', error)
+    }
+  }
 
   const handleAcceptAlert = async (alertId: string) => {
     try {
@@ -136,10 +168,24 @@ export default function AdminDashboard() {
             Welcome back, {user?.name}!
           </p>
         </div>
-        <Button onClick={() => alert('Quick actions coming soon!')}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t('dashboard.quickActions')}
-        </Button>
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button variant="outline" onClick={handleRefreshDashboard}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" onClick={handleGenerateAlerts} disabled={generateAlertsMutation.isPending}>
+            <Zap className="mr-2 h-4 w-4" />
+            {generateAlertsMutation.isPending ? 'Generating...' : 'Generate Alerts'}
+          </Button>
+          <Button variant="outline" onClick={handleAutoDismissAlerts} disabled={autoDismissAlertsMutation.isPending}>
+            <ArchiveRestore className="mr-2 h-4 w-4" />
+            {autoDismissAlertsMutation.isPending ? 'Processing...' : 'Auto-Dismiss'}
+          </Button>
+          <Button onClick={() => navigate('/inventory')}>
+            <PackageSearch className="mr-2 h-4 w-4" />
+            Inventory
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}

@@ -10,6 +10,8 @@ from typing import Dict, Any, List
 import pickle
 import os
 
+from api.model_resolution import resolve_model_artifact
+
 
 class XAIService:
     def __init__(self):
@@ -45,7 +47,7 @@ class XAIService:
                 SELECT p.id, p.name, p.price, p.cost, p.current_stock,
                        p.reorder_level, p.max_stock, p.category
                 FROM bi_dashboard.products p
-                WHERE p.sku = :product_id
+                WHERE (p.id = :product_id OR p.sku = :product_id)
                 LIMIT 1
             """
             
@@ -71,7 +73,7 @@ class XAIService:
                 FROM bi_dashboard.sale_items si
                 JOIN bi_dashboard.sales s ON si.sale_id = s.id
                 JOIN bi_dashboard.products p ON si.product_id = p.id
-                WHERE p.sku = :product_id 
+                WHERE (p.id = :product_id OR p.sku = :product_id)
                   AND s.timestamp > NOW() - INTERVAL '30 days'
             """
             
@@ -92,7 +94,7 @@ class XAIService:
                 FROM bi_dashboard.promotions pr
                 JOIN bi_dashboard.promotion_products pp ON pr.id = pp."promotionId"
                 JOIN bi_dashboard.products p ON pp."productId" = p.id
-                WHERE p.sku = :product_id 
+                WHERE (p.id = :product_id OR p.sku = :product_id)
                   AND pr.status = 'ACTIVE'
                   AND NOW() BETWEEN pr.start_date AND pr.end_date
                 LIMIT 1
@@ -247,14 +249,8 @@ class XAIService:
             print(f"Product: {product_id}")
             
             # Load the trained XGBoost model
-            model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
-            metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
-            
-            if not os.path.exists(model_file):
-                raise FileNotFoundError(
-                    f"No trained XGBoost model found for {product_id}. "
-                    f"Call /api/v1/forecast first to train the model."
-                )
+            model_file, resolved_key = resolve_model_artifact(self.model_path, product_id, 'xgboost')
+            metadata_file, _ = resolve_model_artifact(self.model_path, product_id, 'metadata')
             
             print(f"[LOAD] Loading XGBoost model: {model_file}")
             with open(model_file, 'rb') as f:
@@ -406,14 +402,8 @@ class XAIService:
             print(f"Product: {product_id}")
             
             # Load the trained XGBoost model and metadata
-            model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
-            metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
-            
-            if not os.path.exists(model_file):
-                raise FileNotFoundError(
-                    f"No trained XGBoost model found for {product_id}. "
-                    f"Train models first via /api/v1/forecast endpoint."
-                )
+            model_file, resolved_key = resolve_model_artifact(self.model_path, product_id, 'xgboost')
+            metadata_file, _ = resolve_model_artifact(self.model_path, product_id, 'metadata')
             
             print(f"[LOAD] Loading XGBoost model: {model_file}")
             with open(model_file, 'rb') as f:
@@ -500,25 +490,28 @@ class XAIService:
             days_until_stockout = float(current_stock / predicted_demand if predicted_demand > 0 else 999)
             
             return {
-                "alertId": alert_id,
-                "productId": product_id,
-                "productName": alert['name'],
-                "modelType": "XGBoost + SHAP",
-                "explanation": {
-                    "en": f"The ML model predicts {predicted_demand:.1f} units/day demand. With current stock of {current_stock} units, stockout will occur in {days_until_stockout:.1f} days. The prediction is driven by the following factors (ranked by SHAP importance):",
-                    "si": f"ML ආකෘතිය දිනකට {predicted_demand:.1f} ඒකක ඉල්ලුම පුරෝකථනය කරයි. {current_stock} ඒකක වත්මන් තොග සමඟ, දින {days_until_stockout:.1f} කින් තොග අවසන් වේ. පුරෝකථනය පහත සාධක මගින් ධාවනය වේ (SHAP වැදගත්කම අනුව ශ්‍රේණිගත කර ඇත):"
-                },
-                "features": features,
-                "metrics": {
-                    "predictedDailyDemand": float(round(predicted_demand, 2)),
-                    "baselineDemand": float(round(base_value, 2)),
-                    "currentStock": int(current_stock),
-                    "reorderLevel": int(alert['reorder_level']),
-                    "daysUntilStockout": float(round(days_until_stockout, 1)),
-                    "recommendedQuantity": int(alert['recommended_quantity'])
-                },
-                "confidence": float(alert['confidence']),
-                "generatedAt": datetime.now().isoformat()
+                "success": True,
+                "data": {
+                    "alertId": alert_id,
+                    "productId": product_id,
+                    "productName": alert['name'],
+                    "modelType": "XGBoost + SHAP",
+                    "explanation": {
+                        "en": f"The ML model predicts {predicted_demand:.1f} units/day demand. With current stock of {current_stock} units, stockout will occur in {days_until_stockout:.1f} days. The prediction is driven by the following factors (ranked by SHAP importance):",
+                        "si": f"ML ආකෘතිය දිනකට {predicted_demand:.1f} ඒකක ඉල්ලුම පුරෝකථනය කරයි. {current_stock} ඒකක වත්මන් තොග සමඟ, දින {days_until_stockout:.1f} කින් තොග අවසන් වේ. පුරෝකථනය පහත සාධක මගින් ධාවනය වේ (SHAP වැදගත්කම අනුව ශ්‍රේණිගත කර ඇත):"
+                    },
+                    "features": features,
+                    "metrics": {
+                        "predictedDailyDemand": float(round(predicted_demand, 2)),
+                        "baselineDemand": float(round(base_value, 2)),
+                        "currentStock": int(current_stock),
+                        "reorderLevel": int(alert['reorder_level']),
+                        "daysUntilStockout": float(round(days_until_stockout, 1)),
+                        "recommendedQuantity": int(alert['recommended_quantity'])
+                    },
+                    "confidence": float(alert['confidence']),
+                    "generatedAt": datetime.now().isoformat()
+                }
             }
             
         except Exception as e:

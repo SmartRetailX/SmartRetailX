@@ -176,7 +176,7 @@ class ForecastsController {
     required: true,
     type: String,
     description: 'Product ID',
-    example: 'PROD001',
+    example: '70001',
   })
   @ApiQuery({
     name: 'horizon',
@@ -192,7 +192,7 @@ class ForecastsController {
       example: {
         success: true,
         data: {
-          productId: 'PROD001',
+          productId: '70001',
           storeId: 'S001',
           modelType: 'Prophet',
           confidence: 0.87,

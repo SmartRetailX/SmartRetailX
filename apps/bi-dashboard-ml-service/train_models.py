@@ -1,14 +1,20 @@
 """
-Train Prophet models for all product-store combinations using Kaggle dataset
-Run this script once to generate all models
+Train Prophet models for all product-store combinations using Kaggle dataset.
+
+The training data still comes from Kaggle, but the saved model artifacts are
+keyed by the BI product id from the new catalog so runtime lookups stay stable.
 """
 
+import json
 import os
 import pickle
 from datetime import datetime
+from pathlib import Path
+
 from dotenv import load_dotenv
 import pandas as pd
 from prophet import Prophet
+
 from utils.data_processor import DataProcessor
 
 load_dotenv()
@@ -19,6 +25,7 @@ class ModelTrainer:
         self.model_path = os.getenv("MODEL_PATH", "./models")
         self.data_path = os.getenv("DATA_PATH", "./data")
         self.kaggle_file = os.path.join(self.data_path, "kaggle_sales_data_realistic.csv")
+        self.catalog_file = Path(__file__).resolve().parent / "data" / "product-catalog.json"
         
         # Create models directory
         os.makedirs(self.model_path, exist_ok=True)
@@ -26,6 +33,78 @@ class ModelTrainer:
         # Load and process Kaggle dataset
         self.processor = DataProcessor()
         self.kaggle_data = None
+        self.product_key_map = pd.DataFrame()
+
+    def load_source_catalog(self):
+        """Load the canonical source catalog used by the BI dashboard."""
+        if not self.catalog_file.exists():
+            raise FileNotFoundError(
+                f"Source catalog not found at {self.catalog_file}\n"
+                "Create apps/bi-dashboard-ml-service/data/product-catalog.json first."
+            )
+
+        with self.catalog_file.open('r', encoding='utf-8') as handle:
+            return json.load(handle)
+
+    def build_product_key_map(self):
+        """Map legacy Kaggle product ids to the new BI catalog ids."""
+        legacy_products = sorted(self.kaggle_data['product_id'].drop_duplicates().tolist())
+        source_products = self.load_source_catalog()
+
+        if len(legacy_products) != len(source_products):
+            print(
+                f"[WARN] Kaggle products ({len(legacy_products)}) and source catalog products ({len(source_products)}) differ. "
+                "Mapping by sorted position for the shared range."
+            )
+
+        mapping_rows = []
+        for idx, legacy_product_id in enumerate(legacy_products):
+            source_product = source_products[idx % len(source_products)]
+            mapping_rows.append(
+                {
+                    'legacy_product_id': legacy_product_id,
+                    'source_product_id': legacy_product_id,
+                    'model_key': str(source_product['itemID']),
+                    'item_id': str(source_product['itemID']),
+                    'item_code': source_product['itemCode'],
+                    'name': source_product['name'],
+                    'category': source_product['category'],
+                }
+            )
+
+        self.product_key_map = pd.DataFrame(mapping_rows)
+        return self.product_key_map
+
+    def apply_product_key_map(self):
+        """Rewrite the loaded dataset to use catalog ids as the active product ids."""
+        if self.product_key_map.empty:
+            self.build_product_key_map()
+
+        mapping = dict(zip(self.product_key_map['legacy_product_id'], self.product_key_map['model_key']))
+        mapped_data = self.kaggle_data.copy()
+        mapped_data['source_product_id'] = mapped_data['product_id'].astype(str)
+        mapped_data['product_id'] = mapped_data['product_id'].astype(str).map(mapping).fillna(mapped_data['product_id'].astype(str))
+        self.kaggle_data = mapped_data
+        return self.kaggle_data
+
+    def save_product_key_map(self):
+        """Persist the mapping so the migration stays reproducible."""
+        if self.product_key_map.empty:
+            return None
+
+        output_path = Path(self.data_path) / 'product-key-map.json'
+        with output_path.open('w', encoding='utf-8') as handle:
+            json.dump(self.product_key_map.to_dict('records'), handle, indent=2)
+        return output_path
+
+    def save_mapped_dataset(self):
+        """Persist the catalog-id dataset so training is reproducible."""
+        if self.kaggle_data is None or self.kaggle_data.empty:
+            return None
+
+        output_path = Path(self.data_path) / 'kaggle_sales_data_bi_ids.csv'
+        self.kaggle_data.to_csv(output_path, index=False)
+        return output_path
         
     def load_kaggle_dataset(self):
         """Load and preprocess Kaggle dataset"""
@@ -45,12 +124,17 @@ class ModelTrainer:
         print(f"   [EMOJI] (Training per-product, aggregated across all stores)")
         
         self.kaggle_data = df
+        self.build_product_key_map()
+        self.apply_product_key_map()
+        self.save_product_key_map()
+        self.save_mapped_dataset()
         return df
     
     def get_products(self):
-        """Get all unique products from Kaggle dataset (aggregated across all stores)"""
-        products = self.kaggle_data['product_id'].drop_duplicates()
-        return products.tolist()
+        """Get all catalog product ids in the mapped training order."""
+        if self.product_key_map.empty:
+            self.build_product_key_map()
+        return self.product_key_map['model_key'].tolist()
     
     def fetch_sales_data(self, product_id: str):
         """Get sales data for specific product, aggregated across all stores"""
@@ -130,13 +214,17 @@ class ModelTrainer:
             pickle.dump(model, f)
         return filename
     
-    def save_metadata(self, product_id: str, feature_names: list, drivers: list = None, avg_price: float = None, sample_data: pd.DataFrame = None):
+    def save_metadata(self, product_id: str, feature_names: list, drivers: list = None, avg_price: float = None, sample_data: pd.DataFrame = None, source_product_id: str = None, item_code: str = None, source_name: str = None, source_category: str = None):
         """Save model metadata (feature names, drivers, price, sample data for SHAP)"""
         metadata = {
             'feature_names': feature_names,
             'drivers': drivers or [],
             'avg_price': avg_price,
             'sample_data': sample_data.to_dict('records') if sample_data is not None else None,
+            'source_product_id': source_product_id,
+            'item_code': item_code,
+            'source_name': source_name,
+            'source_category': source_category,
             'trained_at': datetime.now().isoformat()
         }
         filename = f"{self.model_path}/{product_id}_metadata.pkl"
@@ -206,26 +294,28 @@ class ModelTrainer:
         return drivers[:5]  # Top 5 drivers
     
     def train_all_models(self):
-        """Train models for all products (aggregated across all stores)"""
+        """Train models for all products using catalog ids (aggregated across all stores)"""
         print("\n[EMOJI] Starting Model Training...")
         print("=" * 60)
         
         # Load Kaggle dataset
         self.load_kaggle_dataset()
         
-        # Get all unique products
-        products = self.get_products()
-        print(f"\n[DATA] Found {len(products)} unique products (training aggregated across all stores)")
+        # Get mapped products
+        training_rows = self.product_key_map.to_dict('records') if not self.product_key_map.empty else []
+        print(f"\n[DATA] Found {len(training_rows)} mapped products (source ids -> catalog ids)")
         
         trained_count = 0
         skipped_count = 0
         
-        for product_id in products:
+        for row in training_rows:
+            source_product_id = row['source_product_id']
+            model_key = row['model_key']
             try:
-                print(f"\n[EMOJI] Training: {product_id} (all stores aggregated)...")
+                print(f"\n[EMOJI] Training: {source_product_id} -> {model_key} (all stores aggregated)...")
                 
                 # Fetch sales data aggregated across all stores
-                sales_data = self.fetch_sales_data(product_id)
+                sales_data = self.fetch_sales_data(model_key)
                 
                 if len(sales_data) < 30:
                     print(f"   [WARN]  Skipped: Only {len(sales_data)} days of data (need at least 30 for feature engineering)")
@@ -237,13 +327,13 @@ class ModelTrainer:
                 # 1. Train Prophet model
                 prophet_data = self.prepare_prophet_data(sales_data)
                 prophet_model = self.train_prophet_model(prophet_data)
-                prophet_file = self.save_model(prophet_model, product_id, 'prophet')
+                prophet_file = self.save_model(prophet_model, model_key, 'prophet')
                 print(f"   [OK] Prophet model saved: {prophet_file}")
                 
                 # 2. Train XGBoost model for XAI (and engineer features)
                 df_engineered = self.processor.engineer_features(sales_data)
                 xgb_model, feature_names = self.train_xgboost_model(sales_data)
-                xgb_file = self.save_model(xgb_model, product_id, 'xgboost')
+                xgb_file = self.save_model(xgb_model, model_key, 'xgboost')
                 print(f"   [OK] XGBoost model saved: {xgb_file}")
                 
                 # 3. Calculate drivers and average price
@@ -255,7 +345,17 @@ class ModelTrainer:
                 sample_data = df_engineered[feature_names].tail(30)
                 
                 # 5. Save metadata with drivers, price, and sample data
-                meta_file = self.save_metadata(product_id, feature_names, drivers, avg_price, sample_data)
+                meta_file = self.save_metadata(
+                    model_key,
+                    feature_names,
+                    drivers,
+                    avg_price,
+                    sample_data,
+                    source_product_id=source_product_id,
+                    item_code=row['item_code'],
+                    source_name=row['name'],
+                    source_category=row['category'],
+                )
                 print(f"   [OK] Metadata saved: {meta_file}")
                 print(f"   [DATA] Drivers: {len(drivers)}, Avg Price: ${avg_price:.2f}, Sample rows: {len(sample_data)}")
                 
@@ -263,7 +363,7 @@ class ModelTrainer:
                 
             except Exception as e:
                 import traceback
-                print(f"   [ERROR] Error training {product_id}: {e}")
+                print(f"   [ERROR] Error training {source_product_id}: {e}")
                 print(f"   {traceback.format_exc()}")
                 skipped_count += 1
         

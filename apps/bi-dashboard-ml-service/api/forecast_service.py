@@ -13,6 +13,8 @@ from typing import Dict, Any, List
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
+from api.model_resolution import resolve_model_artifact
+
 load_dotenv()
 
 
@@ -115,16 +117,12 @@ class ForecastService:
         return model
     
     def load_model(self, product_id: str):
-        """Load pre-trained Prophet model from disk"""
-        model_file = f"{self.model_path}/{product_id}_prophet.pkl"
-        
-        if os.path.exists(model_file):
-            print(f"[LOAD] Loading pre-trained model: {model_file}")
-            with open(model_file, 'rb') as f:
-                return pickle.load(f)
-        else:
-            print(f"[WARN]  No pre-trained model found for {product_id}")
-            return None
+        """Load a pre-trained Prophet model from disk."""
+        model_file, resolved_key = resolve_model_artifact(self.model_path, product_id, 'prophet')
+
+        print(f"[LOAD] Loading pre-trained model: {model_file}")
+        with open(model_file, 'rb') as f:
+            return pickle.load(f), resolved_key
     
     def save_model(self, model, product_id: str, model_type: str = 'prophet'):
         """Save trained model to disk"""
@@ -148,29 +146,28 @@ class ForecastService:
         return filename
     
     def load_xgboost_model(self, product_id: str):
-        """Load pre-trained XGBoost model from disk"""
-        model_file = f"{self.model_path}/{product_id}_xgboost.pkl"
-        
-        if os.path.exists(model_file):
-            print(f"[LOAD] Loading pre-trained XGBoost model: {model_file}")
-            with open(model_file, 'rb') as f:
-                return pickle.load(f)
-        return None
+        """Load pre-trained XGBoost model from disk."""
+        model_file, resolved_key = resolve_model_artifact(self.model_path, product_id, 'xgboost')
+
+        print(f"[LOAD] Loading pre-trained XGBoost model: {model_file}")
+        with open(model_file, 'rb') as f:
+            return pickle.load(f), resolved_key
     
-    def load_model_metadata(self, product_id: str) -> Dict[str, Any]:
-        """Load saved metadata (drivers, price, feature names)"""
-        metadata_file = f"{self.model_path}/{product_id}_metadata.pkl"
-        
+    def load_model_metadata(self, product_id: str, resolved_key: str | None = None) -> Dict[str, Any]:
+        """Load saved metadata (drivers, price, feature names)."""
+        metadata_key = resolved_key or product_id
+        metadata_file = f"{self.model_path}/{metadata_key}_metadata.pkl"
+
         if os.path.exists(metadata_file):
             with open(metadata_file, 'rb') as f:
                 return pickle.load(f)
-        
+
         # Return defaults if no metadata
         return {
             'drivers': [],
             'avg_price': 10.0,
             'feature_names': [],
-            'trained_at': None
+            'trained_at': None,
         }
     
     async def predict(self, product_id: str,
@@ -187,10 +184,12 @@ class ForecastService:
             prophet_model = self.prophet_models[model_key]
             print(f"[OK] Using cached Prophet model for {model_key}")
         else:
-            prophet_model = self.load_model(product_id)
+            prophet_model, resolved_key = self.load_model(product_id)
             if prophet_model:
-                self.prophet_models[model_key] = prophet_model
-                print(f"[OK] Loaded and cached Prophet model for {model_key}")
+                self.prophet_models[product_id] = prophet_model
+                self.prophet_models[resolved_key] = prophet_model
+                model_key = resolved_key
+                print(f"[OK] Loaded and cached Prophet model for {resolved_key}")
         
         # If no pre-trained model exists, fail with clear error message
         if prophet_model is None:
@@ -201,7 +200,7 @@ class ForecastService:
             )
         
         # Load saved metadata (drivers, price) - NO CSV loading!
-        metadata = self.load_model_metadata(product_id)
+        metadata = self.load_model_metadata(product_id, model_key)
         
         # Generate Prophet forecast
         future = prophet_model.make_future_dataframe(periods=horizon)

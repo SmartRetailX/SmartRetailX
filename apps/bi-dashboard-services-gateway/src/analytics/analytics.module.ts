@@ -38,6 +38,37 @@ class AnalyticsService {
     const periodDays = query.period === 'day' ? 1 : query.period === 'week' ? 7 : query.period === 'year' ? 365 : 30;
     const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
 
+    // KPI aggregates for the selected period
+    const periodSalesAggregate = await this.prisma.sale.aggregate({
+      where: {
+        timestamp: {
+          gte: since,
+        },
+      },
+      _sum: {
+        finalAmount: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    // Use historical forecasts as a lightweight proxy for confidence/accuracy.
+    const forecastAgg = await this.prisma.forecast.aggregate({
+      where: {
+        generatedAt: {
+          gte: since,
+        },
+      },
+      _avg: {
+        confidence: true,
+      },
+    });
+
+    const totalRevenueValue = Number(periodSalesAggregate._sum.finalAmount || 0);
+    const totalOrdersValue = Number(periodSalesAggregate._count._all || 0);
+    const forecastAccuracyValue = Number(((forecastAgg._avg.confidence || 0) * 100).toFixed(1));
+
     // Sales trend: daily revenue + order count
     const salesTrendRaw = await this.prisma.$queryRaw<{ date: string; revenue: number; orders: number }[]>`
       SELECT
@@ -81,11 +112,11 @@ class AnalyticsService {
       success: true,
       data: {
         kpis: {
-          totalRevenue: { value: 1250000.0, change: 12.5, trend: 'up' },
-          totalOrders: { value: 4567, change: 8.3, trend: 'up' },
+          totalRevenue: { value: totalRevenueValue, change: 0, trend: 'stable' },
+          totalOrders: { value: totalOrdersValue, change: 0, trend: 'stable' },
           activeAlerts: { value: activeAlertsCount, change: -15.2, trend: 'down' },
           criticalAlerts: { value: criticalAlertsCount, change: 0, trend: 'stable' },
-          forecastAccuracy: { value: 94.2, change: 2.1, trend: 'up' },
+          forecastAccuracy: { value: forecastAccuracyValue, change: 0, trend: 'stable' },
           totalProducts: { value: totalProducts, change: 0, trend: 'stable' },
           lowStockProducts: { value: lowStockProducts, change: 0, trend: 'stable' },
         },
@@ -126,13 +157,14 @@ class AnalyticsController {
             totalRevenue: { value: 1250000.0, change: 12.5, trend: 'up' },
             totalOrders: { value: 4567, change: 8.3, trend: 'up' },
             activeAlerts: { value: 15, change: -15.2, trend: 'down' },
+            criticalAlerts: { value: 4, change: 0, trend: 'stable' },
             forecastAccuracy: { value: 94.2, change: 2.1, trend: 'up' },
-            customerRetention: { value: 87.5, change: 3.2, trend: 'up' },
-            inventoryTurnover: { value: 6.2, change: 5.1, trend: 'up' },
+            totalProducts: { value: 20, change: 0, trend: 'stable' },
+            lowStockProducts: { value: 3, change: 0, trend: 'stable' },
           },
           topProducts: [
             {
-              id: 'PROD001',
+              id: '70001',
               name: 'Basmati Rice 5kg',
               revenue: 125000.0,
               quantity: 850,

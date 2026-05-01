@@ -45,7 +45,7 @@ export class AlertsController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['PENDING', 'ACCEPTED', 'DISMISSED'],
+    enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
     description: 'Filter by status',
   })
   @ApiResponse({
@@ -60,7 +60,7 @@ export class AlertsController {
               id: 'ALT0001',
               type: 'restock',
               urgency: 'high',
-              productId: 'PROD001',
+              productId: '70001',
               productName: 'Basmati Rice 5kg',
               productNameSi: 'බාස්මති සහල් 5kg',
               storeId: 'S001',
@@ -140,7 +140,7 @@ export class AlertsController {
               id: 'ALT0001',
               type: 'RESTOCK',
               urgency: 'HIGH',
-              productId: 'PROD003',
+              productId: '70003',
               currentStock: 15,
               recommendedQuantity: 50,
               reason:

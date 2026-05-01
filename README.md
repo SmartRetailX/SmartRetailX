@@ -677,6 +677,20 @@ AI voice assistant for Sinhala e-commerce queries.
 
 **Technology:** Pure RabbitMQ microservice, SinLlama (planned)
 
+### BI Dashboard Services
+
+Retail analytics and BI tooling split across a NestJS gateway and a Python ML service.
+
+**BI Dashboard Services Gateway:**
+- REST and RabbitMQ-backed API layer for products, sales, inventory, analytics, promotions, alerts, forecasts, and XAI
+- Prisma ORM with PostgreSQL for BI dashboard data access
+- Integrates with the ML service for forecasting and explainable AI endpoints
+
+**BI Dashboard ML Service:**
+- FastAPI service for demand forecasting, SHAP-based explainability, and alert generation
+- Uses Prophet, XGBoost, and other ML utilities for retail analytics workloads
+- Called by the gateway over HTTP
+
 ### Personalized Promotion Engine ML Service
 
 AI-powered system that predicts customer purchase behavior and generates targeted promotion campaigns.

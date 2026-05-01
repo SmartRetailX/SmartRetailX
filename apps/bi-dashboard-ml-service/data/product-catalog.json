@@ -1,0 +1,222 @@
+[
+  {
+    "itemID": 70001,
+    "itemCode": "916001",
+    "category": "Groceries",
+    "categoryId": 10,
+    "name": "Basmati Rice 5kg",
+    "price": 54.55,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70001.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70003,
+    "itemCode": "916003",
+    "category": "Vegetables",
+    "categoryId": 16,
+    "name": "Carrot",
+    "price": 120,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70003.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70004,
+    "itemCode": "916004",
+    "category": "Vegetables",
+    "categoryId": 16,
+    "name": "Potato",
+    "price": 95,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70004.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70005,
+    "itemCode": "916005",
+    "category": "Groceries",
+    "categoryId": 10,
+    "name": "Fresh Milk 1L",
+    "price": 54.77,
+    "uom": "L",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70005.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70006,
+    "itemCode": "916006",
+    "category": "Fruits",
+    "categoryId": 11,
+    "name": "Banana Bunch",
+    "price": 180,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70006.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70007,
+    "itemCode": "916007",
+    "category": "Fruits",
+    "categoryId": 11,
+    "name": "Apple",
+    "price": 240,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70007.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70008,
+    "itemCode": "916008",
+    "category": "Groceries",
+    "categoryId": 10,
+    "name": "White Sugar 1kg",
+    "price": 62,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70008.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70009,
+    "itemCode": "916009",
+    "category": "Groceries",
+    "categoryId": 10,
+    "name": "Coconut Oil 1L",
+    "price": 250,
+    "uom": "L",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70009.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70010,
+    "itemCode": "916010",
+    "category": "Electronics",
+    "categoryId": 30,
+    "name": "Bluetooth Speaker",
+    "price": 699,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70010.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70011,
+    "itemCode": "916011",
+    "category": "Electronics",
+    "categoryId": 30,
+    "name": "Wireless Mouse",
+    "price": 450,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70011.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70012,
+    "itemCode": "916012",
+    "category": "Furniture",
+    "categoryId": 40,
+    "name": "Office Chair",
+    "price": 18500,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70012.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70013,
+    "itemCode": "916013",
+    "category": "Furniture",
+    "categoryId": 40,
+    "name": "Study Desk",
+    "price": 32000,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70013.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70014,
+    "itemCode": "916014",
+    "category": "Clothing",
+    "categoryId": 50,
+    "name": "Cotton T-Shirt",
+    "price": 1290,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70014.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70015,
+    "itemCode": "916015",
+    "category": "Clothing",
+    "categoryId": 50,
+    "name": "Denim Jeans",
+    "price": 2890,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70015.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70016,
+    "itemCode": "916016",
+    "category": "Clothing",
+    "categoryId": 50,
+    "name": "Running Shoes",
+    "price": 4950,
+    "uom": "Pair",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70016.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70017,
+    "itemCode": "916017",
+    "category": "Electronics",
+    "categoryId": 30,
+    "name": "USB Flash Drive 32GB",
+    "price": 2200,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70017.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70018,
+    "itemCode": "916002",
+    "category": "Vegetables",
+    "categoryId": 16,
+    "name": "Ambarella",
+    "price": 560,
+    "uom": "KG",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70018.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70019,
+    "itemCode": "916019",
+    "category": "Toys",
+    "categoryId": 20,
+    "name": "Action Figure Toy",
+    "price": 1450,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70019.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70020,
+    "itemCode": "916020",
+    "category": "Toys",
+    "categoryId": 20,
+    "name": "Educational Board Game",
+    "price": 1950,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70020.jpg",
+    "isAvailable": true
+  },
+  {
+    "itemID": 70021,
+    "itemCode": "916021",
+    "category": "Toys",
+    "categoryId": 20,
+    "name": "Board Game Set",
+    "price": 1750,
+    "uom": "Each",
+    "imageUrl": "https://cdn.smartretailx.com/catalog/70021.jpg",
+    "isAvailable": true
+  }
+]

@@ -1,22 +1,49 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Filter, TrendingUp } from 'lucide-react'
+import { Download, TrendingUp, RotateCcw } from 'lucide-react'
 import { useSalesAggregate } from '@/hooks/useSales'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label } from 'recharts'
+import { downloadFile } from '@/lib/utils'
+
+function getDefaultDateRange() {
+  const endDate = new Date()
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - 30)
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+  }
+}
 
 export default function RevenuePage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const isSinhala = i18n.language === 'si'
-  const [dateRange, setDateRange] = useState<{ startDate?: string; endDate?: string }>({})
+  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>(getDefaultDateRange())
   
-  const { data: salesData, isLoading } = useSalesAggregate({
-    ...dateRange
-  })
+  const { data: salesData, isLoading } = useSalesAggregate(dateRange)
+
+  const handleExport = () => {
+    const rows = salesData?.dailyTrends || []
+    const csvRows = [
+      ['Date', 'Revenue', 'Orders'],
+      ...rows.map((row) => [row.date, row.revenue.toString(), row.orders.toString()]),
+    ]
+    const csv = csvRows.map((row) => row.join(',')).join('\n')
+    downloadFile(
+      new Blob([csv], { type: 'text/csv;charset=utf-8;' }),
+      `revenue-report-${dateRange.startDate}-to-${dateRange.endDate}.csv`
+    )
+  }
+
+  const handleResetRange = () => {
+    setDateRange(getDefaultDateRange())
+  }
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-full">Loading...</div>
@@ -31,16 +58,43 @@ export default function RevenuePage() {
           <p className="text-gray-500 mt-1">Comprehensive revenue analytics</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => alert('Date range filter coming soon!')}>
-            <Filter className="mr-2 h-4 w-4" />
-            {t('common.filter')}
+          <Button variant="outline" onClick={handleResetRange}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reset Range
           </Button>
-          <Button onClick={() => alert('Export to CSV/PDF coming soon!')}>
+          <Button onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            {t('common.export')}
+            Export CSV
           </Button>
         </div>
       </div>
+
+      {/* Date Range Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium mb-2">Start Date</label>
+              <Input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => setDateRange((current) => ({ ...current, startDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">End Date</label>
+              <Input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => setDateRange((current) => ({ ...current, endDate: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-end text-sm text-gray-500">
+              Showing data between the selected dates.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

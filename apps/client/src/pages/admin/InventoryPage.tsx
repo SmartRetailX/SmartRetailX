@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Download, Upload } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Search, Download, PackageSearch } from 'lucide-react'
 import { useProducts, useInventoryStatus } from '@/hooks/useInventory'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, formatNumber, getStatusColor } from '@/lib/utils'
+import { formatCurrency, formatNumber, downloadFile } from '@/lib/utils'
 
 export default function InventoryPage() {
   const { t, i18n } = useTranslation()
   const { user, hasRole } = useAuth()
+  const navigate = useNavigate()
   const isSinhala = i18n.language === 'si'
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
@@ -20,6 +22,24 @@ export default function InventoryPage() {
 
   const { data: productsData, isLoading } = useProducts({ search, ...filters })
   const { data: inventoryStatus } = useInventoryStatus()
+
+  const handleExport = () => {
+    const rows = productsData?.data || []
+    const csvRows = [
+      ['Product', 'SKU', 'Category', 'Stock', 'Reorder Level', 'Price', 'Status'],
+      ...rows.map((product) => [
+        product.name,
+        product.sku,
+        product.category,
+        String(product.currentStock || product.stock || 0),
+        String(product.reorderLevel || 0),
+        String(product.price),
+        String(product.status),
+      ]),
+    ]
+    const csv = csvRows.map((row) => row.join(',')).join('\n')
+    downloadFile(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'inventory-export.csv')
+  }
 
   return (
     <div className="space-y-6">
@@ -32,13 +52,17 @@ export default function InventoryPage() {
         <div className="flex gap-2">
           {hasRole('ADMIN') && (
             <>
-              <Button variant="outline" onClick={() => alert('CSV/Excel import coming soon!')}>
-                <Upload className="mr-2 h-4 w-4" />
-                {t('common.import')}
+              <Button variant="outline" onClick={() => navigate('/products')}>
+                <PackageSearch className="mr-2 h-4 w-4" />
+                Manage Products
               </Button>
-              <Button onClick={() => alert('Add product form coming soon!')}>
+              <Button onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button onClick={() => navigate('/products')}>
                 <Plus className="mr-2 h-4 w-4" />
-                {t('inventory.addProduct')}
+                Add / Edit Products
               </Button>
             </>
           )}
@@ -98,7 +122,7 @@ export default function InventoryPage() {
                 className="pl-10"
               />
             </div>
-            <Button variant="outline" onClick={() => alert('Export to CSV/Excel coming soon!')}>
+            <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               {t('common.export')}
             </Button>

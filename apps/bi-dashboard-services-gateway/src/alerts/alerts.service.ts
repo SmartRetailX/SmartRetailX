@@ -140,7 +140,8 @@ export class AlertsService implements OnModuleInit {
         },
         data: {
           status: 'REJECTED',
-          acceptedAt: new Date(),
+          rejectedAt: new Date(),
+          rejectionReason: 'Auto-dismissed: Alert no longer in latest ML critical set',
         },
       });
 
