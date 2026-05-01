@@ -1,7 +1,10 @@
 import re
+import logging
 from collections import defaultdict
 
 from .models import Explanation, ExplanationFeature, IntentRequest, IntentResponse
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_INTENTS = [
     "offers",
@@ -13,7 +16,7 @@ DEFAULT_INTENTS = [
 ]
 
 KEYWORDS: dict[str, list[str]] = {
-    "offers": ["offer", "promotion", "discount", "deal", "වට්ටම්", "offers"],
+    "offers": ["offer", "offers", "promotion", "discount", "deal", "වට්ටම්", "ඔෆර්", "ඔෆර්ස්", "ඔපර්", "ඔපර්ස්"],
     "order_history": [
         "order",
         "orders",
@@ -24,9 +27,22 @@ KEYWORDS: dict[str, list[str]] = {
         "ඇණවුම්",
         "මිලදී ගැනීම්",
     ],
-    "buying_suggestions": ["suggest", "recommend", "what should i buy", "නිර්දේශ", "සැජෙස්ට්"],
-    "prices": ["price", "cost", "how much", "මිල", "කීයද", "රු"],
-    "product_search": ["search", "find", "product", "භාණ්ඩ", "නිෂ්පාදන", "හොයන්න"],
+    "buying_suggestions": ["suggest", "recommend", "what should i buy", "shopping list", "buying list", "නිර්දේශ", "යෝජනා", "සැජෙස්ට්"],
+    "prices": ["price", "cost", "how much", "මිල", "කීයද", "කීය", "රු"],
+    "product_search": [
+        "search",
+        "find",
+        "product",
+        "available",
+        "availability",
+        "stock",
+        "භාණ්ඩ",
+        "නිෂ්පාදන",
+        "හොයන්න",
+        "තියෙනවද",
+        "තියෙනවාද",
+        "තියෙනවා",
+    ],
     "general": ["help", "assist", "උදව්", "ප්‍රශ්න"],
 }
 
@@ -38,7 +54,14 @@ def _extract_product(text: str) -> str | None:
         if candidate:
             return candidate
     match = re.search(
-        r"(?:price|cost|මිල|search|find|product|භාණ්ඩ)\s+(?:of\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})",
+        r"(?:price|cost|මිල|search|find|product|භාණ්ඩ)\s+(?:of\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,60})",
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip(" .,!?:;\"'")
+    match = re.search(
+        r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,60})\s+(?:price|cost|available|availability|stock|තියෙනවද|තියෙනවාද|තියෙනවා)",
         text,
         re.IGNORECASE,
     )
@@ -88,10 +111,19 @@ def detect_intent(payload: IntentRequest) -> IntentResponse:
         else "No strong keyword signal; defaulted to general intent."
     )
 
-    return IntentResponse(
+    response = IntentResponse(
         intent=best_intent,
         confidence=round(confidence, 3),
         entities=entities,
         explanation=Explanation(rationale=rationale, features=features),
     )
-
+    logger.info(
+        "intent_detected sessionId=%s userId=%s language=%s intent=%s confidence=%.3f entities=%s",
+        payload.sessionId,
+        payload.userId or "unknown",
+        payload.language,
+        response.intent,
+        response.confidence,
+        response.entities,
+    )
+    return response

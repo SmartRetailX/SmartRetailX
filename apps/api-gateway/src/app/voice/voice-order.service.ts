@@ -34,7 +34,14 @@ export class VoiceOrderService implements VoiceCapability {
       return null;
     }
 
-    return await this.tryOrderAwareResponse(context.transcriptText, context.language, context.sessionId, context.userId);
+    return await this.tryOrderAwareResponse(
+      context.transcriptText,
+      context.language,
+      context.sessionId,
+      context.userId,
+      context.intent,
+      context.explainability,
+    );
   }
 
   async tryOrderAwareResponse(
@@ -42,13 +49,15 @@ export class VoiceOrderService implements VoiceCapability {
     language: VoiceChatTcpPayload['language'],
     sessionId: string,
     userId: string,
+    intent?: VoiceCapabilityContext['intent'],
+    explainability?: VoiceCapabilityContext['explainability'],
   ): Promise<VoiceChatResponseDto | null> {
     const queryText = transcriptText?.trim();
     if (!queryText) {
       return null;
     }
 
-    if (!this.isOrderStyleQuestion(queryText)) {
+    if (intent !== 'order_history' && !this.isOrderStyleQuestion(queryText)) {
       return null;
     }
 
@@ -64,6 +73,19 @@ export class VoiceOrderService implements VoiceCapability {
       language,
       sessionId,
       messages: [],
+      intent: 'order_history',
+      explainability: explainability ?? {
+        source: 'db-order',
+        confidence: 0.92,
+        rationale: 'Order intent matched and authenticated user order data was requested from the core service.',
+        features: [
+          {
+            name: 'user_scope',
+            weight: 1,
+            evidence: userId,
+          },
+        ],
+      },
       model: 'core-order-history',
     };
   }

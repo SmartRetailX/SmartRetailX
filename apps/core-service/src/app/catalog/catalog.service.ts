@@ -11,6 +11,7 @@ type CatalogMatch = {
   sku: string;
   name: string;
   nameSi: string | null;
+  brand: string;
   categoryId: string;
   category: string;
   categoryNameSi: string | null;
@@ -24,6 +25,21 @@ type CatalogSearchResponse = {
   success: boolean;
   term: string;
   matches: CatalogMatch[];
+};
+
+type CatalogSearchRow = Prisma.ProductGetPayload<{
+  include: {
+    category: true;
+  };
+}>;
+
+type CatalogScoredRow = {
+  row: CatalogSearchRow;
+  exact: boolean;
+  starts: boolean;
+  phrase: boolean;
+  tokenHits: number;
+  leadingTokenHit: boolean;
 };
 
 type ProductStockEntry = {
@@ -202,72 +218,88 @@ export class CatalogService {
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 20)) : 5;
     const queryTokens = buildCatalogQueryTokens(normalizedTerm);
     const searchTokens = queryTokens.length > 0 ? queryTokens : [normalizedTerm];
+    const tokenFilters = searchTokens.map((token) => ({
+      OR: [
+        { name: { contains: token, mode: 'insensitive' as const } },
+        { nameSi: { contains: token, mode: 'insensitive' as const } },
+        { description: { contains: token, mode: 'insensitive' as const } },
+        { descriptionSi: { contains: token, mode: 'insensitive' as const } },
+        { sku: { contains: token, mode: 'insensitive' as const } },
+        { brand: { contains: token, mode: 'insensitive' as const } },
+        { category: { name: { contains: token, mode: 'insensitive' as const } } },
+        { category: { nameSi: { contains: token, mode: 'insensitive' as const } } },
+      ],
+    }));
 
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        sku: string;
-        name: string;
-        name_si: string | null;
-        category_id: string;
-        category_name: string;
-        category_name_si: string | null;
-        price: string;
-        stock_quantity: number;
-        image_url: string | null;
-        is_active: boolean;
-      }>
-    >(
-      Prisma.sql`
-        SELECT p.id,
-               p.sku,
-               p.name,
-               p.name_si,
-               p.category_id,
-               c.name AS category_name,
-               c.name_si AS category_name_si,
-               p.price,
-               p.stock_quantity,
-               p.image_url,
-               p.is_active
-        FROM core.products p
-        INNER JOIN core.categories c ON c.id = p.category_id
-        WHERE p.is_active = true
-          AND EXISTS (
-            SELECT 1 FROM unnest(${searchTokens}::text[]) AS token
-            WHERE lower(coalesce(p.name, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(p.name_si, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(p.description, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(p.description_si, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(c.name, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(c.name_si, '')) LIKE '%' || token || '%'
-               OR lower(coalesce(p.sku, '')) LIKE '%' || token || '%'
-          )
-        ORDER BY
-          (lower(coalesce(p.name, '')) = lower(${normalizedTerm})
-            OR lower(coalesce(p.name_si, '')) = lower(${normalizedTerm})) DESC,
-          (lower(coalesce(p.name, '')) LIKE lower(${normalizedTerm}) || '%'
-            OR lower(coalesce(p.name_si, '')) LIKE lower(${normalizedTerm}) || '%') DESC,
-          p.name ASC
-        LIMIT ${safeLimit}
-      `,
-    );
+    const rows = await this.prisma.product.findMany({
+      where: {
+        isActive: true,
+        AND: tokenFilters.length > 0 ? [{ OR: tokenFilters.map((entry) => entry.OR).flat() }] : undefined,
+      },
+      include: {
+        category: true,
+      },
+      take: Math.max(safeLimit * 50, 500),
+      orderBy: [{ name: 'asc' }],
+    });
 
-    const matches = rows.map((row) => ({
-      productId: row.id,
+    const scoredRows = rows
+      .map((row) => this.scoreCatalogRow(row, normalizedTerm, searchTokens))
+      .filter((entry) => entry.tokenHits > 0)
+      .sort(
+        (a, b) =>
+          Number(b.exact) - Number(a.exact) ||
+          Number(b.starts) - Number(a.starts) ||
+          Number(b.phrase) - Number(a.phrase) ||
+          b.tokenHits - a.tokenHits ||
+          Number(b.leadingTokenHit) - Number(a.leadingTokenHit) ||
+          b.row.stockQuantity - a.row.stockQuantity ||
+          a.row.name.localeCompare(b.row.name),
+      )
+      .slice(0, safeLimit);
+
+    const matches = scoredRows.map(({ row }) => ({
+      productId: row.productId,
       sku: row.sku,
       name: row.name,
-      nameSi: row.name_si,
-      categoryId: row.category_id,
-      category: row.category_name,
-      categoryNameSi: row.category_name_si,
+      nameSi: row.nameSi,
+      brand: row.brand,
+      categoryId: row.categoryId,
+      category: row.category.name,
+      categoryNameSi: row.category.nameSi,
       price: Number(row.price),
-      currentStock: row.stock_quantity,
-      imageUrl: row.image_url,
-      isActive: row.is_active,
+      currentStock: row.stockQuantity,
+      imageUrl: row.imageUrl,
+      isActive: row.isActive,
     }));
 
     return { success: true, term: normalizedTerm, matches };
+  }
+
+  private scoreCatalogRow(row: CatalogSearchRow, normalizedTerm: string, searchTokens: string[]): CatalogScoredRow {
+    const searchableFields = [
+      row.name,
+      row.nameSi,
+      row.description,
+      row.descriptionSi,
+      row.sku,
+      row.brand,
+      row.category.name,
+      row.category.nameSi,
+    ]
+      .map((value) => normalizeCatalogQuery(value || ''))
+      .filter(Boolean);
+
+    const name = normalizeCatalogQuery(row.name || '');
+    const nameSi = normalizeCatalogQuery(row.nameSi || '');
+    const exact = name === normalizedTerm || nameSi === normalizedTerm || row.sku.toLowerCase() === normalizedTerm;
+    const starts = name.startsWith(normalizedTerm) || nameSi.startsWith(normalizedTerm);
+    const phrase = searchableFields.some((field) => field.includes(normalizedTerm));
+    const tokenHits = searchTokens.filter((token) => searchableFields.some((field) => field.includes(token))).length;
+    const leadingToken = searchTokens[0] || '';
+    const leadingTokenHit = Boolean(leadingToken && searchableFields.some((field) => field.includes(leadingToken)));
+
+    return { row, exact, starts, phrase, tokenHits, leadingTokenHit };
   }
 
   async listProducts(params: {

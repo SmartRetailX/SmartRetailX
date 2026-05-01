@@ -7,6 +7,7 @@ import { VoiceAgentTransportService } from './voice-agent-transport.service';
 import { VoiceCapabilityDispatcherService } from './voice-capability-dispatcher.service';
 import { VOICE_CAPABILITIES } from './voice-capability.interface';
 import { VoiceController } from './voice.controller';
+import { VoiceAudioStorageService } from './voice-audio-storage.service';
 import { VoiceChatRepository } from './voice-chat.repository';
 import { VoiceOfferService } from './voice-offer.service';
 import { VoiceRecommendationService } from './voice-recommendation.service';
@@ -37,6 +38,7 @@ import { VoiceTranscriptRefinerService } from './voice-transcript-refiner.servic
   controllers: [VoiceController],
   providers: [
     VoiceService,
+    VoiceAudioStorageService,
     VoiceChatRepository,
     VoiceAgentTransportService,
     VoiceProductService,

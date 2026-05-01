@@ -1,4 +1,10 @@
-import type { VoiceChatResponseDto, VoiceChatTcpPayload } from '@smart-retail-x/shared-types';
+import type {
+  VoiceAssistantIntent,
+  VoiceChatResponseDto,
+  VoiceChatStoredMessage,
+  VoiceChatTcpPayload,
+  VoiceExplainability,
+} from '@smart-retail-x/shared-types';
 
 export type VoiceCapabilityMode = 'primary' | 'fallback' | 'recovery';
 
@@ -7,6 +13,10 @@ export type VoiceCapabilityContext = {
   language: VoiceChatTcpPayload['language'];
   sessionId: string;
   userId: string;
+  intent?: VoiceAssistantIntent;
+  entities?: Record<string, unknown>;
+  explainability?: VoiceExplainability;
+  recentMessages?: VoiceChatStoredMessage[];
 };
 
 export interface VoiceCapability {

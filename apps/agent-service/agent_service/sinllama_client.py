@@ -43,12 +43,16 @@ async def detect_intent_with_sinllama(
     if SINLLAMA_API_KEY:
         headers["Authorization"] = f"Bearer {SINLLAMA_API_KEY}"
 
+    resolved_intents = [intent for intent in (allowed_intents or []) if intent]
+    if "general" not in resolved_intents:
+        resolved_intents.append("general")
+
     payload = {
         "text": text,
         "language": language,
         "sessionId": session_id,
         "userId": user_id,
-        "allowedIntents": allowed_intents or [],
+        "allowedIntents": resolved_intents,
     }
     timeout_seconds = max(1000, SINLLAMA_TIMEOUT_MS) / 1000
     attempts = max(1, SINLLAMA_RETRY_COUNT + 1)
@@ -69,14 +73,22 @@ async def detect_intent_with_sinllama(
             explanation = data.get("explanation") if isinstance(data.get("explanation"), dict) else {}
             rationale = str(explanation.get("rationale") or "").strip()
             features = _normalize_features(explanation.get("features"))
+            resolved_confidence = float(confidence) if confidence is not None else 0.0
+            logger.info(
+                "sinLlama intent detected: session=%s userId=%s intent=%s confidence=%.3f",
+                session_id,
+                user_id or "unknown",
+                intent,
+                resolved_confidence,
+            )
 
             return {
                 "intent": intent,
-                "confidence": float(confidence) if confidence is not None else 0.0,
+                "confidence": resolved_confidence,
                 "entities": entities if isinstance(entities, dict) else {},
                 "explainability": {
                     "source": "sinllama",
-                    "confidence": float(confidence) if confidence is not None else None,
+                    "confidence": resolved_confidence,
                     "rationale": rationale or None,
                     "features": features,
                 },

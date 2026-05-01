@@ -14,7 +14,7 @@ import { USER_ROLE } from './types/auth';
 export function App() {
   const auth = useAuth();
 
-  if (auth.isPending || auth.isRefetching) {
+  if (auth.isPending) {
     return <FullScreenLoader />;
   }
 

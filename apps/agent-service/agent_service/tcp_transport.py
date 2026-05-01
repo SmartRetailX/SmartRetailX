@@ -51,6 +51,7 @@ async def handle_nest_packet(packet: dict[str, Any]) -> dict[str, Any]:
     result = await process_voice_chat(
         audio_bytes=audio_bytes,
         language=payload.get("language", "si-LK"),
+        mime_type=payload.get("mimeType"),
         session_id=payload.get("sessionId"),
         user_id=payload.get("userId"),
         user_context=payload.get("userContext"),

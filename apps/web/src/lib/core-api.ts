@@ -36,10 +36,12 @@ function buildUrl(path: string, query?: Record<string, QueryValue>) {
 }
 
 async function request<T>(path: string, init?: RequestInit, query?: Record<string, QueryValue>) {
+  const hasBody = init?.body !== undefined && init?.body !== null;
+
   const response = await fetch(buildUrl(path, query), {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(init?.headers ?? {}),
     },
     ...init,

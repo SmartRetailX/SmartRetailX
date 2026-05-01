@@ -25,6 +25,7 @@ type VoiceChatMessageRow = {
   channel: VoiceChatInputMode;
   content: string;
   transcription: string | null;
+  audio_url: string | null;
   language: VoiceLanguageCode;
   created_at: Date;
 };
@@ -101,11 +102,15 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
     const query = await this.pool.query<VoiceChatMessageRow>(
       `
-      SELECT "id", "role", "channel", "content", "transcription", "language", "created_at"
-      FROM ${this.messageTableRef}
-      WHERE "chat_session_id" = $1
-      ORDER BY "created_at" ASC
-      LIMIT $2
+      SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+      FROM (
+        SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+        FROM ${this.messageTableRef}
+        WHERE "chat_session_id" = $1
+        ORDER BY "created_at" DESC, CASE WHEN "role" = 'assistant' THEN 0 ELSE 1 END DESC, "id" DESC
+        LIMIT $2
+      ) recent_messages
+      ORDER BY "created_at" ASC, CASE WHEN "role" = 'user' THEN 0 ELSE 1 END ASC, "id" ASC
       `,
       [session.id, max],
     );
@@ -121,6 +126,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     userText: string;
     assistantText: string;
     transcription?: string;
+    userAudioUrl?: string | null;
   }): Promise<void> {
     if (!this.persistenceEnabled) {
       return;
@@ -140,6 +146,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           channel: params.channel,
           content: params.userText.trim(),
           transcription: params.channel === 'voice' ? (params.transcription ?? params.userText).trim() : null,
+          audioUrl: params.channel === 'voice' ? (params.userAudioUrl ?? null) : null,
           language: params.language,
         });
       }
@@ -152,6 +159,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           channel: params.channel,
           content: params.assistantText.trim(),
           transcription: null,
+          audioUrl: null,
           language: params.language,
         });
       }
@@ -183,6 +191,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       channel: VoiceChatInputMode;
       content: string;
       transcription: string | null;
+      audioUrl: string | null;
       language: VoiceLanguageCode;
     },
   ): Promise<void> {
@@ -196,9 +205,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "channel",
         "content",
         "transcription",
+        "audio_url",
         "language"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         randomUUID(),
@@ -208,6 +218,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         params.channel,
         params.content,
         params.transcription,
+        params.audioUrl,
         params.language,
       ],
     );
@@ -220,6 +231,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       channel: row.channel,
       content: row.content,
       transcription: row.transcription,
+      audioUrl: row.audio_url,
       language: row.language,
       createdAt: row.created_at.toISOString(),
     };
@@ -323,9 +335,14 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "channel" TEXT NOT NULL CHECK ("channel" IN ('text', 'voice')),
         "content" TEXT NOT NULL,
         "transcription" TEXT,
+        "audio_url" TEXT,
         "language" TEXT NOT NULL DEFAULT 'auto',
         "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+    await this.pool.query(`
+      ALTER TABLE ${this.messageTableRef}
+      ADD COLUMN IF NOT EXISTS "audio_url" TEXT;
     `);
 
     await this.pool.query(`

@@ -62,11 +62,11 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
 
   async handle(context: VoiceCapabilityContext, _mode: VoiceCapabilityMode): Promise<VoiceChatResponseDto | null> {
     const queryText = context.transcriptText?.trim();
-    if (!queryText || !this.isOfferStyleQuestion(queryText)) {
+    if (!queryText || (context.intent !== 'offers' && !this.isOfferStyleQuestion(queryText))) {
       return null;
     }
 
-    const offerResponse = await this.tryBuildOfferResponse(queryText, context.language, context.sessionId);
+    const offerResponse = await this.tryBuildOfferResponse(queryText, context.language, context.sessionId, context.explainability);
     if (offerResponse) {
       return offerResponse;
     }
@@ -143,13 +143,32 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     transcriptText: string,
     language: VoiceChatTcpPayload['language'],
     sessionId: string,
+    upstreamExplainability?: VoiceChatResponseDto['explainability'],
   ): Promise<VoiceChatResponseDto | null> {
     const promotions = await this.fetchOfferCandidates(5);
     if (!promotions) {
       return null;
     }
 
-    if (promotions.length === 0) {
+    const requestedProductHints = this.extractRequestedProductHints(transcriptText);
+    const scopedPromotions =
+      requestedProductHints.length > 0 ? this.filterPromotionsByRequestedProduct(promotions, requestedProductHints) : promotions;
+
+    if (scopedPromotions.length === 0) {
+      if (requestedProductHints.length > 0) {
+        return {
+          success: true,
+          transcription: transcriptText,
+          response: 'ඔබ සඳහන් කළ භාණ්ඩය සඳහා දැනට offer හමු නොවුණා.',
+          language,
+          sessionId,
+          messages: [],
+          intent: 'offers',
+          explainability: upstreamExplainability,
+          model: 'db-offers-no-match',
+        };
+      }
+
       return {
         success: true,
         transcription: transcriptText,
@@ -158,6 +177,13 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
         language,
         sessionId,
         messages: [],
+        intent: 'offers',
+        explainability: upstreamExplainability ?? {
+          source: 'db-offers',
+          confidence: 0.9,
+          rationale: 'Offer intent matched and active/upcoming/expired promotions were checked in the database.',
+          features: [],
+        },
         model: 'db-offers-empty',
       };
     }
@@ -165,79 +191,196 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     return {
       success: true,
       transcription: transcriptText,
-      response: this.buildOfferListResponse(promotions),
+      response: this.buildOfferListResponse(scopedPromotions),
       language,
       sessionId,
       messages: [],
+      intent: 'offers',
+      explainability: upstreamExplainability ?? {
+        source: 'db-offers',
+        confidence: 0.95,
+        rationale: 'Offer intent matched and promotions were retrieved from database-backed promotion tables.',
+        features: scopedPromotions.slice(0, 5).map((promotion) => ({
+          name: promotion.productName || promotion.productId || 'promotion',
+          weight: promotion.offerStatus === 'active' ? 1 : 0.7,
+          evidence: `${promotion.offerStatus || 'unknown'} ${this.formatDiscount(promotion.discountPercentage)}`,
+        })),
+      },
       model: 'db-offers',
     };
   }
 
+  private extractRequestedProductHints(text: string): string[] {
+    const normalized = normalizeCatalogQuery(text);
+    if (!normalized) {
+      return [];
+    }
+
+    const stopwords = new Set([
+      'offer',
+      'offers',
+      'promo',
+      'promos',
+      'promotion',
+      'promotions',
+      'discount',
+      'sale',
+      'sales',
+      'deals',
+      'special',
+      'price',
+      'current',
+      'list',
+      'වට්ටම්',
+      'ප්රවර්ධන',
+      'ප්‍රවර්ධන',
+      'දීමනා',
+      'ඔෆර්',
+      'ඔෆර්ස්',
+      'ඔපර්',
+      'ඔපර්ස්',
+      'තියෙනවද',
+      'තියෙනව',
+      'මොනවද',
+      'මොනවාද',
+      'ද',
+    ]);
+
+    return normalized
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2 && !stopwords.has(token));
+  }
+
+  private filterPromotionsByRequestedProduct(
+    promotions: ActivePromotionItem[],
+    requestedProductHints: string[],
+  ): ActivePromotionItem[] {
+    return promotions.filter((promotion) => {
+      const haystack = normalizeCatalogQuery([promotion.productName || '', promotion.productId || ''].join(' '));
+      return requestedProductHints.every((hint) => haystack.includes(hint));
+    });
+  }
+
   private async fetchOfferCandidates(limit: number): Promise<ActivePromotionItem[] | null> {
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 10)) : 5;
+    const sqlCandidates = [
+      `
+      SELECT
+        p.promotion_id::text AS "promotionId",
+        p.product_id::text AS "productId",
+        COALESCE(pr.name_si, pr.name)::text AS "productName",
+        p.discount_percentage AS "discountPercentage",
+        p.promotion_type::text AS "promotionType",
+        p.targeted_promotion AS "targetedPromotion",
+        p.start_date::text AS "startDate",
+        p.end_date::text AS "endDate",
+        CASE
+          WHEN p.start_date IS NOT NULL AND p.start_date > CURRENT_DATE THEN 'upcoming'
+          WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN 'expired'
+          ELSE 'active'
+        END::text AS "offerStatus"
+      FROM pe_promotions p
+      LEFT JOIN core.products pr
+        ON p.product_id::text = COALESCE(pr.sku, pr.id::text)
+      ORDER BY
+        CASE
+          WHEN (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+           AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE) THEN 0
+          WHEN p.start_date IS NOT NULL AND p.start_date > CURRENT_DATE THEN 1
+          ELSE 2
+        END,
+        p.end_date ASC NULLS LAST,
+        p.start_date ASC NULLS LAST,
+        p.discount_percentage DESC NULLS LAST
+      LIMIT $1
+      `,
+      `
+      SELECT
+        p.id::text AS "promotionId",
+        pp.product_id::text AS "productId",
+        COALESCE(pr.name_si, pr.name, pp.product_id::text)::text AS "productName",
+        p.discount AS "discountPercentage",
+        p.status::text AS "promotionType",
+        FALSE AS "targetedPromotion",
+        p.start_date::text AS "startDate",
+        p.end_date::text AS "endDate",
+        CASE
+          WHEN p.start_date > CURRENT_DATE THEN 'upcoming'
+          WHEN p.end_date < CURRENT_DATE THEN 'expired'
+          ELSE 'active'
+        END::text AS "offerStatus"
+      FROM bi_dashboard.promotions p
+      LEFT JOIN bi_dashboard.promotion_products pp ON pp.promotion_id = p.id
+      LEFT JOIN core.products pr ON pr.id::text = pp.product_id::text
+      ORDER BY
+        CASE
+          WHEN p.start_date <= CURRENT_DATE AND p.end_date >= CURRENT_DATE THEN 0
+          WHEN p.start_date > CURRENT_DATE THEN 1
+          ELSE 2
+        END,
+        p.end_date ASC NULLS LAST,
+        p.start_date ASC NULLS LAST,
+        p.discount DESC NULLS LAST
+      LIMIT $1
+      `,
+      `
+      SELECT
+        p.id::text AS "promotionId",
+        ''::text AS "productId",
+        COALESCE(p.name_si, p.name)::text AS "productName",
+        p.discount AS "discountPercentage",
+        p.status::text AS "promotionType",
+        FALSE AS "targetedPromotion",
+        p.start_date::text AS "startDate",
+        p.end_date::text AS "endDate",
+        CASE
+          WHEN p.start_date > CURRENT_DATE THEN 'upcoming'
+          WHEN p.end_date < CURRENT_DATE THEN 'expired'
+          ELSE 'active'
+        END::text AS "offerStatus"
+      FROM bi_dashboard.promotions p
+      ORDER BY
+        CASE
+          WHEN p.start_date <= CURRENT_DATE AND p.end_date >= CURRENT_DATE THEN 0
+          WHEN p.start_date > CURRENT_DATE THEN 1
+          ELSE 2
+        END,
+        p.end_date ASC NULLS LAST,
+        p.start_date ASC NULLS LAST,
+        p.discount DESC NULLS LAST
+      LIMIT $1
+      `,
+    ];
 
-    try {
-      const query = await this.pool.query<ActivePromotionRow>(
-        `
-        SELECT
-          p.promotion_id::text AS "promotionId",
-          p.product_id::text AS "productId",
-          COALESCE(pr.name_si, pr.name)::text AS "productName",
-          p.discount_percentage AS "discountPercentage",
-          p.promotion_type::text AS "promotionType",
-          p.targeted_promotion AS "targetedPromotion",
-          p.start_date::text AS "startDate",
-          p.end_date::text AS "endDate",
-          CASE
-            WHEN p.start_date IS NOT NULL AND p.start_date > CURRENT_DATE THEN 'upcoming'
-            WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN 'expired'
-            ELSE 'active'
-          END::text AS "offerStatus"
-        FROM pe_promotions p
-        LEFT JOIN core.products pr
-          ON p.product_id::text = COALESCE(pr.sku, pr.id::text)
-        ORDER BY
-          CASE
-            WHEN (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-             AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE) THEN 0
-            WHEN p.start_date IS NOT NULL AND p.start_date > CURRENT_DATE THEN 1
-            ELSE 2
-          END,
-          CASE
-            WHEN (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-             AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE) THEN p.end_date
-          END ASC NULLS LAST,
-          CASE
-            WHEN p.start_date IS NOT NULL AND p.start_date > CURRENT_DATE THEN p.start_date
-          END ASC NULLS LAST,
-          CASE
-            WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN p.end_date
-          END DESC NULLS LAST,
-          p.discount_percentage DESC NULLS LAST
-        LIMIT $1
-        `,
-        [safeLimit],
-      );
-
-      return query.rows.map((row) => {
-        const numericDiscount = Number(row.discountPercentage);
-
-        return {
-          promotionId: row.promotionId,
-          productId: row.productId,
-          productName: row.productName || row.productId,
-          discountPercentage: Number.isFinite(numericDiscount) ? numericDiscount : undefined,
-          promotionType: row.promotionType || undefined,
-          targetedPromotion: Boolean(row.targetedPromotion),
-          startDate: row.startDate,
-          endDate: row.endDate,
-          offerStatus: row.offerStatus,
-        } satisfies ActivePromotionItem;
-      });
-    } catch (error) {
-      this.logger.warn(`Direct offers DB lookup failed (${error?.message ?? error})`);
-      return null;
+    for (const sql of sqlCandidates) {
+      try {
+        const query = await this.pool.query<ActivePromotionRow>(sql, [safeLimit]);
+        return this.mapOfferRows(query.rows);
+      } catch (error) {
+        this.logger.warn(`Offers lookup candidate failed (${error?.message ?? error})`);
+      }
     }
+
+    return null;
+  }
+
+  private mapOfferRows(rows: ActivePromotionRow[]): ActivePromotionItem[] {
+    return rows.map((row) => {
+      const numericDiscount = Number(row.discountPercentage);
+
+      return {
+        promotionId: row.promotionId,
+        productId: row.productId,
+        productName: row.productName || row.productId,
+        discountPercentage: Number.isFinite(numericDiscount) ? numericDiscount : undefined,
+        promotionType: row.promotionType || undefined,
+        targetedPromotion: Boolean(row.targetedPromotion),
+        startDate: row.startDate,
+        endDate: row.endDate,
+        offerStatus: row.offerStatus,
+      } satisfies ActivePromotionItem;
+    });
   }
 
   async getOfferCandidates(limit = 5): Promise<ActivePromotionItem[] | null> {
@@ -253,18 +396,18 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     const sections: string[] = [];
 
     if (active.length > 0) {
-      sections.push('**දැනට පවතින Offers**', ...this.buildOfferLines(active));
+      sections.push('### දැනට පවතින Offers', this.buildOfferTable(active));
     }
 
     if (upcoming.length > 0) {
-      sections.push('**ඉදිරියේ එන Offers**', ...this.buildOfferLines(upcoming));
+      sections.push('### ඉදිරියේ එන Offers', this.buildOfferTable(upcoming));
     }
 
     if (expired.length > 0) {
       if (active.length === 0 && upcoming.length === 0) {
         sections.push('_දැනට active offers නැහැ_');
       }
-      sections.push('**අවසන් වූ Offers**', ...this.buildOfferLines(expired));
+      sections.push('### අවසන් වූ Offers', this.buildOfferTable(expired));
     }
 
     if (sections.length === 0) {
@@ -274,21 +417,29 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     return sections.join('\n\n');
   }
 
-  private buildOfferLines(promotions: ActivePromotionItem[]): string[] {
-    return promotions.map((promotion, index) => {
+  private buildOfferTable(promotions: ActivePromotionItem[]): string {
+    const rows = promotions.map((promotion, index) => {
       const product = (promotion.productName || promotion.productId || 'Unknown product').trim();
       const discount = this.formatDiscount(promotion.discountPercentage);
       const validity = this.formatDateRange(promotion.startDate, promotion.endDate);
-      const details = [
-        `${index + 1}) ${product}`,
-        `   වට්ටම: ${discount}`,
-        promotion.promotionType ? `   ප්‍රවර්ධන වර්ගය: ${promotion.promotionType}` : null,
-        promotion.targetedPromotion ? '   ඉලක්කගත ප්‍රවර්ධනය: ඔව්' : null,
-        validity ? `   වලංගු කාලය: ${validity}` : null,
-      ];
+      const type = promotion.promotionType || '-';
+      const targeted = promotion.targetedPromotion ? 'ඔව්' : '-';
 
-      return details.filter((line): line is string => Boolean(line)).join('\n');
+      return [
+        `| ${index + 1}`,
+        this.formatMarkdownCell(product),
+        this.formatMarkdownCell(discount),
+        this.formatMarkdownCell(type),
+        targeted,
+        this.formatMarkdownCell(validity || '-'),
+      ].join(' | ') + ' |';
     });
+
+    return [
+      '| # | භාණ්ඩය | වට්ටම | වර්ගය | Targeted | වලංගු කාලය |',
+      '| ---: | --- | ---: | --- | --- | --- |',
+      ...rows,
+    ].join('\n');
   }
 
   private formatDiscount(discountPercentage: number | undefined): string {
@@ -328,6 +479,10 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
     return parsed.toISOString().slice(0, 10);
   }
 
+  private formatMarkdownCell(value: string): string {
+    return value.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim() || '-';
+  }
+
   buildOfferFallbackResponse(
     transcriptText: string | undefined,
     language: VoiceChatTcpPayload['language'],
@@ -346,6 +501,7 @@ export class VoiceOfferService implements VoiceCapability, OnModuleDestroy {
       language,
       sessionId,
       messages: [],
+      intent: 'offers',
       model: 'offer-fallback',
     };
   }

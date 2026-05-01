@@ -19,9 +19,35 @@ def _message(role: str, content: str) -> dict[str, str]:
     }
 
 
+def _fallback_response(intent_name: str, entities: dict[str, Any] | None) -> str:
+    product = str((entities or {}).get("product") or "").strip()
+    db_only_intents = {
+        "prices",
+        "product_search",
+        "offers",
+        "order_history",
+        "buying_suggestions",
+    }
+    if intent_name in db_only_intents:
+        return (
+            "මට database මත පදනම් වූ නිවැරදි දත්ත පමණක් ලබාදිය හැක. "
+            "කරුණාකර product name, offer, price, stock, order number වගේ විස්තරාත්මක එකක් අහන්න."
+        )
+    if intent_name in ("prices", "product_search") and not product:
+        return "ඔබට බලන්න ඕන භාණ්ඩයේ නම කියන්න. එතකොට මට නිවැරදිව උත්තර දෙන්න පුළුවන්."
+    if intent_name == "offers":
+        return "දැනට ඇති offers බලලා කියන්න මට පුළුවන්. offer ගැන වැඩි විස්තරයක් ඇහුවොත් මම පැහැදිලිව උත්තර දෙන්නම්."
+    if intent_name == "order_history":
+        return "ඔබගේ ඇණවුම් ඉතිහාසය ගැන උදව් කරන්න මට පුළුවන්. නවතම order එක හෝ අවශ්‍ය order එක කියන්න."
+    if intent_name == "buying_suggestions":
+        return "ඔබට ගැලපෙන භාණ්ඩ යෝජනා දෙන්න මට පුළුවන්. අවශ්‍ය category එකක් කියන්න."
+    return "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් මම නිවැරදිව උත්තර දෙන්නම්."
+
+
 async def process_voice_chat(
     audio_bytes: bytes,
     language: str = "si-LK",
+    mime_type: str | None = None,
     session_id: str | None = None,
     user_id: str | None = None,
     user_context: dict[str, Any] | None = None,
@@ -41,7 +67,7 @@ async def process_voice_chat(
         if transcription:
             logger.info("Using client transcript override: %s", transcription)
         elif audio_bytes:
-            transcription = await transcribe_audio(audio_bytes, language)
+            transcription = await transcribe_audio(audio_bytes, language, mime_type)
 
         transcription = normalize_transcript(transcription)
         if not transcription:
@@ -83,6 +109,31 @@ async def process_voice_chat(
                 messages=[_message("user", transcription), _message("assistant", clarification)],
                 model=model_name,
                 latencyMs=latency_ms,
+                intent=intent_name,
+                entities=entities,
+                explainability=explainability,
+            )
+
+        if intent_name in (
+            "prices",
+            "product_search",
+            "offers",
+            "order_history",
+            "buying_suggestions",
+        ):
+            response_text = _fallback_response(intent_name, entities)
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            return VoiceChatResult(
+                success=True,
+                transcription=transcription,
+                response=response_text,
+                language=language,
+                sessionId=session_id,
+                messages=[_message("user", transcription), _message("assistant", response_text)],
+                model="db-grounded-agent-safety",
+                latencyMs=latency_ms,
+                intent=intent_name,
+                entities=entities,
                 explainability=explainability,
             )
 
@@ -98,6 +149,9 @@ async def process_voice_chat(
             entities=entities,
             explainability=explainability,
         )
+        if not (response_text or "").strip():
+            logger.warning("LLM returned empty response; using deterministic Sinhala fallback")
+            response_text = _fallback_response(intent_name, entities)
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         return VoiceChatResult(
@@ -109,6 +163,8 @@ async def process_voice_chat(
             messages=[_message("user", transcription), _message("assistant", response_text)],
             model=model_name,
             latencyMs=latency_ms,
+            intent=intent_name,
+            entities=entities,
             explainability=explainability,
         )
     except Exception as error:

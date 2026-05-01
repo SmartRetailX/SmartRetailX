@@ -37,7 +37,7 @@ export interface VoiceExplainabilityFeature {
 }
 
 export interface VoiceExplainability {
-  source: 'sinllama' | 'fallback-keyword';
+  source: 'sinllama' | 'fallback-keyword' | 'db-catalog' | 'db-order' | 'db-offers' | 'db-recommendation';
   confidence?: number;
   rationale?: string;
   features?: VoiceExplainabilityFeature[];
@@ -47,9 +47,12 @@ export interface VoiceChatResponseDto {
   success: boolean;
   transcription: string;
   response: string;
+  audioUrl?: string;
   language: VoiceLanguageCode;
   sessionId: string;
   messages: VoiceChatMessage[];
+  intent?: VoiceAssistantIntent;
+  entities?: Record<string, unknown>;
   explainability?: VoiceExplainability;
   model?: string;
   latencyMs?: number;
@@ -64,6 +67,7 @@ export interface VoiceChatStoredMessage {
   channel: VoiceChatInputMode;
   content: string;
   transcription?: string | null;
+  audioUrl?: string | null;
   language: VoiceLanguageCode;
   createdAt: string;
 }
