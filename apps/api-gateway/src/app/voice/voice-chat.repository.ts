@@ -33,9 +33,10 @@ type VoiceChatMessageRow = {
 export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VoiceChatRepository.name);
   private readonly pool: Pool;
+  private readonly coreSchemaName = 'core';
   private userTableRef = '"user"';
-  private sessionTableRef = '"agent_chat_session"';
-  private messageTableRef = '"agent_chat_message"';
+  private sessionTableRef = '"core"."agent_chat_session"';
+  private messageTableRef = '"core"."agent_chat_message"';
   private persistenceEnabled = true;
 
   constructor(private readonly configService: ConfigService) {
@@ -237,30 +238,31 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveTableRefs(): Promise<void> {
-    const userTableSchema = await this.detectExistingSchema('user');
-    const sessionSchema = await this.detectExistingSchema('agent_chat_session');
-    const messageSchema = await this.detectExistingSchema('agent_chat_message');
+    const userTableSchema = await this.detectExistingSchema('user', ['auth', 'public']);
 
     this.userTableRef = this.qualifyTable(userTableSchema, 'user');
-    this.sessionTableRef = this.qualifyTable(sessionSchema, 'agent_chat_session');
-    this.messageTableRef = this.qualifyTable(messageSchema, 'agent_chat_message');
+    this.sessionTableRef = this.qualifyTable(this.coreSchemaName, 'agent_chat_session');
+    this.messageTableRef = this.qualifyTable(this.coreSchemaName, 'agent_chat_message');
 
     this.logger.log(
       `Voice chat tables resolved: user=${this.userTableRef}, session=${this.sessionTableRef}, message=${this.messageTableRef}`,
     );
   }
 
-  private async detectExistingSchema(tableName: string): Promise<string | null> {
+  private async detectExistingSchema(tableName: string, schemaPreference: string[]): Promise<string | null> {
+    const schemaListSql = schemaPreference.map((_, index) => `$${index + 2}`).join(', ');
+    const orderingSql = schemaPreference
+      .map((schema, index) => `WHEN '${schema}' THEN ${index}`)
+      .join(' ');
     const result = await this.pool.query<{ schema_name: string }>(
       `
       SELECT table_schema AS schema_name
       FROM information_schema.tables
-      WHERE table_name = $1
-        AND table_schema IN ('public', 'auth')
-      ORDER BY CASE table_schema WHEN 'public' THEN 0 ELSE 1 END
+      WHERE table_name = $1 AND table_schema IN (${schemaListSql})
+      ORDER BY CASE table_schema ${orderingSql} ELSE 999 END
       LIMIT 1
       `,
-      [tableName],
+      [tableName, ...schemaPreference],
     );
 
     return result.rows[0]?.schema_name ?? null;
@@ -290,7 +292,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         SELECT 1
         FROM information_schema.tables
         WHERE table_name = 'user'
-          AND table_schema IN ('public', 'auth')
+          AND table_schema IN ('auth', 'public')
       ) AS exists
       `,
     );
@@ -299,6 +301,8 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureSchema(): Promise<void> {
+    await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.coreSchemaName}";`);
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS ${this.sessionTableRef} (
         "id" TEXT PRIMARY KEY,
