@@ -1,22 +1,32 @@
 {
   "name": "mobile-app",
   "version": "0.0.1",
+  "main": "index.js",
   "private": true,
   "scripts": {
+    "start": "expo start",
+    "start:clear": "expo start -c",
+    "start:tunnel": "expo start --tunnel",
+    "android": "expo start --android",
     "eas-build-post-install": "cd ../ && node tools/scripts/eas-build-post-install.mjs . mobile-app"
   },
+  "devDependencies": {
+    "babel-plugin-no-side-effect-class-properties": "^0.0.7",
+    "babel-preset-expo": "~54.0.10"
+  },
   "dependencies": {
-    "@expo/metro-config": "*",
     "@testing-library/react-native": "*",
-    "expo": "*",
+    "expo": "~54.0.34",
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
     "jest-expo": "*",
     "metro-config": "*",
     "metro-resolver": "*",
-    "react": "*",
-    "react-native": "*",
+    "metro-runtime": "0.83.3",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
     "react-native-svg": "*",
     "react-native-svg-transformer": "*",
     "react-native-web": "*"

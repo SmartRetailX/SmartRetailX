@@ -46,7 +46,9 @@
       "exclude": [
         "apps/api-gateway-e2e/**/*",
         "apps/bi-dashboard-services-gateway-e2e/**/*",
+        "apps/bi-dashboard-services-gateway/**/*",
         "apps/core-service-e2e/**/*",
+        "mobile-app/**/*",
         "apps/websocket-service-e2e/**/*"
       ]
     },

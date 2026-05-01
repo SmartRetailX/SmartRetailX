@@ -1,4 +1,6 @@
-autoInstallPeers: true
 packages:
   - "apps/*"
   - "libs/*"
+  - "mobile-app"
+autoInstallPeers: true
+nodeLinker: hoisted
