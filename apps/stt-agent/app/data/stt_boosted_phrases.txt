@@ -1,0 +1,7 @@
+# One phrase per line. Keep Sinhala + English variants for better recognition.
+order
+අවසාන order
+order එකෙහි
+cancel
+payment
+online

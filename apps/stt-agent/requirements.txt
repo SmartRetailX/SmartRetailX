@@ -4,3 +4,4 @@ websockets
 google-cloud-speech
 pydantic-settings
 python-dotenv
+python-multipart

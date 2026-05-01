@@ -15,6 +15,9 @@ OPENAI_RESPONSE_MODEL = os.getenv("OPENAI_RESPONSE_MODEL", "gpt-4o-mini")
 OPENAI_RESPONSE_TIMEOUT_MS = int(os.getenv("OPENAI_RESPONSE_TIMEOUT_MS", "45000"))
 
 WHISPER_PROVIDER = "openai"
+STT_PROVIDER = os.getenv("STT_PROVIDER", "stt-agent").strip().lower()
+STT_AGENT_HTTP_URL = os.getenv("STT_AGENT_HTTP_URL", "http://127.0.0.1:8003/api/v1/stt/transcribe")
+STT_AGENT_TIMEOUT_MS = int(os.getenv("STT_AGENT_TIMEOUT_MS", "60000"))
 OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 OPENAI_WHISPER_MODEL = "whisper-1"
 OPENAI_TRANSCRIBE_PROMPT = ""

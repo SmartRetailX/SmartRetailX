@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { LogOut, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
+import { LogOut, Mic, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
 
 import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { User } from '@/types/auth';
+import { USER_ROLE, User } from '@/types/auth';
 
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
   const [search, setSearch] = useState('');
@@ -74,6 +74,18 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
         </form>
 
         <div className="flex items-center gap-2 md:gap-6">
+          {user?.role === USER_ROLE.USER && (
+            <Link to="/voice-assistant">
+              <Button
+                variant="outline"
+                className="h-12 px-4 hover:bg-green-50 hover:text-primary flex items-center gap-2 rounded-full"
+              >
+                <Mic className="h-5 w-5" />
+                <span className="hidden lg:block font-medium text-gray-700">Voice Assistant</span>
+              </Button>
+            </Link>
+          )}
+
           <Link to="/cart">
             <Button
               variant="ghost"
