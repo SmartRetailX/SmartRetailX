@@ -439,7 +439,7 @@ export class CatalogService {
               FROM tokens t
               WHERE pa.alias_normalized LIKE '%' || t.token || '%'
             )
-          GROUP BY pa.product_id
+          GROUP BY pa.product_id, q.term
         ),
         product_scores AS (
           SELECT
@@ -477,7 +477,7 @@ export class CatalogService {
                   OR lower(p.sku) LIKE '%' || t.token || '%'
               )
             )
-          GROUP BY p.id
+          GROUP BY p.id, q.term
         )
         SELECT
           ps.product_id,
