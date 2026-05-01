@@ -400,3 +400,47 @@ spec:
     - name: tcp
       port: 8877
       targetPort: 8877
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stt-agent
+  namespace: smart-retail-x
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stt-agent
+  template:
+    metadata:
+      labels:
+        app: stt-agent
+    spec:
+      containers:
+        - name: stt-agent
+          image: smart-retail-x/stt-agent:latest
+          ports:
+            - containerPort: 8003
+          envFrom:
+            - configMapRef:
+                name: smart-retail-x-config
+            - secretRef:
+                name: smart-retail-x-secrets
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: 8003
+            initialDelaySeconds: 20
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stt-agent
+  namespace: smart-retail-x
+spec:
+  selector:
+    app: stt-agent
+  ports:
+    - port: 8003
+      targetPort: 8003

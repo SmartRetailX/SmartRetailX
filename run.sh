@@ -26,6 +26,7 @@ Supported services:
   api
   core
   websocket
+  stt
   web
   all
 
@@ -38,11 +39,11 @@ EOF
 
 normalize_service() {
   case "$1" in
-    api|core|websocket|web)
+    api|core|websocket|stt|web)
       printf '%s\n' "$1"
       ;;
     all)
-      printf 'api\ncore\nwebsocket\nweb\n'
+      printf 'api\ncore\nwebsocket\nstt\nweb\n'
       ;;
     *)
       return 1
@@ -141,6 +142,12 @@ start_service() {
       ;;
     websocket)
       start_backend_service "websocket" "websocket-service" "dist/apps/websocket-service/main.js"
+      ;;
+    stt)
+      printf 'Starting stt dev server\n'
+      start_prefixed_process \
+        "stt" \
+        "cd '$ROOT_DIR' && exec pnpm nx run stt-agent:serve"
       ;;
     web)
       printf 'Starting web dev server\n'
