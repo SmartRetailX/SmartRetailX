@@ -42,6 +42,7 @@ async def generate_sinhala_response(
     intent_name: str,
     intent_confidence: float,
     entities: dict[str, Any] | None = None,
+    explainability: dict[str, Any] | None = None,
 ) -> str:
     role = (user_context or {}).get("role", "guest")
 
@@ -75,9 +76,11 @@ async def generate_sinhala_response(
         f"Intent confidence: {intent_confidence:.2f}\n"
         f"Allowed intents: {', '.join(intents or [intent_name])}\n"
         f"Extracted entities: {entities or {}}\n"
+        f"Explainability hint: {explainability or {}}\n"
         f"Intent-specific guidance: {intent_guidance or 'N/A'}\n"
         f"User transcript: {text}\n\n"
-        "Reply only with final Sinhala response text."
+        "Reply only with final Sinhala response text. "
+        "When explainability hint is available, include one short Sinhala reason sentence."
     )
 
     payload = {

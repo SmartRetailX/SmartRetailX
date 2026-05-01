@@ -30,6 +30,19 @@ export interface VoiceChatMessage {
   timestamp: string;
 }
 
+export interface VoiceExplainabilityFeature {
+  name: string;
+  weight?: number;
+  evidence?: string;
+}
+
+export interface VoiceExplainability {
+  source: 'sinllama' | 'fallback-keyword';
+  confidence?: number;
+  rationale?: string;
+  features?: VoiceExplainabilityFeature[];
+}
+
 export interface VoiceChatResponseDto {
   success: boolean;
   transcription: string;
@@ -37,6 +50,7 @@ export interface VoiceChatResponseDto {
   language: VoiceLanguageCode;
   sessionId: string;
   messages: VoiceChatMessage[];
+  explainability?: VoiceExplainability;
   model?: string;
   latencyMs?: number;
   error?: string;

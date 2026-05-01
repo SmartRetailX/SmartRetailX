@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -11,4 +12,5 @@ class VoiceChatResult:
     messages: list[dict[str, str]]
     model: str
     latencyMs: int
+    explainability: dict[str, Any] | None = None
     error: str | None = None

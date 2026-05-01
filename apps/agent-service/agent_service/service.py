@@ -7,6 +7,7 @@ from .intent import detect_intent_and_entities, normalize_transcript
 from .llm_client import generate_sinhala_response
 from .logging_setup import logger
 from .models import VoiceChatResult
+from .sinllama_client import detect_intent_with_sinllama
 from .stt import transcribe_audio
 
 
@@ -33,6 +34,7 @@ async def process_voice_chat(
     session_id = session_id or f"voice-{uuid.uuid4().hex[:12]}"
     transcription = ""
     response_text = ""
+    explainability: dict[str, Any] | None = None
 
     try:
         transcription = (transcript_text or "").strip()
@@ -45,7 +47,29 @@ async def process_voice_chat(
         if not transcription:
             raise ValueError("No speech detected in audio")
 
-        intent_name, intent_confidence, entities, clarification = detect_intent_and_entities(transcription, intents)
+        remote_intent = await detect_intent_with_sinllama(
+            text=transcription,
+            language=language,
+            session_id=session_id,
+            user_id=user_id,
+            allowed_intents=intents,
+        )
+        if remote_intent:
+            intent_name = str(remote_intent["intent"])
+            intent_confidence = float(remote_intent.get("confidence", 0.0) or 0.0)
+            entities = remote_intent.get("entities") or {}
+            explainability = remote_intent.get("explainability")
+            clarification = None
+            if intent_name in ("prices", "product_search") and "product" not in entities:
+                clarification = "ඔබට අවශ්‍ය භාණ්ඩයේ නම කියන්න. එතකොට මට නිවැරදිව උත්තර දෙන්න පුළුවන්."
+        else:
+            intent_name, intent_confidence, entities, clarification = detect_intent_and_entities(transcription, intents)
+            explainability = {
+                "source": "fallback-keyword",
+                "confidence": intent_confidence,
+                "rationale": "keyword based fallback",
+                "features": [],
+            }
         logger.info("Intent detected: intent=%s confidence=%.2f entities=%s", intent_name, intent_confidence, entities)
 
         if clarification:
@@ -59,6 +83,7 @@ async def process_voice_chat(
                 messages=[_message("user", transcription), _message("assistant", clarification)],
                 model=model_name,
                 latencyMs=latency_ms,
+                explainability=explainability,
             )
 
         response_text = await generate_sinhala_response(
@@ -71,6 +96,7 @@ async def process_voice_chat(
             intent_name=intent_name,
             intent_confidence=intent_confidence,
             entities=entities,
+            explainability=explainability,
         )
 
         latency_ms = int((time.perf_counter() - started) * 1000)
@@ -83,6 +109,7 @@ async def process_voice_chat(
             messages=[_message("user", transcription), _message("assistant", response_text)],
             model=model_name,
             latencyMs=latency_ms,
+            explainability=explainability,
         )
     except Exception as error:
         logger.exception("Voice chat failed: %s", error)
@@ -96,5 +123,6 @@ async def process_voice_chat(
             messages=[],
             model=model_name,
             latencyMs=latency_ms,
+            explainability=explainability,
             error=str(error),
         )

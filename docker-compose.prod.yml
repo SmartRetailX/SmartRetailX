@@ -15,10 +15,11 @@ x-node-environment: &node-environment
 
 services:
   sinlama:
-    image: ${SINLAMA_IMAGE:-ghcr.io/polyglotai/sinlama-api:latest}
+    image: ${SINLAMA_IMAGE:-smart-retail-x/sinlama-service:latest}
+    build:
+      context: .
+      dockerfile: apps/sinlama-service/Dockerfile
     restart: unless-stopped
-    environment:
-      HF_TOKEN: ${HF_TOKEN:-}
     expose:
       - "8080"
     healthcheck:
@@ -205,8 +206,11 @@ services:
       WHISPER_API_UPLOAD_FIELD: ${WHISPER_API_UPLOAD_FIELD:-file}
       WHISPER_API_LANGUAGE_FIELD: ${WHISPER_API_LANGUAGE_FIELD:-language}
       WHISPER_API_RESPONSE_FIELD: ${WHISPER_API_RESPONSE_FIELD:-transcription}
-      SINLAMA_API_URL: ${SINLAMA_API_URL:-http://sinlama:8080/generate}
-      SINLAMA_API_KEY: ${SINLAMA_API_KEY:-}
+      SINLLAMA_BASE_URL: ${SINLLAMA_BASE_URL:-http://sinlama:8080}
+      SINLLAMA_INTENT_PATH: ${SINLLAMA_INTENT_PATH:-/api/v1/intent}
+      SINLLAMA_TIMEOUT_MS: ${SINLLAMA_TIMEOUT_MS:-8000}
+      SINLLAMA_API_KEY: ${SINLLAMA_API_KEY:-}
+      SINLLAMA_RETRY_COUNT: ${SINLLAMA_RETRY_COUNT:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
       OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}

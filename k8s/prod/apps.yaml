@@ -15,15 +15,9 @@ spec:
     spec:
       containers:
         - name: sinlama
-          image: ghcr.io/polyglotai/sinlama-api:latest
+          image: smart-retail-x/sinlama-service:latest
           ports:
             - containerPort: 8080
-          env:
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: smart-retail-x-secrets
-                  key: HF_TOKEN
           readinessProbe:
             httpGet:
               path: /health

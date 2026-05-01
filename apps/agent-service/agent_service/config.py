@@ -13,6 +13,11 @@ TCP_PORT = int(os.getenv("AGENT_TCP_PORT", "8877"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_RESPONSE_MODEL = os.getenv("OPENAI_RESPONSE_MODEL", "gpt-4o-mini")
 OPENAI_RESPONSE_TIMEOUT_MS = int(os.getenv("OPENAI_RESPONSE_TIMEOUT_MS", "45000"))
+SINLLAMA_BASE_URL = os.getenv("SINLLAMA_BASE_URL", "").strip()
+SINLLAMA_INTENT_PATH = os.getenv("SINLLAMA_INTENT_PATH", "/api/v1/intent").strip() or "/api/v1/intent"
+SINLLAMA_TIMEOUT_MS = int(os.getenv("SINLLAMA_TIMEOUT_MS", "8000"))
+SINLLAMA_API_KEY = os.getenv("SINLLAMA_API_KEY", "").strip()
+SINLLAMA_RETRY_COUNT = int(os.getenv("SINLLAMA_RETRY_COUNT", "1"))
 
 WHISPER_PROVIDER = "openai"
 STT_PROVIDER = os.getenv("STT_PROVIDER", "stt-agent").strip().lower()

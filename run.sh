@@ -154,7 +154,7 @@ start_backend_service() {
   printf 'Starting %s runtime watcher\n' "$label"
   start_prefixed_process \
     "$label" \
-    "cd '$ROOT_DIR' && exec node --watch '$ROOT_DIR/$output_file'"
+    "cd '$ROOT_DIR' && exec node --watch --watch-preserve-output '$ROOT_DIR/$output_file'"
 }
 
 start_service() {

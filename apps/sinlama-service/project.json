@@ -1,0 +1,23 @@
+{
+  "name": "sinlama-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/sinlama-service",
+  "targets": {
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -r requirements.txt",
+        "cwd": "apps/sinlama-service"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash -lc '.venv/bin/python -u -m uvicorn main:app --reload --reload-dir app --reload-include \"*.py\" --host \"${SINLAMA_HOST:-0.0.0.0}\" --port \"${SINLAMA_PORT:-8080}\" --log-level info'",
+        "cwd": "apps/sinlama-service"
+      }
+    }
+  },
+  "tags": ["type:app", "lang:python", "scope:assistant"]
+}
