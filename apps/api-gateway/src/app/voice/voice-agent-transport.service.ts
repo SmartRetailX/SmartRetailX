@@ -23,6 +23,9 @@ export class VoiceAgentTransportService {
   ): Promise<VoiceChatResponseDto> {
     const transportMode = (this.configService.get<string>('AGENT_VOICE_TRANSPORT', 'http-first') ||
       'http-first') as 'http-only' | 'http-first' | 'tcp-first';
+    this.logger.log(
+      `Voice transport request: mode=${transportMode} session=${payload.sessionId} audioBytes=${audioFile?.buffer?.length ?? 0} transcriptChars=${payload.transcriptText?.length ?? 0}`,
+    );
 
     if (transportMode === 'http-only') {
       return await this.forwardViaHttp(audioFile, payload);
@@ -51,6 +54,7 @@ export class VoiceAgentTransportService {
 
   private async forwardViaTcp(payload: VoiceChatTcpPayload): Promise<VoiceChatResponseDto> {
     const tcpTimeoutMs = Number(this.configService.get<string | number>('AGENT_TCP_TIMEOUT_MS', 10_000));
+    this.logger.log(`Voice transport via TCP: session=${payload.sessionId} timeoutMs=${tcpTimeoutMs}`);
 
     return await firstValueFrom(
       this.agentClient.send(VOICE_CHAT_PATTERN, payload).pipe(
@@ -75,10 +79,11 @@ export class VoiceAgentTransportService {
     audioFile: { buffer: Buffer; mimetype?: string } | undefined,
     payload: VoiceChatTcpPayload,
   ): Promise<VoiceChatResponseDto> {
-    const endpoint = this.configService.get<string>(
+    const primaryEndpoint = this.configService.get<string>(
       'AGENT_HTTP_VOICE_URL',
       'http://127.0.0.1:8010/api/v1/voice/chat',
     );
+    const endpoints = this.buildHttpEndpoints(primaryEndpoint);
 
     const formData = new FormData();
     if (audioFile?.buffer?.length) {
@@ -100,22 +105,50 @@ export class VoiceAgentTransportService {
     const abortController = new AbortController();
     const timeoutHandle = setTimeout(() => abortController.abort(), httpTimeoutMs);
 
-    let response: Response;
-    try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData,
-        signal: abortController.signal,
-      });
-    } finally {
+    let lastError: unknown;
+    for (const endpoint of endpoints) {
+      this.logger.log(
+        `Voice transport via HTTP: endpoint=${endpoint} session=${payload.sessionId} audioBytes=${audioFile?.buffer?.length ?? 0}`,
+      );
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData,
+          signal: abortController.signal,
+        });
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
+
+      if (!response.ok) {
+        const body = await response.text();
+        this.logger.warn(`Voice HTTP endpoint failed: endpoint=${endpoint} status=${response.status}`);
+        lastError = new Error(`HTTP fallback failed (${response.status}) via ${endpoint}: ${body}`);
+        continue;
+      }
+
+      this.logger.log(`Voice HTTP endpoint succeeded: endpoint=${endpoint} status=${response.status}`);
       clearTimeout(timeoutHandle);
+      return (await response.json()) as VoiceChatResponseDto;
     }
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`HTTP fallback failed (${response.status}): ${body}`);
+    clearTimeout(timeoutHandle);
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('HTTP fallback failed: no reachable agent endpoint');
+  }
+
+  private buildHttpEndpoints(primaryEndpoint: string): string[] {
+    const endpoints = [primaryEndpoint];
+
+    if (primaryEndpoint.includes('127.0.0.1') || primaryEndpoint.includes('localhost')) {
+      endpoints.push(primaryEndpoint.replace('127.0.0.1', 'agent-service').replace('localhost', 'agent-service'));
+    } else if (primaryEndpoint.includes('agent-service')) {
+      endpoints.push(primaryEndpoint.replace('agent-service', '127.0.0.1'));
     }
 
-    return (await response.json()) as VoiceChatResponseDto;
+    return Array.from(new Set(endpoints));
   }
 }

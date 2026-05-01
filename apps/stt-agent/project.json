@@ -1,21 +1,21 @@
 {
-  "name": "agent-service",
+  "name": "stt-agent",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "apps/agent-service",
+  "sourceRoot": "apps/stt-agent",
   "targets": {
     "install": {
       "executor": "nx:run-commands",
       "options": {
         "command": "python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -r requirements.txt",
-        "cwd": "apps/agent-service"
+        "cwd": "apps/stt-agent"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bash -lc '.venv/bin/python -u -m uvicorn main:app --reload --reload-dir agent_service --reload-include \"*.py\" --host \"${AGENT_HTTP_HOST:-0.0.0.0}\" --port \"${AGENT_HTTP_PORT:-8010}\" --log-level info'",
-        "cwd": "apps/agent-service"
+        "command": ".venv/bin/python -u -m uvicorn app.main:app --reload --host ${STT_AGENT_HOST:-0.0.0.0} --port ${STT_AGENT_PORT:-8003}",
+        "cwd": "apps/stt-agent"
       }
     }
   },

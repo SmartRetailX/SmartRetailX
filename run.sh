@@ -24,8 +24,10 @@ Usage:
 
 Supported services:
   api
+  agent
   core
   websocket
+  stt
   web
   all
 
@@ -38,11 +40,11 @@ EOF
 
 normalize_service() {
   case "$1" in
-    api|core|websocket|web)
+    api|agent|core|websocket|stt|web)
       printf '%s\n' "$1"
       ;;
     all)
-      printf 'api\ncore\nwebsocket\nweb\n'
+      printf 'api\nagent\ncore\nwebsocket\nstt\nweb\n'
       ;;
     *)
       return 1
@@ -110,6 +112,30 @@ wait_for_file() {
   done
 }
 
+find_listener_pid_by_port() {
+  local port="$1"
+  ss -ltnp 2>/dev/null | awk -v port=":$port" '$4 ~ port {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1
+}
+
+stop_stale_python_listener() {
+  local label="$1"
+  local port="$2"
+  local expect_pattern="$3"
+  local pid
+  pid="$(find_listener_pid_by_port "$port")"
+  if [[ -z "$pid" ]]; then
+    return
+  fi
+
+  local cmdline
+  cmdline="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+  if [[ -n "$cmdline" && "$cmdline" == *"$expect_pattern"* ]]; then
+    printf '[%s] Stopping stale process on port %s (pid=%s)\n' "$label" "$port" "$pid"
+    kill "$pid" >/dev/null 2>&1 || true
+    sleep 1
+  fi
+}
+
 start_backend_service() {
   local label="$1"
   local project="$2"
@@ -136,11 +162,27 @@ start_service() {
     api)
       start_backend_service "api" "api-gateway" "dist/apps/api-gateway/main.js"
       ;;
+    agent)
+      local agent_port="${AGENT_HTTP_PORT:-8010}"
+      stop_stale_python_listener "agent" "$agent_port" "uvicorn main:app"
+      printf 'Starting agent dev server\n'
+      start_prefixed_process \
+        "agent" \
+        "cd '$ROOT_DIR' && exec pnpm nx run agent-service:serve"
+      ;;
     core)
       start_backend_service "core" "core-service" "dist/apps/core-service/main.js"
       ;;
     websocket)
       start_backend_service "websocket" "websocket-service" "dist/apps/websocket-service/main.js"
+      ;;
+    stt)
+      local stt_port="${STT_AGENT_PORT:-8003}"
+      stop_stale_python_listener "stt" "$stt_port" "uvicorn app.main:app"
+      printf 'Starting stt dev server\n'
+      start_prefixed_process \
+        "stt" \
+        "cd '$ROOT_DIR' && exec pnpm nx run stt-agent:serve"
       ;;
     web)
       printf 'Starting web dev server\n'

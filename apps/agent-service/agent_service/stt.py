@@ -12,6 +12,9 @@ from .config import (
     OPENAI_STT_TIMEOUT_MS,
     OPENAI_TRANSCRIBE_PROMPT,
     OPENAI_WHISPER_MODEL,
+    STT_AGENT_HTTP_URL,
+    STT_AGENT_TIMEOUT_MS,
+    STT_PROVIDER,
 )
 from .logging_setup import logger
 from .text_processing import (
@@ -65,13 +68,11 @@ def normalize_audio_to_wav(audio_bytes: bytes, amplify: float = 1.0) -> bytes | 
 
 async def transcribe_audio(audio_bytes: bytes, language: str) -> str:
     logger.info(
-        "Transcribing audio: provider=openai size=%s language=%s",
+        "Transcribing audio: provider=%s size=%s language=%s",
+        STT_PROVIDER,
         len(audio_bytes),
         language,
     )
-
-    if not OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY is not configured")
 
     requested_language = (language or "").lower()
     if not (
@@ -82,6 +83,48 @@ async def transcribe_audio(audio_bytes: bytes, language: str) -> str:
         raise ValueError("Unsupported language. Allowed values: auto, si-LK, en-US.")
     if len(audio_bytes) < 12_000:
         raise ValueError("Audio clip too short. Please speak for at least 2 seconds.")
+
+    async def _transcribe_via_stt_agent() -> str:
+        if not STT_AGENT_HTTP_URL:
+            raise ValueError("STT_AGENT_HTTP_URL is not configured")
+
+        timeout_seconds = max(STT_AGENT_TIMEOUT_MS, 1000) / 1000
+        timeout_config = httpx.Timeout(
+            timeout=timeout_seconds,
+            connect=10.0,
+            read=timeout_seconds,
+            write=30.0,
+            pool=10.0,
+        )
+
+        files = {"audio": ("voice.webm", audio_bytes, "audio/webm")}
+        data = {"language": language or "si-LK"}
+        async with httpx.AsyncClient(timeout=timeout_config, follow_redirects=True) as client:
+            response = await client.post(STT_AGENT_HTTP_URL, files=files, data=data)
+            response.raise_for_status()
+            payload = response.json() if response.content else {}
+            text = (
+                str(payload.get("transcription", "")).strip()
+                if isinstance(payload, dict)
+                else ""
+            )
+            if not text:
+                raise ValueError("stt-agent returned empty transcript")
+            return text
+
+    if STT_PROVIDER in ("stt-agent", "hybrid"):
+        try:
+            text = await _transcribe_via_stt_agent()
+            logger.info("STT agent transcription succeeded")
+            return text
+        except Exception as error:
+            if STT_PROVIDER == "stt-agent":
+                logger.exception("STT agent transcription failed")
+                raise ValueError(f"stt-agent transcription failed: {error}") from error
+            logger.warning("STT agent failed, falling back to OpenAI: %s", error)
+
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
     is_sinhala_pref = requested_language.startswith("si")
     openai_url = f"{OPENAI_API_BASE_URL.rstrip('/')}/audio/transcriptions"

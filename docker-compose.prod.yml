@@ -223,6 +223,33 @@ services:
       - edge
       - backend
 
+  stt-agent:
+    image: smart-retail-x/stt-agent:${TAG:-latest}
+    build:
+      context: ./apps/stt-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      STT_AGENT_HOST: ${STT_AGENT_HOST:-0.0.0.0}
+      STT_AGENT_PORT: ${STT_AGENT_PORT:-8003}
+      STT_SAMPLE_RATE: ${STT_SAMPLE_RATE:-16000}
+      STT_LANGUAGE_CODE: ${STT_LANGUAGE_CODE:-si-LK}
+      STT_ALTERNATIVE_LANGUAGES: ${STT_ALTERNATIVE_LANGUAGES:-en-US}
+      STT_BOOSTED_PHRASES: ${STT_BOOSTED_PHRASES:-order,අවසාන order,order එකෙහි,cancel,payment,online}
+      STT_PHRASE_BOOST: ${STT_PHRASE_BOOST:-20.0}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+    expose:
+      - "8003"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8003/docs >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+
 networks:
   edge:
     driver: bridge
