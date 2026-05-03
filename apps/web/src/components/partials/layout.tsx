@@ -1,11 +1,12 @@
 import { useRouterState } from '@tanstack/react-router';
+import { Toaster } from 'sonner';
 
+import { cn } from '@/lib/utils';
 import { User, USER_ROLE } from '@/types/auth';
 
 import { AdminShell } from './admin-shell';
 import { Footer } from './footer';
 import { Header } from './header';
-import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps
   const showFooter = !isVoiceAssistantRoute && (!user || (user && user.role !== USER_ROLE.ADMIN));
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <Toaster richColors position="bottom-right" />
       {/* Header */}
       <Header user={user} signOut={signOut} />
 

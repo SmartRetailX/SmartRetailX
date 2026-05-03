@@ -38,8 +38,12 @@ export class VoiceProductService implements VoiceCapability {
     }
 
     const isCatalogIntent = context.intent === 'prices' || context.intent === 'product_search';
-    const isCatalogQuestion = isCatalogIntent || this.isCatalogStyleQuestion(queryText);
     const hasExplicitCatalogSignal = this.hasExplicitCatalogSignal(queryText);
+    const hasCatalogEntitySignal = this.hasCatalogEntitySignal(queryText);
+    const productEntity =
+      typeof context.entities?.product === 'string' ? context.entities.product.trim() : '';
+    const hasProductEntity = productEntity.length > 0;
+    const isCatalogQuestion = isCatalogIntent || hasExplicitCatalogSignal || hasCatalogEntitySignal || hasProductEntity;
 
     if (mode === 'primary' && !isCatalogQuestion) {
       return null;
@@ -278,19 +282,6 @@ export class VoiceProductService implements VoiceCapability {
     }
   }
 
-  isCatalogStyleQuestion(text: string | undefined): boolean {
-    const normalized = normalizeCatalogQuery(text || '');
-    if (!normalized) {
-      return false;
-    }
-
-    if (this.hasExplicitCatalogSignal(normalized)) {
-      return true;
-    }
-
-    return buildCatalogQueryTokens(normalized).length > 0;
-  }
-
   private isOfferStyleQuestion(text: string | undefined): boolean {
     const normalized = normalizeCatalogQuery(text || '');
     if (!normalized) {
@@ -398,6 +389,30 @@ export class VoiceProductService implements VoiceCapability {
     ];
 
     return catalogTerms.some((term) => normalized.includes(term));
+  }
+
+  private hasCatalogEntitySignal(text: string): boolean {
+    const normalized = normalizeCatalogQuery(text);
+    if (!normalized) {
+      return false;
+    }
+
+    if (/^(hi|hello|hey|helo|හායි|හලෝ|හෙලෝ|හෙලො)$/u.test(normalized)) {
+      return false;
+    }
+
+    const tokens = buildCatalogQueryTokens(normalized);
+    if (tokens.length === 0 || tokens.length > 5) {
+      return false;
+    }
+
+    const detailIntentPatterns = [
+      /ගැන\s+(විස්තර|දැනගන්න|තොරතුරු)/u,
+      /(විස්තර|තොරතුරු)\s+(දෙන්න|ඕන|අවශ්‍යයි)/u,
+      /\b(details?|info|information)\b/u,
+    ];
+
+    return detailIntentPatterns.some((pattern) => pattern.test(normalized));
   }
 
   formatPrice(price: number): string {
