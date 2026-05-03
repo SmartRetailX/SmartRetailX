@@ -82,15 +82,28 @@ export interface VoiceChatSessionDto {
   messages: VoiceChatStoredMessage[];
 }
 
-export interface VoiceChatTcpPayload {
-  audioBase64: string;
-  mimeType: string;
-  language: VoiceLanguageCode;
-  sessionId: string;
-  userId?: string;
-  userContext?: VoiceUserContext;
-  intents?: VoiceAssistantIntent[];
-  transcriptText?: string;
-}
+export type VoiceProcessingStatusPhase =
+  | 'idle'
+  | 'received'
+  | 'gateway_to_agent'
+  | 'transcribing'
+  | 'intent_detection'
+  | 'resolving'
+  | 'responding'
+  | 'completed'
+  | 'failed'
+  | 'busy';
 
-export const VOICE_CHAT_PATTERN = { cmd: 'voice_chat' } as const;
+export interface VoiceProcessingStatusDto {
+  userId: string;
+  sessionId?: string;
+  requestId: string;
+  channel: VoiceChatInputMode;
+  phase: VoiceProcessingStatusPhase;
+  message: string;
+  active: boolean;
+  transcription?: string;
+  intent?: VoiceAssistantIntent;
+  error?: string;
+  updatedAt: string;
+}

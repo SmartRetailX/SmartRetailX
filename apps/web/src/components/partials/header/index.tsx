@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { LogOut, Menu, Mic, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
 
 import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
@@ -20,6 +20,8 @@ import { USER_ROLE, User } from '@/types/auth';
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isVoiceAssistantRoute = pathname === '/voice-assistant';
   const cartQuery = useCartQuery();
   const categoriesQuery = useCatalogCategoriesQuery();
   const cartCount = cartQuery.data?.data?.itemCount ?? 0;
@@ -157,65 +159,41 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
           </div>
         </div>
 
-        <form onSubmit={handleSearch} className="relative mt-2 flex items-center md:hidden">
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search products..."
-            className="h-10 rounded-full border-transparent bg-muted pl-4 pr-10 text-sm"
-          />
-          <Button type="submit" size="icon" className="absolute right-1 h-8 w-8 rounded-full">
-            <Search className="h-4 w-4" />
-          </Button>
-        </form>
+        {!isVoiceAssistantRoute && (
+          <form onSubmit={handleSearch} className="relative mt-2 flex items-center md:hidden">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search products..."
+              className="h-10 rounded-full border-transparent bg-muted pl-4 pr-10 text-sm"
+            />
+            <Button type="submit" size="icon" className="absolute right-1 h-8 w-8 rounded-full">
+              <Search className="h-4 w-4" />
+            </Button>
+          </form>
+        )}
 
-        <form
-          onSubmit={handleSearch}
-          className="relative mx-4 hidden max-w-2xl flex-1 items-center md:flex"
-        >
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search for fresh produce, groceries and more..."
-            className="pl-5 pr-12 h-12 bg-muted border-transparent rounded-full focus-visible:ring-primary text-base"
-          />
-          <Button type="submit" size="icon" className="absolute right-1 h-10 w-10 rounded-full">
-            <Search className="h-5 w-5" />
-          </Button>
-        </form>
+        {!isVoiceAssistantRoute && (
+          <form
+            onSubmit={handleSearch}
+            className="relative mx-4 hidden max-w-2xl flex-1 items-center md:flex"
+          >
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search for fresh produce, groceries and more..."
+              className="pl-5 pr-12 h-12 bg-muted border-transparent rounded-full focus-visible:ring-primary text-base"
+            />
+            <Button type="submit" size="icon" className="absolute right-1 h-10 w-10 rounded-full">
+              <Search className="h-5 w-5" />
+            </Button>
+          </form>
+        )}
       </div>
 
-      <div className="bg-primary text-white shadow-md">
-        <div className="container mx-auto hidden h-12 items-center gap-8 px-4 text-sm font-semibold tracking-wide md:flex">
-          <button
-            type="button"
-            onClick={() =>
-              navigateToCatalog((params) => {
-                params.delete('category');
-                params.delete('search');
-              })
-            }
-            className="uppercase transition-colors hover:text-amber-300"
-          >
-            All Products
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() =>
-                navigateToCatalog((params) => {
-                  params.set('category', category);
-                })
-              }
-              className="uppercase transition-colors hover:text-amber-300"
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-        <div className="container mx-auto md:hidden">
-          <div className="flex h-11 items-center gap-2 overflow-x-auto px-3 text-xs font-semibold uppercase tracking-wide [&::-webkit-scrollbar]:hidden">
+      {!isVoiceAssistantRoute && (
+        <div className="bg-primary text-white shadow-md">
+          <div className="container mx-auto hidden h-12 items-center gap-8 px-4 text-sm font-semibold tracking-wide md:flex">
             <button
               type="button"
               onClick={() =>
@@ -224,10 +202,9 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
                   params.delete('search');
                 })
               }
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 hover:bg-white/25"
+              className="uppercase transition-colors hover:text-amber-300"
             >
-              <Menu className="h-3.5 w-3.5" />
-              All
+              All Products
             </button>
             {categories.map((category) => (
               <button
@@ -238,14 +215,45 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
                     params.set('category', category);
                   })
                 }
-                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 hover:bg-white/25"
+                className="uppercase transition-colors hover:text-amber-300"
               >
                 {category}
               </button>
             ))}
           </div>
+          <div className="container mx-auto md:hidden">
+            <div className="flex h-11 items-center gap-2 overflow-x-auto px-3 text-xs font-semibold uppercase tracking-wide [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() =>
+                  navigateToCatalog((params) => {
+                    params.delete('category');
+                    params.delete('search');
+                  })
+                }
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 hover:bg-white/25"
+              >
+                <Menu className="h-3.5 w-3.5" />
+                All
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() =>
+                    navigateToCatalog((params) => {
+                      params.set('category', category);
+                    })
+                  }
+                  className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 hover:bg-white/25"
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }

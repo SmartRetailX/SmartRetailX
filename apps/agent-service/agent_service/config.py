@@ -6,6 +6,15 @@ from .logging_setup import logger
 
 load_dotenv()
 
+# Database – shared with the rest of the monorepo.
+# asyncpg uses the same postgresql:// DSN as Prisma / NestJS.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    logger.warning(
+        "DATABASE_URL is not set. DB-grounded intents (prices, orders, "
+        "offers, suggestions, product_search) will return empty results."
+    )
+
 HTTP_PORT = int(os.getenv("AGENT_HTTP_PORT", "8010"))
 TCP_HOST = os.getenv("AGENT_TCP_HOST", "0.0.0.0")
 TCP_PORT = int(os.getenv("AGENT_TCP_PORT", "8877"))

@@ -8,18 +8,12 @@ import {
   Query,
   Req,
   UnauthorizedException,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
-  type VoiceAssistantIntent,
-  type VoiceChatDto,
-  type VoiceChatResponseDto,
+  type VoiceChatInputMode,
   type VoiceChatSessionDto,
-  type VoiceUserContext,
-  type VoiceUserRole,
+  type VoiceLanguageCode,
 } from '@smart-retail-x/shared-types';
 import type { Request } from 'express';
 
@@ -34,34 +28,11 @@ export class VoiceController {
     if (!req.user?.id) {
       throw new UnauthorizedException('Authenticated user is required');
     }
-
     return req.user;
   }
 
-  private parseIntents(rawIntents: unknown): VoiceAssistantIntent[] {
-    const withGeneral = (values: VoiceAssistantIntent[]): VoiceAssistantIntent[] =>
-      values.includes('general') ? values : [...values, 'general'];
-
-    if (Array.isArray(rawIntents)) {
-      return withGeneral((rawIntents as VoiceAssistantIntent[]).filter(Boolean));
-    }
-
-    if (typeof rawIntents === 'string' && rawIntents.trim().length > 0) {
-      return withGeneral(
-        rawIntents
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean) as VoiceAssistantIntent[],
-      );
-    }
-
-    return ['offers', 'order_history', 'buying_suggestions', 'prices', 'product_search', 'general'];
-  }
-
   @Get('chat/session')
-  @ApiOperation({
-    summary: 'Get chat session and history for authenticated user',
-  })
+  @ApiOperation({ summary: 'Get chat session and history for authenticated user' })
   @ApiResponse({ status: 200, description: 'Chat session retrieved successfully' })
   async getSession(
     @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
@@ -71,79 +42,56 @@ export class VoiceController {
     return this.voiceService.getSession(user.id!, limit);
   }
 
-  @Post('chat')
-  @ApiOperation({
-    summary: 'Process Sinhala voice chat',
-    description:
-      'Accepts audio via multipart/form-data, transcribes with Whisper, and returns Sinhala AI response.',
-  })
-  @ApiConsumes('multipart/form-data')
+  @Post('chat/exchange')
+  @ApiOperation({ summary: 'Persist a completed voice/text exchange to the chat history' })
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['channel', 'language', 'userText', 'assistantText'],
       properties: {
-        audio: { type: 'string', format: 'binary' },
-        language: { type: 'string', example: 'si-LK', default: 'si-LK' },
-        sessionId: { type: 'string', example: 'session-123' },
-        userId: { type: 'string', example: 'user-123' },
-        userRole: { type: 'string', example: 'customer' },
-        transcriptText: { type: 'string', example: 'මට සිංහල පිළිබඳව විස්තර ලබා දෙන්න' },
-        intents: {
-          type: 'string',
-          example: 'offers,order_history,buying_suggestions,prices,product_search',
-        },
+        channel: { type: 'string', enum: ['voice', 'text'] },
+        language: { type: 'string', example: 'si-LK' },
+        userText: { type: 'string' },
+        assistantText: { type: 'string' },
+        transcription: { type: 'string' },
+        userAudioUrl: { type: 'string' },
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Voice chat processed successfully' })
-  @UseInterceptors(FileInterceptor('audio'))
-  async chat(
-    @UploadedFile() file: { buffer: Buffer; mimetype?: string } | undefined,
-    @Body() dto: Partial<VoiceChatDto>,
+  @ApiResponse({ status: 201, description: 'Exchange persisted successfully' })
+  async saveExchange(
     @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
-  ): Promise<VoiceChatResponseDto> {
-    if (!file?.buffer?.length && !dto.transcriptText?.trim()) {
-      throw new BadRequestException('Either audio file or transcriptText is required');
+    @Body()
+    body: {
+      channel?: string;
+      language?: string;
+      userText?: string;
+      assistantText?: string;
+      transcription?: string;
+      userAudioUrl?: string | null;
+    },
+  ): Promise<{ ok: boolean }> {
+    const user = this.getUser(req);
+
+    const channel = (body.channel === 'voice' ? 'voice' : 'text') as VoiceChatInputMode;
+    const language = (body.language?.trim() || 'si-LK') as VoiceLanguageCode;
+    const userText = body.userText?.trim() ?? '';
+    const assistantText = body.assistantText?.trim() ?? '';
+
+    if (!userText && !assistantText) {
+      throw new BadRequestException('userText or assistantText is required');
     }
 
-    const user = this.getUser(req);
-    const resolvedRole = (dto.userRole || user.role || 'guest') as VoiceUserRole;
-    const userContext: VoiceUserContext = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: resolvedRole,
-    };
-    const intents = this.parseIntents(dto.intents);
+    await this.voiceService.saveExchange({
+      userId: user.id!,
+      channel,
+      language,
+      userText,
+      assistantText,
+      transcription: body.transcription?.trim(),
+      userAudioUrl: body.userAudioUrl ?? null,
+    });
 
-    return this.voiceService.chatWithAudio(file, dto, user.id!, userContext, intents);
-  }
-
-  @Post('chat/text')
-  @ApiOperation({
-    summary: 'Process text chat message and persist response',
-    description: 'Accepts user text, forwards to agent, and stores user/assistant messages.',
-  })
-  @ApiResponse({ status: 201, description: 'Text chat processed successfully' })
-  async chatText(
-    @Body() dto: Partial<VoiceChatDto> & { text?: string },
-    @Req() req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
-  ): Promise<VoiceChatResponseDto> {
-    const user = this.getUser(req);
-    const text = dto.text?.trim();
-    if (!text) {
-      throw new BadRequestException('text is required');
-    }
-
-    const resolvedRole = (dto.userRole || user.role || 'guest') as VoiceUserRole;
-    const userContext: VoiceUserContext = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: resolvedRole,
-    };
-    const intents = this.parseIntents(dto.intents);
-
-    return this.voiceService.chatWithText(text, dto, user.id!, userContext, intents);
+    return { ok: true };
   }
 }
