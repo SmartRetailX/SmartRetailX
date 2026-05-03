@@ -11,27 +11,6 @@ from .config import (
 from .logging_setup import logger
 
 
-def _fallback_response(
-    text: str, intent_name: str, entities: dict[str, Any] | None
-) -> str:
-    product = (entities or {}).get("product")
-    if intent_name == "offers":
-        return "ඔබට ලබාගත හැකි නවතම offers බලලා කෙටි සාරාංශයක් දෙනවා."
-    if intent_name == "order_history":
-        return "ඔබගේ පසුගිය ඇණවුම් ඉතිහාසය අනුව සාරාංශය ලබා දෙන්නම්."
-    if intent_name == "buying_suggestions":
-        return "ඔබගේ පෙර මිලදී ගැනීම් අනුව සුදුසු භාණ්ඩ නිර්දේශ දෙන්නම්."
-    if intent_name == "prices":
-        if product:
-            return f'"{product}" භාණ්ඩයේ මිල තොරතුරු පරීක්ෂා කර ලබා දෙන්නම්.'
-        return "භාණ්ඩයේ නම ලබා දෙන්න. එවිට මිල නිවැරදිව ලබා දෙන්න පුළුවන්."
-    if intent_name == "product_search":
-        if product:
-            return f'"{product}" සෙවීම ආරම්භ කරනවා.'
-        return "ඔබ සෙවිය යුතු භාණ්ඩයේ නම කියන්න."
-    return f"ඔබගේ ප්‍රශ්නය ලැබුණා: {text}"
-
-
 async def generate_sinhala_response(
     text: str,
     language: str,
@@ -42,19 +21,16 @@ async def generate_sinhala_response(
     intent_name: str,
     intent_confidence: float,
     entities: dict[str, Any] | None = None,
+    explainability: dict[str, Any] | None = None,
 ) -> str:
     role = (user_context or {}).get("role", "guest")
-
-    if not OPENAI_API_KEY:
-        logger.warning(
-            "OPENAI_API_KEY missing for response generation; using deterministic fallback"
-        )
-        return _fallback_response(text, intent_name, entities)
 
     system_prompt = (
         "You are a Sinhala retail assistant for SmartRetailX. "
         "Always answer in Sinhala language (Sinhala script). "
         "Be concise and practical. "
+        "Format the response as Markdown. Use short bullet lists or GitHub-flavored "
+        "Markdown tables when comparing products, orders, offers, or options. "
         "Never invent unavailable prices, orders, or offers. "
         "If required detail is missing, ask one short clarification question in Sinhala."
     )
@@ -75,9 +51,12 @@ async def generate_sinhala_response(
         f"Intent confidence: {intent_confidence:.2f}\n"
         f"Allowed intents: {', '.join(intents or [intent_name])}\n"
         f"Extracted entities: {entities or {}}\n"
+        f"Explainability hint: {explainability or {}}\n"
         f"Intent-specific guidance: {intent_guidance or 'N/A'}\n"
         f"User transcript: {text}\n\n"
-        "Reply only with final Sinhala response text."
+        "Reply only with final Sinhala response text. "
+        "Use Markdown, but do not wrap the whole answer in a code block. "
+        "When explainability hint is available, include one short Sinhala reason sentence."
     )
 
     payload = {
@@ -89,10 +68,13 @@ async def generate_sinhala_response(
         ],
     }
 
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    headers = {"Content-Type": "application/json"}
+    if OPENAI_API_KEY:
+        headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
+    else:
+        logger.warning(
+            "OPENAI_API_KEY missing; attempting response generation without Authorization header"
+        )
 
     timeout_seconds = OPENAI_RESPONSE_TIMEOUT_MS / 1000
 
@@ -111,9 +93,10 @@ async def generate_sinhala_response(
         )
 
         if not content:
-            return _fallback_response(text, intent_name, entities)
+            logger.warning("OpenAI returned empty response content")
+            return ""
 
         return content
     except httpx.HTTPError as error:
-        logger.warning("OpenAI response generation failed; using fallback: %s", error)
-        return _fallback_response(text, intent_name, entities)
+        logger.warning("OpenAI response generation failed: %s", error)
+        return ""

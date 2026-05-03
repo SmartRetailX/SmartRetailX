@@ -77,6 +77,7 @@ async def voice_chat(
     result = await process_voice_chat(
         audio_bytes,
         language=language,
+        mime_type=audio.content_type if audio is not None else None,
         session_id=sessionId,
         user_id=userId,
         user_context={"id": userId, "role": userRole},

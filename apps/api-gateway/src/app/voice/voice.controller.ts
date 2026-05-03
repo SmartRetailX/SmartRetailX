@@ -39,18 +39,23 @@ export class VoiceController {
   }
 
   private parseIntents(rawIntents: unknown): VoiceAssistantIntent[] {
+    const withGeneral = (values: VoiceAssistantIntent[]): VoiceAssistantIntent[] =>
+      values.includes('general') ? values : [...values, 'general'];
+
     if (Array.isArray(rawIntents)) {
-      return rawIntents as VoiceAssistantIntent[];
+      return withGeneral((rawIntents as VoiceAssistantIntent[]).filter(Boolean));
     }
 
     if (typeof rawIntents === 'string' && rawIntents.trim().length > 0) {
-      return rawIntents
+      return withGeneral(
+        rawIntents
         .split(',')
         .map((value) => value.trim())
-        .filter(Boolean) as VoiceAssistantIntent[];
+        .filter(Boolean) as VoiceAssistantIntent[],
+      );
     }
 
-    return ['offers', 'order_history', 'buying_suggestions', 'prices', 'product_search'];
+    return ['offers', 'order_history', 'buying_suggestions', 'prices', 'product_search', 'general'];
   }
 
   @Get('chat/session')

@@ -35,7 +35,14 @@ export class VoiceRecommendationService implements VoiceCapability {
       return null;
     }
 
-    return await this.tryRecommendationResponse(context.transcriptText, context.language, context.sessionId, context.userId);
+    return await this.tryRecommendationResponse(
+      context.transcriptText,
+      context.language,
+      context.sessionId,
+      context.userId,
+      context.intent,
+      context.explainability,
+    );
   }
 
   async tryRecommendationResponse(
@@ -43,9 +50,11 @@ export class VoiceRecommendationService implements VoiceCapability {
     language: VoiceChatTcpPayload['language'],
     sessionId: string,
     userId: string,
+    intent?: VoiceCapabilityContext['intent'],
+    explainability?: VoiceCapabilityContext['explainability'],
   ): Promise<VoiceChatResponseDto | null> {
     const queryText = transcriptText?.trim();
-    if (!queryText || !this.isRecommendationStyleQuestion(queryText)) {
+    if (!queryText || (intent !== 'buying_suggestions' && !this.isRecommendationStyleQuestion(queryText))) {
       return null;
     }
 
@@ -61,6 +70,19 @@ export class VoiceRecommendationService implements VoiceCapability {
       language,
       sessionId,
       messages: [],
+      intent: 'buying_suggestions',
+      explainability: explainability ?? {
+        source: 'db-recommendation',
+        confidence: 0.9,
+        rationale: 'Recommendation intent matched and recent orders, related catalog categories, and offers were checked.',
+        features: [
+          {
+            name: 'recent_orders',
+            weight: 1,
+            evidence: 'Uses authenticated user order history.',
+          },
+        ],
+      },
       model: 'core-order-recommendations',
     };
   }
@@ -81,7 +103,7 @@ export class VoiceRecommendationService implements VoiceCapability {
 
     const recentProducts = await this.resolveRecentOrderProducts(topItems);
     const topRecentProducts = recentProducts.slice(0, 5);
-    const productLines = topRecentProducts.map((product, index) => this.formatRecommendationLine(product, index + 1));
+    const productLines = topRecentProducts.map((product, index) => this.formatRecommendationTableRow(product, index + 1));
 
     const pickedProductIds = new Set(recentProducts.map((product) => product.productId));
     const categoryLines = await this.buildCategoryExpansionLines(recentProducts, pickedProductIds, 6);
@@ -100,7 +122,13 @@ export class VoiceRecommendationService implements VoiceCapability {
     ];
 
     if (productLines.length > 0) {
-      sections.push('', '**නැවත මිලදී ගත හැකි items**', ...productLines);
+      sections.push(
+        '',
+        '### නැවත මිලදී ගත හැකි items',
+        '| # | භාණ්ඩය | මිල | තොගය |',
+        '| ---: | --- | ---: | --- |',
+        ...productLines,
+      );
     }
 
     if (categoryLines.length > 0) {
@@ -116,12 +144,13 @@ export class VoiceRecommendationService implements VoiceCapability {
     return sections.join('\n');
   }
 
-  private formatRecommendationLine(product: CatalogSearchRaw, rank: number): string {
+  private formatRecommendationTableRow(product: CatalogSearchRaw, rank: number): string {
     return [
-      `${rank}) ${this.voiceProductService.getDisplayName(product)}`,
-      `   මිල: ${this.voiceProductService.formatPrice(product.price)}`,
-      `   තොගය: ${this.voiceProductService.formatStockLabel(product.currentStock)}`,
-    ].join('\n');
+      `| ${rank}`,
+      this.voiceProductService.formatProductMarkdownLink(product),
+      this.voiceProductService.formatPrice(product.price),
+      this.voiceProductService.formatStockLabel(product.currentStock),
+    ].join(' | ') + ' |';
   }
 
   private aggregateRecentOrderItems(

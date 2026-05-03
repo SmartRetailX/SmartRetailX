@@ -3,6 +3,7 @@ export type CatalogSearchRaw = {
   sku: string;
   name: string;
   nameSi: string | null;
+  brand: string;
   categoryId: string;
   category: string;
   categoryNameSi: string | null;
@@ -14,9 +15,13 @@ export type CatalogSearchRaw = {
 
 export type CatalogSearchMatch = CatalogSearchRaw & {
   tokenHits: number;
+  matchedTokens: string[];
   exactHit: boolean;
   prefixHit: boolean;
+  phraseHit: boolean;
   matchScore: number;
+  modelScore?: number;
+  modelQuery?: string;
 };
 
 export type CatalogSearchResponse = {

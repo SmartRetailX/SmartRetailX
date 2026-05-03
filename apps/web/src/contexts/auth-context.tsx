@@ -1,4 +1,4 @@
-import { createContext, useMemo, type ReactNode } from 'react';
+import { createContext, useEffect, useMemo, type ReactNode } from 'react';
 import { mapSessionResponse } from '@/mappers/auth/session-res.mapper';
 import { sessionResponseSchema } from '@/schemas/auth/session.response';
 
@@ -55,6 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [fullSession, isPending, isRefetching, error],
   );
+
+  useEffect(() => {
+    // Keep session refresh in background; only redirect when session check fails
+    // and there is no active authenticated user.
+    if (!isPending && !isRefetching && error && !fullSession?.user) {
+      window.location.assign('/');
+    }
+  }, [error, fullSession, isPending, isRefetching]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

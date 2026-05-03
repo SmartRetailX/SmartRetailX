@@ -134,6 +134,7 @@ evaluation/results/*.pdf
 
 # Allow specific files
 !ASSISTANT_TEST_PLAN.md
+!REMOTE_DEPLOY.md
 
 .copilotignore
 .codexignore

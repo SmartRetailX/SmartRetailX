@@ -5,6 +5,7 @@
   "scripts": {
     "db:init": "node scripts/bootstrap-databases.mjs",
     "db:init:dry-run": "node scripts/bootstrap-databases.mjs --dry-run",
+    "catalog:fuzzy:train": "node scripts/data-insert-scripts/train-product-fuzzy-model.mjs",
     "prisma:generate": "pnpm exec prisma generate --schema libs/database/prisma/schema.prisma",
     "prisma:push": "pnpm exec prisma db push --schema libs/database/prisma/schema.prisma --skip-generate",
     "prisma:studio": "pnpm exec prisma studio --schema libs/database/prisma/schema.prisma",
@@ -40,7 +41,8 @@
     "mobile:lint": "nx run mobile-app:lint",
     "mobile:export": "nx run mobile-app:export",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "catalog:aliases:build": "pnpm exec tsx scripts/data-insert-scripts/build-product-aliases.ts"
   },
   "private": true,
   "devDependencies": {

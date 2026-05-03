@@ -10,8 +10,9 @@ import type {
   ProductResponse,
   ProductTranslationResponse,
 } from '@/types/store';
+import { getPublicBaseUrl } from './base-url';
 
-const rootBaseUrl = (import.meta.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const rootBaseUrl = getPublicBaseUrl();
 const coreBaseUrl = `${rootBaseUrl}/api/core`;
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -36,10 +37,12 @@ function buildUrl(path: string, query?: Record<string, QueryValue>) {
 }
 
 async function request<T>(path: string, init?: RequestInit, query?: Record<string, QueryValue>) {
+  const hasBody = init?.body !== undefined && init?.body !== null;
+
   const response = await fetch(buildUrl(path, query), {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(init?.headers ?? {}),
     },
     ...init,

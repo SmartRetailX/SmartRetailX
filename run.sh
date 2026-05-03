@@ -28,6 +28,7 @@ Supported services:
   core
   websocket
   stt
+  sinlama
   web
   all
 
@@ -40,11 +41,11 @@ EOF
 
 normalize_service() {
   case "$1" in
-    api|agent|core|websocket|stt|web)
+    api|agent|core|websocket|stt|sinlama|web)
       printf '%s\n' "$1"
       ;;
     all)
-      printf 'api\nagent\ncore\nwebsocket\nstt\nweb\n'
+      printf 'api\nagent\ncore\nwebsocket\nstt\nsinlama\nweb\n'
       ;;
     *)
       return 1
@@ -154,7 +155,7 @@ start_backend_service() {
   printf 'Starting %s runtime watcher\n' "$label"
   start_prefixed_process \
     "$label" \
-    "cd '$ROOT_DIR' && exec node --watch '$ROOT_DIR/$output_file'"
+    "cd '$ROOT_DIR' && exec node --watch --watch-preserve-output '$ROOT_DIR/$output_file'"
 }
 
 start_service() {
@@ -183,6 +184,18 @@ start_service() {
       start_prefixed_process \
         "stt" \
         "cd '$ROOT_DIR' && exec pnpm nx run stt-agent:serve"
+      ;;
+    sinlama)
+      local sinlama_port="${SINLAMA_PORT:-8080}"
+      stop_stale_python_listener "sinlama" "$sinlama_port" "uvicorn main:app"
+      if [[ ! -x "$ROOT_DIR/apps/sinlama-service/.venv/bin/python" ]]; then
+        printf 'Bootstrapping sinlama Python environment\n'
+        pnpm nx run sinlama-service:install
+      fi
+      printf 'Starting sinlama dev server\n'
+      start_prefixed_process \
+        "sinlama" \
+        "cd '$ROOT_DIR' && exec pnpm nx run sinlama-service:serve"
       ;;
     web)
       printf 'Starting web dev server\n'
