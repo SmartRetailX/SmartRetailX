@@ -142,7 +142,7 @@ jobs:
                 service: 'bi-dashboard-ml-service',
                 image: 'bi-dashboard-ml-service',
                 context: './apps/bi-dashboard-ml-service',
-                dockerfile: 'Dockerfile',
+                dockerfile: 'apps/bi-dashboard-ml-service/Dockerfile',
               },
               {
                 key: 'promotion_engine',
@@ -163,14 +163,14 @@ jobs:
                 service: 'agent-service',
                 image: 'agent-service',
                 context: './apps/agent-service',
-                dockerfile: 'Dockerfile',
+                dockerfile: 'apps/agent-service/Dockerfile',
               },
               {
                 key: 'stt_agent',
                 service: 'stt-agent',
                 image: 'stt-agent',
                 context: './apps/stt-agent',
-                dockerfile: 'Dockerfile',
+                dockerfile: 'apps/stt-agent/Dockerfile',
               },
               {
                 key: 'sinlama_service',
