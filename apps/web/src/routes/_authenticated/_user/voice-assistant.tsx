@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { getPublicBaseUrl } from '@/lib/base-url';
 import { USER_ROLE } from '@/types/auth';
 
 export const Route = createFileRoute('/_authenticated/_user/voice-assistant')({
@@ -80,7 +81,7 @@ declare global {
   }
 }
 
-const rootBaseUrl = (import.meta.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const rootBaseUrl = getPublicBaseUrl();
 
 const markdownComponents: Components = {
   a: ({ href, children, ...props }) => (
@@ -117,6 +118,21 @@ function voiceUrl(path: string) {
 function getSpeechRecognitionConstructor() {
   if (typeof window === 'undefined') return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function getVoiceRecognitionErrorMessage(errorCode: string) {
+  if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed') {
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      return 'Microphone access is blocked on insecure HTTP. Open this page over HTTPS to use voice input.';
+    }
+    return 'Microphone permission was denied. Allow mic access in browser site settings and try again.';
+  }
+
+  if (errorCode === 'audio-capture') {
+    return 'No microphone was found. Connect a microphone and try again.';
+  }
+
+  return `Voice recognition failed: ${errorCode}`;
 }
 
 async function loadSession() {
@@ -515,7 +531,7 @@ function RouteComponent() {
             wasCancelled = true;
             return;
           }
-          setError(`Voice recognition failed: ${errorCode}`);
+          setError(getVoiceRecognitionErrorMessage(errorCode));
         };
 
         recognition.onend = () => {
@@ -650,7 +666,16 @@ function RouteComponent() {
     } catch (err) {
       cleanupAudioRecording();
       setRecording(false);
-      setError((err as Error).message || 'Microphone access denied');
+      const message = (err as Error).message || '';
+      if (
+        typeof window !== 'undefined' &&
+        !window.isSecureContext &&
+        /not[\s-]?allowed|permission|denied/i.test(message)
+      ) {
+        setError('Microphone access is blocked on insecure HTTP. Open this page over HTTPS to use voice input.');
+        return;
+      }
+      setError(message || 'Microphone access denied');
     }
   };
 
@@ -666,8 +691,8 @@ function RouteComponent() {
   return (
     <PageContainer noMaxHeight className="h-full min-h-0 bg-background">
       <div className="flex h-full min-h-0 flex-col">
-        <div className="border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+        <div className="border-b bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
             <div>
               <h1 className="text-base font-semibold leading-tight sm:text-lg">Sinhala Voice Assistant</h1>
               <p className="text-xs text-muted-foreground sm:text-sm">Sinhala-English retail chat</p>
@@ -681,7 +706,10 @@ function RouteComponent() {
           </div>
         </div>
 
-        <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 pb-32 sm:px-6">
+        <div
+          ref={scrollAreaRef}
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-40 sm:px-6 sm:py-6 sm:pb-36"
+        >
           <div className="mx-auto flex max-w-4xl flex-col gap-4">
             {error && (
               <Alert variant="destructive" className="rounded-lg">
@@ -720,8 +748,8 @@ function RouteComponent() {
                   <div
                     className={
                       message.role === 'user'
-                        ? 'max-w-[82%] rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-sm sm:max-w-[70%]'
-                        : 'max-w-[88%] rounded-2xl bg-muted px-4 py-3 shadow-sm sm:max-w-[76%]'
+                        ? 'max-w-[90%] rounded-2xl bg-primary px-3 py-2.5 text-primary-foreground shadow-sm sm:max-w-[70%] sm:px-4 sm:py-3'
+                        : 'max-w-[92%] rounded-2xl bg-muted px-3 py-2.5 shadow-sm sm:max-w-[76%] sm:px-4 sm:py-3'
                     }
                   >
                     {!hideMainContent ? <MarkdownMessage content={message.content} /> : null}
@@ -770,19 +798,22 @@ function RouteComponent() {
           </div>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6">
-          <form onSubmit={handleSendText} className="mx-auto flex max-w-4xl items-center gap-2">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+8px)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6 sm:py-3">
+          <form
+            onSubmit={handleSendText}
+            className="mx-auto grid max-w-4xl grid-cols-[1fr_auto_auto] items-center gap-2"
+          >
             <Input
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder="Type message in Sinhala..."
               disabled={sending}
-              className="h-11 flex-1 rounded-full bg-card px-4 text-sm shadow-sm"
+              className="col-span-3 h-10 rounded-full bg-card px-4 text-sm shadow-sm sm:col-span-1 sm:h-11"
             />
             <Button
               type="submit"
               disabled={sending || !text.trim()}
-              className="h-11 shrink-0 rounded-full px-4"
+              className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
               aria-label="Send message"
             >
               <Send className="h-4 w-4 sm:mr-2" />
@@ -794,7 +825,7 @@ function RouteComponent() {
                 variant="destructive"
                 onClick={handleStopRecording}
                 disabled={sending}
-                className="h-11 shrink-0 rounded-full px-4"
+                className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
               >
                 <Square className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Stop</span>
@@ -805,7 +836,7 @@ function RouteComponent() {
                 variant="outline"
                 onClick={handleStartRecording}
                 disabled={sending}
-                className="h-11 shrink-0 rounded-full px-4"
+                className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
               >
                 <Mic className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Mic</span>

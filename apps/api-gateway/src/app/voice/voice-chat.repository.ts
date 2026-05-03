@@ -250,11 +250,14 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveTableRefs(): Promise<void> {
-    const userTableSchema = await this.detectExistingSchema('user', ['auth', 'public']);
+    const userTableSchema = await this.detectExistingSchema('user', ['auth']);
+    const sessionTableSchema = await this.detectExistingSchema('agent_chat_session', [this.coreSchemaName]);
+    const messageTableSchema = await this.detectExistingSchema('agent_chat_message', [this.coreSchemaName]);
+    const chatTableSchema = sessionTableSchema ?? messageTableSchema ?? this.coreSchemaName;
 
     this.userTableRef = this.qualifyTable(userTableSchema, 'user');
-    this.sessionTableRef = this.qualifyTable(this.coreSchemaName, 'agent_chat_session');
-    this.messageTableRef = this.qualifyTable(this.coreSchemaName, 'agent_chat_message');
+    this.sessionTableRef = this.qualifyTable(chatTableSchema, 'agent_chat_session');
+    this.messageTableRef = this.qualifyTable(chatTableSchema, 'agent_chat_message');
 
     this.logger.log(
       `Voice chat tables resolved: user=${this.userTableRef}, session=${this.sessionTableRef}, message=${this.messageTableRef}`,
@@ -281,7 +284,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private qualifyTable(schemaName: string | null, tableName: string): string {
-    return schemaName && schemaName !== 'public' ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+    return schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
   }
 
   private async ensureSchemaIfPossible(): Promise<void> {
@@ -304,7 +307,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         SELECT 1
         FROM information_schema.tables
         WHERE table_name = 'user'
-          AND table_schema IN ('auth', 'public')
+          AND table_schema IN ('auth')
       ) AS exists
       `,
     );

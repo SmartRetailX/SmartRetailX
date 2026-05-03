@@ -4,68 +4,18 @@ services:
       context: ..
       dockerfile: .devcontainer/Dockerfile
     command: sleep infinity
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      API_GATEWAY_HOST: 0.0.0.0
-      API_GATEWAY_PORT: 3000
-      BETTER_AUTH_SECRET: devcontainer-better-auth-secret-change-me
-      BETTER_AUTH_URL: http://localhost:3000
-      BI_DASHBOARD_HTTP_MODE: "true"
-      CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
-      DATABASE_URL: postgresql://smartretailx:smartretailx@postgres:5432/smartretailx
-      AGENT_HTTP_VOICE_URL: http://localhost:8010/api/v1/voice/chat
-      AGENT_TCP_HOST: 127.0.0.1
-      AGENT_TCP_PORT: 8877
-      ML_SERVICE_URL: http://localhost:8000
-      NODE_ENV: development
-      PROMOTION_ENGINE_URL: http://localhost:8001
-      PUBLIC_BASE_URL: http://localhost:3000
-      RABBITMQ_URI: amqp://smartretailx:smartretailx@rabbitmq:5672
     volumes:
       - ..:/workspaces/smart-retail-x:cached
       - pnpm-store:/pnpm/store
+      - codex-home:/home/node/.codex
+      - codex-home-root:/root/.codex
       - /var/run/docker.sock:/var/run/docker-host.sock
-
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: smartretailx
-      POSTGRES_PASSWORD: smartretailx
-      POSTGRES_USER: smartretailx
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smartretailx -d smartretailx"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_PASS: smartretailx
-      RABBITMQ_DEFAULT_USER: smartretailx
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+      - "3000:3000"   # API Gateway
+      - "3004:3004"   # WebSocket Service
+      - "5173:5173"   # Web App (Rsbuild dev server)
 
 volumes:
   pnpm-store:
-  postgres-data:
-  rabbitmq-data:
+  codex-home:
+  codex-home-root:

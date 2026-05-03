@@ -10,8 +10,9 @@ import type {
   ProductResponse,
   ProductTranslationResponse,
 } from '@/types/store';
+import { getPublicBaseUrl } from './base-url';
 
-const rootBaseUrl = (import.meta.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const rootBaseUrl = getPublicBaseUrl();
 const coreBaseUrl = `${rootBaseUrl}/api/core`;
 
 type QueryValue = string | number | boolean | null | undefined;

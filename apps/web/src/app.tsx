@@ -26,8 +26,8 @@ export function App() {
       enableSystem
     >
       <RouterProvider router={router} context={{ auth }} />
-      <TanStackRouterDevtools router={router} />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* <TanStackRouterDevtools router={router} /> */}
+      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </ThemeProvider>
   );
 }

@@ -16,7 +16,11 @@
       "!{projectRoot}/test-setup.[jt]s"
     ],
     "sharedGlobals": [
-      "{workspaceRoot}/.github/workflows/ci.yml"
+      "{workspaceRoot}/.github/workflows/ci.yml",
+      "{workspaceRoot}/.env",
+      "{workspaceRoot}/.env.local",
+      "{workspaceRoot}/.env.production",
+      "{workspaceRoot}/.env.development"
     ]
   },
   "nxCloudId": "69260fb590904d2a46f4bfef",
