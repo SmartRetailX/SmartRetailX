@@ -30,7 +30,12 @@ export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps
 
   const showFooter = !isVoiceAssistantRoute && (!user || (user && user.role !== USER_ROLE.ADMIN));
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div
+      className={cn(
+        'flex flex-col bg-background',
+        isVoiceAssistantRoute ? 'h-screen overflow-hidden' : 'min-h-screen',
+      )}
+    >
       <Toaster richColors position="bottom-right" />
       {/* Header */}
       <Header user={user} signOut={signOut} />
@@ -38,8 +43,9 @@ export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps
       {/* Main Content */}
       <main
         className={cn(
-          'flex-1',
-          isVoiceAssistantRoute ? 'min-h-0 overflow-hidden' : 'container mx-auto px-4 py-8',
+          isVoiceAssistantRoute
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+            : 'flex-1 container mx-auto px-4 py-8',
         )}
       >
         {children}

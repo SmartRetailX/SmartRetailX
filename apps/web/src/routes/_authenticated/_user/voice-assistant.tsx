@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/hooks';
 import { createFileRoute } from '@tanstack/react-router';
-import { Mic, Pause, Play, Send, Square } from 'lucide-react';
+import { Mic, Pause, Play, Send, Square, Users } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { io, type Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
 import { PageContainer } from '@/components/partials/container/page-container';
@@ -46,6 +48,42 @@ type VoiceChatResponse = {
     audioUrl?: string;
   };
   message?: string;
+};
+
+type GatewayAck<T = unknown> =
+  | { ok: true; data?: T }
+  | { ok: false; error: { code: string; message: string } };
+
+type VoiceProcessingStatus = {
+  userId: string;
+  sessionId?: string;
+  requestId: string;
+  channel: 'text' | 'voice';
+  phase:
+    | 'idle'
+    | 'received'
+    | 'gateway_to_agent'
+    | 'transcribing'
+    | 'intent_detection'
+    | 'resolving'
+    | 'responding'
+    | 'completed'
+    | 'failed'
+    | 'busy';
+  message: string;
+  active: boolean;
+  transcription?: string;
+  intent?: string;
+  error?: string;
+  updatedAt: string;
+};
+
+type VoiceAccessState = {
+  userId: string;
+  hasMultipleAccess: boolean;
+  connectionCount: number;
+  isInputLocked: boolean;
+  updatedAt: string;
 };
 
 type SpeechRecognitionAlternative = {
@@ -119,6 +157,16 @@ function voiceUrl(path: string) {
   return path;
 }
 
+function websocketUrl() {
+  const env = import.meta.env ?? {};
+  const configured = (env.PUBLIC_WEBSOCKET_URL || '').trim().replace(/\/$/, '');
+  if (configured) return configured;
+  if (typeof window === 'undefined') return 'http://localhost:3004';
+
+  const { protocol, hostname } = window.location;
+  return `${protocol}//${hostname}:${env.WEBSOCKET_SERVICE_PORT || 3004}`;
+}
+
 function getSpeechRecognitionConstructor() {
   if (typeof window === 'undefined') return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -152,49 +200,69 @@ async function loadSession() {
   return payload.messages ?? payload.data?.messages ?? [];
 }
 
-async function sendTextMessage(text: string) {
-  const response = await fetch(voiceUrl('/api/v1/voice/chat/text'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text,
-      language: 'si-LK',
-      userRole: USER_ROLE.USER,
-    }),
-  });
-
-  const payload = (await response.json()) as VoiceChatResponse;
-
-  if (!response.ok) {
-    throw new Error(payload?.message || 'Failed to send text message');
+async function emitVoiceRequest(socket: Socket | null, payload: Record<string, unknown>) {
+  if (!socket?.connected) {
+    throw new Error('Voice websocket is not connected. Please try again.');
   }
 
-  return payload;
+  const ack = await new Promise<GatewayAck<VoiceChatResponse>>((resolve) => {
+    socket
+      .timeout(190_000)
+      .emit(
+        'voice:send',
+        payload,
+        (error: Error | null, response?: GatewayAck<VoiceChatResponse>) => {
+          if (error) {
+            resolve({ ok: false, error: { code: 'TIMEOUT', message: 'Voice request timed out.' } });
+            return;
+          }
+
+          resolve(
+            response ?? {
+              ok: false,
+              error: { code: 'NO_ACK', message: 'No voice response received.' },
+            },
+          );
+        },
+      );
+  });
+
+  if (!ack.ok) {
+    throw new Error(ack.error.message || 'Failed to send voice request.');
+  }
+
+  return (ack.data ?? {}) as VoiceChatResponse;
 }
 
-async function sendVoiceMessage(audioBlob: Blob) {
-  const formData = new FormData();
-  const extension = audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
-  formData.append('audio', audioBlob, `voice-${Date.now()}.${extension}`);
-  formData.append('language', 'si-LK');
-  formData.append('userRole', USER_ROLE.USER);
-
-  const response = await fetch(voiceUrl('/api/v1/voice/chat'), {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
+async function blobToBase64(blob: Blob) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read voice audio.'));
+    reader.onload = () => {
+      const value = typeof reader.result === 'string' ? reader.result : '';
+      resolve(value.includes(',') ? value.split(',').pop() || '' : value);
+    };
+    reader.readAsDataURL(blob);
   });
+}
 
-  const payload = (await response.json()) as VoiceChatResponse;
+async function sendTextMessage(text: string, socket: Socket | null) {
+  return await emitVoiceRequest(socket, {
+    channel: 'text',
+    text,
+    language: 'si-LK',
+    userRole: USER_ROLE.USER,
+  });
+}
 
-  if (!response.ok) {
-    throw new Error(payload?.message || 'Failed to send voice message');
-  }
-
-  return payload;
+async function sendVoiceMessage(audioBlob: Blob, socket: Socket | null) {
+  return await emitVoiceRequest(socket, {
+    channel: 'voice',
+    audioBase64: await blobToBase64(audioBlob),
+    mimeType: audioBlob.type || 'audio/webm',
+    language: 'si-LK',
+    userRole: USER_ROLE.USER,
+  });
 }
 
 function toImmediateMessages(
@@ -262,6 +330,15 @@ function formatMessageTimestamp(value: string) {
     minute: '2-digit',
     second: '2-digit',
   }).format(date);
+}
+
+function getStatusLabel(status: VoiceProcessingStatus | null, sending: boolean) {
+  if (!status?.active) {
+    return sending ? 'Thinking...' : '';
+  }
+
+  if (status.phase === 'busy') return 'Voice assistant is busy in another window...';
+  return status.message || 'Thinking...';
 }
 
 function VoiceBubblePlayer({ src, isUser }: { src: string; isUser: boolean }) {
@@ -353,15 +430,20 @@ function VoiceBubblePlayer({ src, isUser }: { src: string; isUser: boolean }) {
 }
 
 function RouteComponent() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processingStatus, setProcessingStatus] = useState<VoiceProcessingStatus | null>(null);
+  const [voiceAccessState, setVoiceAccessState] = useState<VoiceAccessState | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const statusClearTimerRef = useRef<number | null>(null);
   const shouldSubmitRecognitionRef = useRef(true);
   const streamRef = useRef<MediaStream | null>(null);
   const processedStreamRef = useRef<MediaStream | null>(null);
@@ -369,6 +451,10 @@ function RouteComponent() {
   const chunksRef = useRef<Blob[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const emitVoiceTyping = (isActive: boolean) => {
+    socketRef.current?.emit('voice:typing', { isActive });
+  };
 
   const sortedMessages = useMemo(
     () =>
@@ -386,6 +472,15 @@ function RouteComponent() {
       }),
     [messages],
   );
+  const statusLabel = getStatusLabel(processingStatus, sending);
+  const remoteProcessing = Boolean(processingStatus?.active);
+  const lockedByOtherSession = Boolean(
+    voiceAccessState?.hasMultipleAccess &&
+      voiceAccessState.isInputLocked &&
+      !sending &&
+      !recording,
+  );
+  const inputDisabled = sending || recording || remoteProcessing || lockedByOtherSession;
 
   useEffect(() => {
     let active = true;
@@ -419,6 +514,56 @@ function RouteComponent() {
   }, []);
 
   useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = io(`${websocketUrl()}/chat`, {
+      transports: ['websocket'],
+      auth: { userId: user.id },
+      query: { userId: user.id },
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('chat:identify', { userId: user.id });
+    });
+
+    socket.on('voice:status', (status: VoiceProcessingStatus) => {
+      if (!status || status.userId !== user.id) return;
+      if (statusClearTimerRef.current) {
+        window.clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+
+      setProcessingStatus(status);
+
+      if (!status.active) {
+        if (status.phase === 'completed') {
+          void refreshMessages();
+        }
+        statusClearTimerRef.current = window.setTimeout(() => {
+          setProcessingStatus((current) =>
+            current?.requestId === status.requestId ? null : current,
+          );
+        }, 2500);
+      }
+    });
+
+    socket.on('voice:access', (state: VoiceAccessState) => {
+      if (!state || state.userId !== user.id) return;
+      setVoiceAccessState(state);
+    });
+
+    return () => {
+      if (statusClearTimerRef.current) {
+        window.clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ block: 'end' });
       if (scrollAreaRef.current) {
@@ -427,7 +572,7 @@ function RouteComponent() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [sortedMessages.length, loading, sending]);
+  }, [sortedMessages.length, loading, sending, statusLabel]);
 
   useEffect(() => {
     if (!error) return;
@@ -460,7 +605,7 @@ function RouteComponent() {
         },
       ]);
 
-      const result = await sendTextMessage(value);
+      const result = await sendTextMessage(value, socketRef.current);
       const immediate = toImmediateMessages(result, 'voice');
       const assistantMessages = immediate.filter((message) => message.role === 'assistant');
       if (assistantMessages.length > 0) setMessages((prev) => [...prev, ...assistantMessages]);
@@ -486,12 +631,13 @@ function RouteComponent() {
   const handleSendText = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = text.trim();
-    if (!value || sending || recording) return;
+    if (!value || inputDisabled) return;
 
     try {
       setSending(true);
       setError(null);
       setText('');
+      emitVoiceTyping(false);
       setMessages((prev) => [
         ...prev,
         {
@@ -503,7 +649,7 @@ function RouteComponent() {
           createdAt: new Date().toISOString(),
         },
       ]);
-      const result = await sendTextMessage(value);
+      const result = await sendTextMessage(value, socketRef.current);
       const immediate = toImmediateMessages(result, 'text');
       const assistantMessages = immediate.filter((message) => message.role === 'assistant');
       if (assistantMessages.length > 0) setMessages((prev) => [...prev, ...assistantMessages]);
@@ -516,6 +662,8 @@ function RouteComponent() {
   };
 
   const handleStartRecording = async () => {
+    if (sending || remoteProcessing) return;
+
     const SpeechRecognitionCtor = getSpeechRecognitionConstructor();
     if (SpeechRecognitionCtor) {
       try {
@@ -569,6 +717,7 @@ function RouteComponent() {
         speechRecognitionRef.current = recognition;
         recognition.start();
         setRecording(true);
+        emitVoiceTyping(true);
         return;
       } catch {
         speechRecognitionRef.current = null;
@@ -671,7 +820,7 @@ function RouteComponent() {
               createdAt: new Date().toISOString(),
             },
           ]);
-          const result = await sendVoiceMessage(audioBlob);
+          const result = await sendVoiceMessage(audioBlob, socketRef.current);
           const immediate = toImmediateMessages(result, 'voice');
           if (immediate.length > 0) setMessages((prev) => [...prev, ...immediate]);
           await refreshMessages();
@@ -681,12 +830,14 @@ function RouteComponent() {
           URL.revokeObjectURL(localAudioUrl);
           setSending(false);
           setRecording(false);
+          emitVoiceTyping(false);
           cleanupAudioRecording();
         }
       };
 
       recorder.start(250);
       setRecording(true);
+      emitVoiceTyping(true);
     } catch (err) {
       cleanupAudioRecording();
       setRecording(false);
@@ -716,114 +867,149 @@ function RouteComponent() {
   };
 
   return (
-    <PageContainer noMaxHeight className="h-full min-h-0 bg-background">
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="border-b bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
+    <PageContainer noMaxHeight className="flex min-h-0 flex-1 flex-col bg-background">
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Chat header bar */}
+        <div className="shrink-0 border-b bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-3">
           <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-            <div>
-              <h1 className="text-base font-semibold leading-tight sm:text-lg">
-                Sinhala Voice Assistant
-              </h1>
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                Sinhala-English retail chat
-              </p>
-            </div>
-            {recording ? (
-              <div className="flex items-center gap-2 text-xs font-medium text-destructive">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
-                Recording
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Mic className="h-4 w-4" />
               </div>
-            ) : null}
+              <div className="min-w-0">
+                <h1 className="text-sm font-semibold leading-tight sm:text-base">
+                  Voice Assistant
+                </h1>
+                <p className="text-xs text-muted-foreground">Sinhala · English</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {recording ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
+                  <span className="hidden sm:inline">Recording</span>
+                </div>
+              ) : null}
+              {voiceAccessState && voiceAccessState.connectionCount > 0 ? (
+                <div className="group relative flex items-center">
+                  <button
+                    type="button"
+                    className="relative flex items-center justify-center focus:outline-none"
+                    aria-label={`${voiceAccessState.connectionCount} active session${voiceAccessState.connectionCount !== 1 ? 's' : ''}${voiceAccessState.hasMultipleAccess ? ' — multiple sessions detected' : ''}`}
+                  >
+                    <Users
+                      className={
+                        voiceAccessState.hasMultipleAccess
+                          ? 'h-5 w-5 text-amber-500'
+                          : 'h-5 w-5 text-muted-foreground'
+                      }
+                    />
+                    <span
+                      className={
+                        voiceAccessState.hasMultipleAccess
+                          ? 'absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white'
+                          : 'absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-muted-foreground/60 text-[10px] font-bold text-background'
+                      }
+                    >
+                      {voiceAccessState.connectionCount}
+                    </span>
+                  </button>
+                  {/* Tooltip — visible on hover or focus-within */}
+                  <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-max max-w-[200px] rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                    {voiceAccessState.hasMultipleAccess
+                      ? `Multiple active sessions (${voiceAccessState.connectionCount})`
+                      : `${voiceAccessState.connectionCount} session${voiceAccessState.connectionCount !== 1 ? 's' : ''} open`}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
+        {/* Messages area */}
         <div
           ref={scrollAreaRef}
-          className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-40 sm:px-6 sm:py-6 sm:pb-36"
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6"
+          style={{ paddingBottom: '5.5rem' }}
         >
-          <div className="mx-auto flex max-w-4xl flex-col gap-4">
+          <div className="mx-auto flex max-w-4xl flex-col gap-3">
             {loading ? (
               <div className="flex min-h-[45vh] items-center justify-center">
                 <Spinner className="h-6 w-6" />
               </div>
             ) : sortedMessages.length === 0 ? (
               <div className="mx-auto flex min-h-[45vh] max-w-md flex-col items-center justify-center text-center">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <Mic className="h-5 w-5" />
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
+                  <Mic className="h-6 w-6" />
                 </div>
-                <h2 className="text-xl font-semibold">How can I help?</h2>
+                <h2 className="text-lg font-semibold sm:text-xl">How can I help?</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Ask about products, prices, stock, offers, orders, or shopping suggestions.
                 </p>
               </div>
             ) : (
-              sortedMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
-                >
-                  {(() => {
-                    const normalizedContent = message.content.trim();
-                    const normalizedTranscript = (message.transcription || '').trim();
-                    const hideMainContent =
-                      message.channel === 'voice' &&
-                      normalizedTranscript.length > 0 &&
-                      normalizedContent.localeCompare(normalizedTranscript, undefined, {
-                        sensitivity: 'base',
-                      }) === 0;
+              sortedMessages.map((message) => {
+                const normalizedContent = message.content.trim();
+                const normalizedTranscript = (message.transcription || '').trim();
+                const hideMainContent =
+                  message.channel === 'voice' &&
+                  normalizedTranscript.length > 0 &&
+                  normalizedContent.localeCompare(normalizedTranscript, undefined, {
+                    sensitivity: 'base',
+                  }) === 0;
 
-                    return (
+                return (
+                  <div
+                    key={message.id}
+                    className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
+                  >
+                    <div
+                      className={
+                        message.role === 'user'
+                          ? 'max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2.5 text-primary-foreground shadow-sm sm:max-w-[72%] sm:px-4 sm:py-3'
+                          : 'max-w-[90%] rounded-2xl rounded-bl-md bg-muted px-3 py-2.5 shadow-sm sm:max-w-[78%] sm:px-4 sm:py-3'
+                      }
+                    >
+                      {!hideMainContent ? <MarkdownMessage content={message.content} /> : null}
+                      {message.channel === 'voice' && (message.audioUrl || message.transcription) ? (
+                        <div className={!hideMainContent ? 'mt-2 space-y-1.5' : 'space-y-1.5'}>
+                          {message.audioUrl ? (
+                            <VoiceBubblePlayer src={message.audioUrl} isUser={message.role === 'user'} />
+                          ) : null}
+                          {message.transcription ? (
+                            <p
+                              className={
+                                message.role === 'user'
+                                  ? 'text-xs text-primary-foreground/75'
+                                  : 'text-xs text-muted-foreground'
+                              }
+                            >
+                              {message.transcription}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div
                         className={
                           message.role === 'user'
-                            ? 'max-w-[90%] rounded-2xl bg-primary px-3 py-2.5 text-primary-foreground shadow-sm sm:max-w-[70%] sm:px-4 sm:py-3'
-                            : 'max-w-[92%] rounded-2xl bg-muted px-3 py-2.5 shadow-sm sm:max-w-[76%] sm:px-4 sm:py-3'
+                            ? 'mt-1.5 text-right text-[10px] text-primary-foreground/60'
+                            : 'mt-1.5 text-right text-[10px] text-muted-foreground/70'
                         }
                       >
-                        {!hideMainContent ? <MarkdownMessage content={message.content} /> : null}
-                        {message.channel === 'voice' &&
-                        (message.audioUrl || message.transcription) ? (
-                          <div className={!hideMainContent ? 'mt-2 space-y-2' : 'space-y-2'}>
-                            {message.audioUrl ? (
-                              <VoiceBubblePlayer
-                                src={message.audioUrl}
-                                isUser={message.role === 'user'}
-                              />
-                            ) : null}
-                            {message.transcription ? (
-                              <p
-                                className={
-                                  message.role === 'user'
-                                    ? 'text-xs text-primary-foreground/75'
-                                    : 'text-xs text-muted-foreground'
-                                }
-                              >
-                                Transcript: {message.transcription}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        <div
-                          className={
-                            message.role === 'user'
-                              ? 'mt-2 text-right text-[11px] text-primary-foreground/70'
-                              : 'mt-2 text-right text-[11px] text-muted-foreground'
-                          }
-                        >
-                          {formatMessageTimestamp(message.createdAt)}
-                        </div>
+                        {formatMessageTimestamp(message.createdAt)}
                       </div>
-                    );
-                  })()}
-                </div>
-              ))
+                    </div>
+                  </div>
+                );
+              })
             )}
 
-            {sending ? (
+            {statusLabel ? (
               <div className="flex justify-start">
-                <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
                   <Spinner className="h-4 w-4" />
-                  Thinking...
+                  {statusLabel}
                 </div>
               </div>
             ) : null}
@@ -832,48 +1018,64 @@ function RouteComponent() {
           </div>
         </div>
 
+        {/* Input bar — fixed to bottom of viewport */}
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+8px)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6 sm:py-3">
+          {lockedByOtherSession ? (
+            <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+              Another session is active. Input is disabled until it finishes.
+            </div>
+          ) : null}
           <form
             onSubmit={handleSendText}
-            className="mx-auto grid max-w-4xl grid-cols-[1fr_auto_auto] items-center gap-2"
+            className="mx-auto flex max-w-4xl items-center gap-2"
           >
             <Input
               value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Type message in Sinhala..."
-              disabled={sending || recording}
-              className="col-span-3 h-10 rounded-full bg-card px-4 text-sm shadow-sm sm:col-span-1 sm:h-11"
+              onChange={(event) => {
+                const next = event.target.value;
+                setText(next);
+                emitVoiceTyping(next.length > 0);
+              }}
+              onBlur={() => {
+                if (!text.trim()) emitVoiceTyping(false);
+              }}
+              placeholder={lockedByOtherSession ? 'Another session is active...' : 'Type message in Sinhala...'}
+              disabled={inputDisabled}
+              className="h-11 flex-1 rounded-full bg-card px-4 text-sm shadow-sm"
             />
             <Button
               type="submit"
-              disabled={sending || recording || !text.trim()}
-              className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
+              disabled={inputDisabled || !text.trim()}
+              size="icon"
+              className="h-11 w-11 shrink-0 rounded-full"
               aria-label="Send message"
             >
-              <Send className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Send</span>
+              <Send className="h-4 w-4" />
             </Button>
             {recording ? (
               <Button
                 type="button"
                 variant="destructive"
+                size="icon"
                 onClick={handleStopRecording}
-                disabled={sending}
-                className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
+                disabled={sending || remoteProcessing}
+                className="h-11 w-11 shrink-0 rounded-full"
+                aria-label="Stop recording"
               >
-                <Square className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Stop</span>
+                <Square className="h-4 w-4" />
               </Button>
             ) : (
               <Button
                 type="button"
-                variant="outline"
+                variant={text.trim() ? 'outline' : 'default'}
+                size="icon"
                 onClick={handleStartRecording}
-                disabled={sending}
-                className="h-10 shrink-0 rounded-full px-3 sm:h-11 sm:px-4"
+                disabled={sending || remoteProcessing}
+                className="h-11 w-11 shrink-0 rounded-full"
+                aria-label="Start voice recording"
               >
-                <Mic className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Mic</span>
+                <Mic className="h-4 w-4" />
               </Button>
             )}
           </form>
