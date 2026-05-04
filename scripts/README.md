@@ -1,18 +1,23 @@
 # Scripts
 
-This folder contains the database bootstrap script and the product data import utilities.
+This folder contains the database bootstrap script and the product data import
+utilities.
 
 ## Files
 
-- `bootstrap-databases.mjs`: generates Prisma clients and pushes both Prisma schemas to the database
-- `data-insert-scripts/json_array_batches.ts`: splits a large JSON array into smaller files and merges them back later
-- `data-insert-scripts/db_push.ts`: imports product data from JSON into the main database
+- `bootstrap-databases.mjs`: generates Prisma clients and pushes both Prisma
+  schemas to the database
+- `data-insert-scripts/json_array_batches.ts`: splits a large JSON array into
+  smaller files and merges them back later
+- `data-insert-scripts/db_push.ts`: imports product data from JSON into the main
+  database
 
 ## Recommended flow
 
 1. Bootstrap the database schemas
 2. Prepare or split product JSON files if needed
-3. Place the final import file in `scripts/data-insert-scripts/push-file/products.json`
+3. Place the final import file in
+   `scripts/data-insert-scripts/push-file/products.json`
 4. Run the product import script
 
 ## Bootstrap the database
@@ -24,7 +29,11 @@ This folder contains the database bootstrap script and the product data import u
 - generates the BI dashboard Prisma client
 - pushes the BI dashboard schema
 
-It requires `DATABASE_URL` to be available in the environment before running.
+It loads variables from the repository root `.env` file before running. Shell
+environment variables take precedence over `.env` values.
+
+If `DATABASE_URL` is missing, copy `.env.example` to `.env` and set
+`DATABASE_URL` before starting the backend.
 
 ### Run
 
@@ -93,7 +102,8 @@ pnpm exec tsx scripts/data-insert-scripts/json_array_batches.ts merge scripts/da
 ### Notes
 
 - the input file must contain a JSON array at the root
-- merge reads all `.json` files in the target folder and combines them in sorted filename order
+- merge reads all `.json` files in the target folder and combines them in sorted
+  filename order
 
 ## Push product data to the database
 
@@ -105,7 +115,8 @@ pnpm exec tsx scripts/data-insert-scripts/json_array_batches.ts merge scripts/da
 - reads product data from `scripts/data-insert-scripts/push-file/products.json`
 - upserts categories into `core.categories`
 - upserts products into `core.products`
-- creates an initial stock entry in `core.stock_entries` when a product has no stock history yet
+- creates an initial stock entry in `core.stock_entries` when a product has no
+  stock history yet
 
 ### Expected input fields
 
@@ -130,9 +141,11 @@ Each product object can contain:
 ### Default behavior
 
 - if `description` is missing, the script builds one from `name` and `uom`
-- if `stockQuantity` is missing, initial stock becomes `0` when `isAvailable === false`, otherwise `1`
+- if `stockQuantity` is missing, initial stock becomes `0` when
+  `isAvailable === false`, otherwise `1`
 - if a product already exists, product details are updated
-- stock is only initialized when the product does not already have stock entry records
+- stock is only initialized when the product does not already have stock entry
+  records
 
 ### Run
 
@@ -148,4 +161,5 @@ Before running the import, place the final JSON array file here:
 scripts/data-insert-scripts/push-file/products.json
 ```
 
-If you merged batched files with a different output name, rename or copy the final file to `products.json` in that folder before running the import.
+If you merged batched files with a different output name, rename or copy the
+final file to `products.json` in that folder before running the import.
