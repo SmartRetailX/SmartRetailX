@@ -3,12 +3,23 @@ type RuntimeConfig = {
   PUBLIC_WEBSOCKET_URL?: string;
 };
 
+type BundledEnv = {
+  PUBLIC_BASE_URL?: string;
+  PUBLIC_WEBSOCKET_URL?: string;
+  API_GATEWAY_PORT?: string | number;
+  WEBSOCKET_SERVICE_PORT?: string | number;
+};
+
 function normalizeUrl(value: unknown): string {
   if (typeof value !== 'string') {
     return '';
   }
 
   return value.trim().replace(/\/$/, '');
+}
+
+function getBundledEnv(): BundledEnv {
+  return ((import.meta as ImportMeta & { env?: BundledEnv }).env ?? {}) as BundledEnv;
 }
 
 function getRuntimeConfig(): RuntimeConfig {
@@ -22,8 +33,10 @@ function getRuntimeConfig(): RuntimeConfig {
 }
 
 function getDefaultApiBaseUrl(): string {
+  const env = getBundledEnv();
+
   if (typeof window === 'undefined') {
-    return `http://localhost:${import.meta.env.API_GATEWAY_PORT || 3000}`;
+    return `http://localhost:${env.API_GATEWAY_PORT || 3000}`;
   }
 
   return window.location.origin;
@@ -31,18 +44,18 @@ function getDefaultApiBaseUrl(): string {
 
 export function getPublicBaseUrl(): string {
   const runtimeConfigured = normalizeUrl(getRuntimeConfig().PUBLIC_BASE_URL);
-  const configured = normalizeUrl(import.meta.env.PUBLIC_BASE_URL);
+  const configured = normalizeUrl(getBundledEnv().PUBLIC_BASE_URL);
   return runtimeConfigured || configured || getDefaultApiBaseUrl();
 }
 
 export function getPublicWebsocketUrl(): string {
   const runtimeConfigured = normalizeUrl(getRuntimeConfig().PUBLIC_WEBSOCKET_URL);
-  const configured = normalizeUrl(import.meta.env.PUBLIC_WEBSOCKET_URL);
+  const configured = normalizeUrl(getBundledEnv().PUBLIC_WEBSOCKET_URL);
   return runtimeConfigured || configured;
 }
 
 export function getDefaultWebsocketBaseUrl(): string {
-  const env = import.meta.env ?? {};
+  const env = getBundledEnv();
   const wsPort = env.WEBSOCKET_SERVICE_PORT || 3004;
 
   if (typeof window === 'undefined') {

@@ -154,6 +154,8 @@ _KEYWORDS: dict[str, list[str]] = {
         "ඔෆර්ස්",
         "ඔපර්",
         "ඔපර්ස්",
+        "ofr",
+        "ఆఫర్",
         "අඩු",
         "මිල අඩු",
         "අඩු කරලා",
@@ -171,6 +173,15 @@ _KEYWORDS: dict[str, list[str]] = {
         "3 for 2",
         "buy one",
         "get one free",
+        "voucher",
+        "bank card offer",
+        "loyalty offer",
+        "member offer",
+        "weekend offer",
+        "combo deal",
+        "flash deal",
+        "multi-buy",
+        "bulk deal",
         "බයිවන් ගෙට්ටුවන්",
         "බයිවන් ගෙට්වන්",
         "බායිවන් ගෙට්වන්",
@@ -195,6 +206,12 @@ _KEYWORDS: dict[str, list[str]] = {
         "previous purchase",
         "past purchase",
         "purchases",
+        "cancelled order",
+        "delivered order",
+        "pending order",
+        "refund",
+        "histroy",
+        "histree",
         "ඇණවුම",
         "ඇණවුම්",
         "ඇනවුම",
@@ -204,6 +221,7 @@ _KEYWORDS: dict[str, list[str]] = {
         "අලුත්ම ඇණවුම",
         "අන්තිම ඇණවුම",
         "ඇණවුම් ඉතිහාස",
+        "ඇනවුම් ඉතිහාස",
         "පෙර මිලදී ගැනීම්",
         "මගේ මිලදී ගැනීම්",
         "මිලදී ගත්",
@@ -223,6 +241,10 @@ _KEYWORDS: dict[str, list[str]] = {
         "ඕඩරස්",
         "ඔඩර",
         "ඔඩරස්",
+        "ඕඩර් හිස්තරික",
+        "ඕඩර් ඉතිහාස",
+        "හිස්ටරි",
+        "ඉතිහාස",
     ],
     "buying_suggestions": [
         "suggest",
@@ -253,6 +275,7 @@ _KEYWORDS: dict[str, list[str]] = {
         "sugar free",
         "weight loss",
         "diet",
+        "diabetic",
         "kids",
         "lunch box",
         "easy cook",
@@ -279,12 +302,31 @@ _KEYWORDS: dict[str, list[str]] = {
         "price",
         "cost",
         "how much",
+        "rate",
+        "ගාන",
+        "ගාණ",
+        "ගාණ කීය",
+        "ගාණ කීයද",
+        "prce",
+        "prise",
+        "cheapest",
+        "most expensive",
+        "price range",
+        "unit price",
+        "pack price",
+        "budget",
+        "රු",
+        "lkr",
+        "rs",
+        "රුපියල්",
         "මිල",
         "ගණන",
         "කීයද",
         "කීය",
         "මොකක්ද",
         "මොකද",
+        "1000 කට",
+        "500 කට",
     ],
     "product_search": [
         "search",
@@ -294,9 +336,24 @@ _KEYWORDS: dict[str, list[str]] = {
         "available",
         "availability",
         "stock",
+        "in stock",
+        "out of stock",
+        "stock quantity",
+        "stock level",
+        "tiyenavada",
+        "hoyanna",
+        "pennanna",
+        "prodcut",
+        "serch",
+        "shampoo",
+        "shampu",
         "භාණ්ඩ",
         "නිෂ්පාදන",
         "හොයන්න",
+        "හොයලා",
+        "පෙන්නන්න",
+        "ඇතිද",
+        "ඇතිද?",
         "තියෙනවද",
         "තියෙනවාද",
         "තියෙනවා",
@@ -313,6 +370,10 @@ _KEYWORDS: dict[str, list[str]] = {
         "loyalty",
         "my segment",
         "customer segment",
+        "total spend",
+        "total spent",
+        "loyalty status",
+        "loyalty tier",
         "මගේ profile",
         "profile බලන්න",
         "මගේ ගිණුම",
@@ -320,16 +381,18 @@ _KEYWORDS: dict[str, list[str]] = {
         "මගේ තොරතුරු",
         "ගනුදෙනු කාණ්ඩය",
         "segment",
-        "loyalty tier",
         "profile විස්තර",
         "ගිණුම",
         "ගිනුම",
         "මා ගැන",
+        "කොතරම් වියදම්",
+        "වියදම් කළා",
     ],
     "promotions": [
         "promotion",
         "promotions",
         "promo",
+        "prmo",
         "flash sale",
         "sale",
         "seasonal offer",
@@ -339,8 +402,12 @@ _KEYWORDS: dict[str, list[str]] = {
         "current promotion",
         "today offer",
         "today deals",
+        "promo teka",
+        "promo eka",
         "ප්‍රමෝෂන්",
         "ප්‍රමෝ",
+        "ප්‍රොමෝෂන්",
+        "ප්‍රොමෝ",
         "flash sale",
         "seasonal",
         "දැනට ඇති promotions",
@@ -349,12 +416,36 @@ _KEYWORDS: dict[str, list[str]] = {
         "දැනට ඇති offers",
         "නව promotions",
         "sale ඇතිද",
-        "ප්‍රොමෝෂන්",
-        "ප්‍රොමෝ",
         "සේල්",
     ],
-    "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්"],
+    "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්", "hello", "hi", "හලෝ", "ආයුබෝවන්"],
 }
+
+_OFFERS_STRONG_SIGNALS = [
+    "offer",
+    "offers",
+    "voucher",
+    "bank card offer",
+    "loyalty offer",
+    "loyalty members",
+    "member offer",
+    "weekend offer",
+    "combo deal",
+    "flash deal",
+    "multi-buy",
+    "buy 1 get 1",
+    "buy one get one",
+    "bogo",
+    "buy 2 get 1",
+    "3 for 2",
+    "get one free",
+    "ofr",
+    "ඔෆර්",
+    "ඔෆර්ස්",
+    "ඔපර්",
+    "මිල අඩු",
+    "වට්ටම්",
+]
 
 _ORDER_HISTORY_STRONG_SIGNALS = [
     "order history",
@@ -368,7 +459,14 @@ _ORDER_HISTORY_STRONG_SIGNALS = [
     "purchase history",
     "latest purchase",
     "recent purchase",
+    "cancelled order",
+    "delivered order",
+    "pending order",
+    "refund",
+    "histroy",
+    "histree",
     "ඇණවුම් ඉතිහාස",
+    "ඇනවුම් ඉතිහාස",
     "පෙර ඇණවුම්",
     "මගේ ඇණවුම්",
     "ඇණවුම",
@@ -377,6 +475,8 @@ _ORDER_HISTORY_STRONG_SIGNALS = [
     "ඇනවුම්",
     "අන්තිමට ගත්",
     "ගත්තේ",
+    "ඕඩර් හිස්තරික",
+    "හිස්ටරි",
     "ඔර්ඩර්",
     "ඔර්ඩර්ස්",
     "ඕඩර්",
@@ -412,12 +512,15 @@ _PROMOTIONS_STRONG_SIGNALS = [
     "promotion",
     "promotions",
     "promo",
+    "prmo",
     "flash sale",
     "clearance",
     "seasonal offer",
     "bundle deal",
     "active promotion",
     "current promotion",
+    "promo teka",
+    "promo eka",
     "ප්‍රමෝෂන්",
     "ප්‍රොමෝෂන්",
     "ප්‍රමෝ",
@@ -546,6 +649,177 @@ _NEXT_PURCHASE_KEYWORDS = [
     "history බලලා",
 ]
 
+_PRICE_MODIFIER_KEYWORDS: list[tuple[str, str]] = [
+    ("cheapest", "cheapest"),
+    ("most expensive", "most_expensive"),
+    ("price range", "range"),
+    ("range", "range"),
+    ("budget", "budget"),
+    ("lowest price", "cheapest"),
+    ("highest price", "most_expensive"),
+    ("unit price", "unit"),
+    ("pack price", "pack"),
+    ("1000 කට", "budget_1000"),
+    ("500 කට", "budget_500"),
+    ("රු. 1000", "budget_1000"),
+    ("රු. 500", "budget_500"),
+    ("under 1000", "budget_1000"),
+    ("under 500", "budget_500"),
+    ("1000 ට", "budget_1000"),
+]
+
+_STOCK_SIGNAL_KEYWORDS = [
+    "stock",
+    "in stock",
+    "out of stock",
+    "stock quantity",
+    "stock level",
+    "available stock",
+    "stock ඇතිද",
+    "ගබඩා",
+    "ගබඩාවේ",
+]
+
+_ORDER_FILTER_KEYWORDS: list[tuple[str, str]] = [
+    ("cancel", "cancelled"),
+    ("cancelled", "cancelled"),
+    ("delivered", "delivered"),
+    ("pending", "pending"),
+    ("refund", "refunded"),
+    ("refunded", "refunded"),
+    ("shipped", "shipped"),
+    ("processing", "processing"),
+    ("අවලංගු", "cancelled"),
+    ("ලැබී", "delivered"),
+    ("රිෆන්ඩ්", "refunded"),
+    ("රිෆන්", "refunded"),
+    ("අපේක්ෂිත", "pending"),
+]
+
+_LAST_N_ORDER_PATTERN = re.compile(
+    r"(?:last|latest|recent|orders?|අන්තිම|ඇනවුම්?)\s+(\d+)"
+    r"|(\d+)\s+(?:orders?|ඇනවුම්?)",
+    re.IGNORECASE,
+)
+
+
+_BUDGET_AMOUNT_PATTERN = re.compile(
+    r"(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)([0-9][0-9,]*)"
+    r"|([0-9][0-9,]*)\s*(?:කට|ට|ට\s+ගන්|ට\s+ඇතුළත|under|below|within)"
+    r"|(?:budget|under|below|within)\s+(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)?([0-9][0-9,]*)",
+    re.IGNORECASE,
+)
+
+# Common retail category keywords mapped to canonical category names
+_CATEGORY_KEYWORDS: list[tuple[str, str]] = [
+    ("dairy", "dairy"),
+    ("milk", "dairy"),
+    ("cheese", "dairy"),
+    ("beverage", "beverages"),
+    ("beverages", "beverages"),
+    ("drink", "beverages"),
+    ("drinks", "beverages"),
+    ("juice", "beverages"),
+    ("snack", "snacks"),
+    ("snacks", "snacks"),
+    ("biscuit", "snacks"),
+    ("chocolate", "confectionery"),
+    ("candy", "confectionery"),
+    ("confectionery", "confectionery"),
+    ("rice", "staples"),
+    ("flour", "staples"),
+    ("cereal", "breakfast"),
+    ("breakfast", "breakfast"),
+    ("personal care", "personal care"),
+    ("shampoo", "personal care"),
+    ("shampu", "personal care"),
+    ("soap", "personal care"),
+    ("cleaning", "household"),
+    ("household", "household"),
+    ("detergent", "household"),
+    ("frozen", "frozen"),
+    ("bread", "bakery"),
+    ("bakery", "bakery"),
+    ("fruit", "fresh produce"),
+    ("vegetable", "fresh produce"),
+    ("meat", "meat"),
+    ("fish", "seafood"),
+    ("seafood", "seafood"),
+    ("organic", "organic"),
+    ("baby", "baby"),
+    ("infant", "baby"),
+    ("pet", "pet food"),
+    ("condiment", "condiments"),
+    ("sauce", "condiments"),
+    ("spice", "spices"),
+    ("oil", "oils"),
+    ("cooking oil", "oils"),
+    ("health", "health"),
+    ("vitamin", "health"),
+    ("supplement", "health"),
+]
+
+
+def _extract_budget_amount(text: str) -> float | None:
+    """Extract a numeric budget/price amount from the query text."""
+    m = _BUDGET_AMOUNT_PATTERN.search(text or "")
+    if not m:
+        return None
+    raw = m.group(1) or m.group(2) or m.group(3)
+    if not raw:
+        return None
+    try:
+        return float(raw.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _extract_category_hint(text: str) -> str | None:
+    """Return a canonical category name if the query mentions a product category."""
+    lowered = (text or "").lower()
+    for token, canonical in _CATEGORY_KEYWORDS:
+        if token in lowered:
+            return canonical
+    return None
+
+
+def _extract_price_modifier(text: str) -> str | None:
+    lowered = (text or "").lower()
+    for token, modifier in _PRICE_MODIFIER_KEYWORDS:
+        if token in lowered:
+            return modifier
+    return None
+
+
+def _extract_order_filter(text: str) -> str | None:
+    lowered = (text or "").lower()
+    for token, filter_val in _ORDER_FILTER_KEYWORDS:
+        if token in lowered:
+            return filter_val
+    return None
+
+
+def _extract_last_n_orders(text: str) -> int | None:
+    m = _LAST_N_ORDER_PATTERN.search(text or "")
+    if m:
+        try:
+            raw = m.group(1) or m.group(2)
+            n = int(raw)
+            return n if 1 <= n <= 50 else None
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def has_stock_query_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _STOCK_SIGNAL_KEYWORDS)
+
+
+def has_offers_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _OFFERS_STRONG_SIGNALS)
+
 
 def has_user_profile_signal(text: str) -> bool:
     lowered = (text or "").lower()
@@ -610,6 +884,57 @@ def detect_intent_and_entities(
     buying_signal = has_buying_suggestions_signal(text)
     promo_signal = has_promotions_signal(text)
     order_signal = has_order_history_signal(text)
+    offers_signal = has_offers_signal(text)
+
+    # Strong offers signal: boost offers, suppress competing product_search
+    if "offers" in scores and offers_signal and not buying_signal:
+        scores["offers"] += 2.5
+        if "product_search" in scores:
+            scores["product_search"] = max(0.0, scores["product_search"] - 1.0)
+
+    # Strong order history filter signals (cancel/refund/pending/delivered + orders)
+    order_filter = _extract_order_filter(text)
+    if "order_history" in scores and order_filter and order_signal:
+        scores["order_history"] += 3.0
+        if "product_search" in scores:
+            scores["product_search"] = max(0.0, scores["product_search"] - 1.5)
+
+    # Budget-price detection: any numeric budget/price threshold → prices intent
+    budget_amount = _extract_budget_amount(text)
+    budget_price_match = budget_amount is not None or re.search(
+        r"cheapest|ලාභම|most\s+expensive|price\s+range", lowered
+    )
+    if "prices" in scores and budget_price_match:
+        scores["prices"] += 3.0
+        if "buying_suggestions" in scores:
+            scores["buying_suggestions"] = max(0.0, scores["buying_suggestions"] - 2.0)
+
+    # Promotions: clearance/flash sale should win even over product_search
+    if "promotions" in scores and has_promotions_signal(text):
+        scores["promotions"] += 2.0
+        if "product_search" in scores:
+            scores["product_search"] = max(0.0, scores["product_search"] - 1.0)
+
+    # Very short order query "order?"
+    if "order_history" in scores and re.fullmatch(r"order\s*\??", lowered.strip()):
+        scores["order_history"] += 3.0
+
+    # Multi-intent: search + price → product_search wins (user is searching first, price is secondary)
+    search_words = {"හොයලා", "හොයන්න", "search", "find", "show", "পেন্নান্ন", "pennanna"}
+    price_words = {"price", "මිල", "ගණන", "කීයද", "cost", "rate", "ගාණ"}
+    has_search = any(w in lowered for w in search_words)
+    has_price = any(w in lowered for w in price_words)
+    if "product_search" in scores and has_search and has_price:
+        scores["product_search"] += 1.5
+        if "prices" in scores:
+            scores["prices"] = max(0.0, scores["prices"] - 1.0)
+
+    # User profile: "loyalty tier" should not go to prices even if "කීයද" is present
+    if "user_profile" in scores and has_user_profile_signal(text):
+        scores["user_profile"] += 2.0
+        # suppress prices if user-profile signal is strong
+        if "prices" in scores:
+            scores["prices"] = max(0.0, scores["prices"] - 1.5)
 
     if "buying_suggestions" in scores:
         if buying_signal:
@@ -664,6 +989,39 @@ def detect_intent_and_entities(
     price_match = re.search(r"(රු\.?|lkr|rs\.?)\s*([0-9,]+)", lowered, re.IGNORECASE)
     if price_match:
         entities["price"] = price_match.group(2).replace(",", "")
+
+    # Extract price modifier (cheapest, range, budget, etc.)
+    if best_intent == "prices":
+        modifier = _extract_price_modifier(text)
+        if modifier:
+            entities["price_modifier"] = modifier
+        # Extract budget amount using the robust pattern
+        extracted_budget = _extract_budget_amount(text)
+        if extracted_budget is not None:
+            entities["budget_amount"] = str(int(extracted_budget) if extracted_budget == int(extracted_budget) else extracted_budget)
+        # Extract category hint for budget/cheapest queries
+        category = _extract_category_hint(text)
+        if category and "category" not in entities:
+            entities["category"] = category
+
+    # Also extract category for product_search and buying_suggestions
+    if best_intent in ("product_search", "buying_suggestions") and "category" not in entities:
+        category = _extract_category_hint(text)
+        if category:
+            entities["category"] = category
+
+    # Extract order status filter and last-N request
+    if best_intent == "order_history":
+        order_filter = _extract_order_filter(text)
+        if order_filter:
+            entities["order_status_filter"] = order_filter
+        last_n = _extract_last_n_orders(text)
+        if last_n:
+            entities["last_n_orders"] = last_n
+
+    # Tag stock queries so resolver can include stock data
+    if has_stock_query_signal(text) and best_intent in ("product_search", "prices"):
+        entities["include_stock"] = True
 
     clarification: str | None = None
     if best_intent in ("prices", "product_search") and "product" not in entities:

@@ -638,32 +638,134 @@ async def get_active_offers_for_product(
 # 4. Order history  (intent: order_history)
 # ---------------------------------------------------------------------------
 
-async def get_order_history(user_id: str, limit: int = 5) -> list[dict[str, Any]]:
+async def get_cheapest_products(
+    category: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Return cheapest active in-stock products, optionally filtered by category."""
+    norm_cat = _norm(category) if category else None
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND (lower(c.name) LIKE $1 OR lower(c.name_si) LIKE $1)
+                    ORDER BY p.price ASC
+                    LIMIT $2
+                    """,
+                    f"%{norm_cat}%",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                    ORDER BY p.price ASC
+                    LIMIT $1
+                    """,
+                    max(1, min(limit, 50)),
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("get_cheapest_products failed error=%s", exc)
+        return []
+
+
+async def get_products_by_budget(
+    max_price: float,
+    category: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return active in-stock products priced at or below max_price."""
+    norm_cat = _norm(category) if category else None
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND p.price <= $1
+                      AND (lower(c.name) LIKE $2 OR lower(c.name_si) LIKE $2)
+                    ORDER BY p.purchase_frequency DESC, p.price ASC
+                    LIMIT $3
+                    """,
+                    max_price,
+                    f"%{norm_cat}%",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND p.price <= $1
+                    ORDER BY p.purchase_frequency DESC, p.price ASC
+                    LIMIT $2
+                    """,
+                    max_price,
+                    max(1, min(limit, 50)),
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("get_products_by_budget failed max_price=%.0f error=%s", max_price, exc)
+        return []
+
+
+async def get_order_history(user_id: str, limit: int = 5, status_filter: str | None = None) -> list[dict[str, Any]]:
     if not user_id:
         return []
 
     try:
         async with acquire() as conn:
-            order_rows = await conn.fetch(
-                """
-                SELECT
-                    o.id::text          AS order_id,
-                    o.order_number,
-                    o.status,
-                    o.subtotal::float   AS subtotal,
-                    o.discount::float   AS discount,
-                    o.tax::float        AS tax,
-                    o.total::float      AS total,
-                    o.created_at,
-                    o.updated_at
-                FROM core.orders o
-                WHERE o.user_id = $1
-                ORDER BY o.created_at DESC
-                LIMIT $2
-                """,
-                user_id,
-                limit,
-            )
+            safe_limit = max(1, min(limit, 50))
+            if status_filter:
+                order_rows = await conn.fetch(
+                    """
+                    SELECT
+                        o.id::text          AS order_id,
+                        o.order_number,
+                        o.status,
+                        o.subtotal::float   AS subtotal,
+                        o.discount::float   AS discount,
+                        o.tax::float        AS tax,
+                        o.total::float      AS total,
+                        o.created_at,
+                        o.updated_at
+                    FROM core.orders o
+                    WHERE o.user_id = $1
+                      AND o.status = $2
+                    ORDER BY o.created_at DESC
+                    LIMIT $3
+                    """,
+                    user_id,
+                    status_filter,
+                    safe_limit,
+                )
+            else:
+                order_rows = await conn.fetch(
+                    """
+                    SELECT
+                        o.id::text          AS order_id,
+                        o.order_number,
+                        o.status,
+                        o.subtotal::float   AS subtotal,
+                        o.discount::float   AS discount,
+                        o.tax::float        AS tax,
+                        o.total::float      AS total,
+                        o.created_at,
+                        o.updated_at
+                    FROM core.orders o
+                    WHERE o.user_id = $1
+                    ORDER BY o.created_at DESC
+                    LIMIT $2
+                    """,
+                    user_id,
+                    safe_limit,
+                )
 
             if not order_rows:
                 return []

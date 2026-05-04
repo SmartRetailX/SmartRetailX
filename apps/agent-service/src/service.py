@@ -13,6 +13,7 @@ Audio / Text
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from .intent.keyword import (
     has_buying_suggestions_signal,
     has_order_history_signal,
     has_promotions_signal,
+    has_stock_query_signal,
     has_user_profile_signal,
     is_last_order_query,
 )
@@ -44,6 +46,18 @@ from .pipeline.resolver import resolve_intent
 from .pipeline.response import build_deterministic_response, build_llm_context_summary
 from .stt.transcriber import transcribe_audio
 from .stt.validation import normalize_transcript
+
+_BUDGET_PRICE_PATTERN = re.compile(
+    r"(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)?[0-9][0-9,]*\s*(?:කට|ට|ට\s+ගන්|ට\s+ඇතුළත|under|below|within|budget)"
+    r"|(?:under|below|within)\s+(?:රු\.?\s*|rs\.?\s*)?[0-9][0-9,]*"
+    r"|(?:cheapest|ලාභම|most\s+expensive|price\s+range)",
+    re.IGNORECASE,
+)
+
+
+def _has_budget_price_signal(text: str) -> bool:
+    return bool(_BUDGET_PRICE_PATTERN.search(text or ""))
+
 
 _RESPONSE_MODEL_LABEL = "openai-grounded-agent"
 _PRODUCT_LIST_INTENTS = frozenset(
@@ -250,6 +264,41 @@ async def process_voice_chat(
                 },
             )
 
+        elif intent_result.intent != "prices" and _has_budget_price_signal(transcription) and not buying_signal:
+            logger.info(
+                "Prices/budget override applied: detected_intent=%s text=%r",
+                intent_result.intent,
+                transcription[:160],
+            )
+            from .intent.keyword import _extract_price_modifier, _extract_budget_amount, _extract_category_hint
+            _price_modifier = _extract_price_modifier(transcription)
+            _budget_amount = _extract_budget_amount(transcription)
+            _category = _extract_category_hint(transcription)
+            _price_entities: dict[str, Any] = {}
+            if _price_modifier:
+                _price_entities["price_modifier"] = _price_modifier
+            if _budget_amount:
+                _price_entities["budget_amount"] = str(int(_budget_amount) if _budget_amount == int(_budget_amount) else _budget_amount)
+            if _category:
+                _price_entities["category"] = _category
+            intent_result = IntentResult(
+                intent="prices",
+                confidence=max(intent_result.confidence, 0.88),
+                entities=_price_entities,
+                explainability={
+                    "source": "prices-budget-override",
+                    "confidence": max(intent_result.confidence, 0.88),
+                    "rationale": "Budget/price keywords detected in user message.",
+                    "features": [
+                        {
+                            "name": "budget_price_signal",
+                            "weight": 1.0,
+                            "evidence": transcription[:120],
+                        }
+                    ],
+                },
+            )
+
         # Backfill missing product entity from transcript for product-centric intents.
         if (
             intent_result.intent
@@ -284,6 +333,14 @@ async def process_voice_chat(
             offer_type = detect_offer_type(transcription)
             if offer_type:
                 intent_result.entities["offer_type"] = offer_type
+
+        # Tag stock queries so response includes stock availability column
+        if (
+            intent_result.intent in ("product_search", "prices")
+            and has_stock_query_signal(transcription)
+            and not intent_result.entities.get("include_stock")
+        ):
+            intent_result.entities["include_stock"] = True
 
         # 4. Intent resolution (DB query)
         ctx = await resolve_intent(
