@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 COPY . .
 RUN pnpm exec prisma generate --schema libs/database/prisma/schema.prisma \
-    && if [ -f "apps/api-gateway/prisma/schema.prisma" ]; then pnpm --dir "apps/api-gateway" exec prisma generate; fi \
+    && if [ -f "apps/api-gateway/prisma/schema.prisma" ]; then pnpm exec prisma generate --schema apps/api-gateway/prisma/schema.prisma; fi \
     && pnpm nx build api-gateway \
     && pnpm prune --prod
 
