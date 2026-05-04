@@ -12,12 +12,14 @@ from typing import Any
 from ..db.queries import (
     fuzzy_suggest_products,
     get_active_offers,
+    get_active_promotions,
     get_buying_suggestions,
     get_order_history,
     get_product_price,
+    get_user_profile,
     search_products,
 )
-from ..logging import logger
+from ..log import logger
 
 
 @dataclass
@@ -50,9 +52,13 @@ async def resolve_intent(
     if intent == "offers":
         return await _resolve_offers(xai_features)
     if intent == "order_history":
-        return await _resolve_order_history(user_id, xai_features)
+        return await _resolve_order_history(user_id, xai_features, last_order_only=bool(entities.get("last_order_only")))
     if intent == "buying_suggestions":
         return await _resolve_buying_suggestions(user_id, entities, xai_features)
+    if intent == "user_profile":
+        return await _resolve_user_profile(user_id, xai_features)
+    if intent == "promotions":
+        return await _resolve_promotions(xai_features)
 
     return ResolvedContext(intent=intent, entities=entities, xai_features=xai_features)
 
@@ -167,6 +173,7 @@ async def _resolve_offers(xai_features: list[dict[str, Any]]) -> ResolvedContext
 async def _resolve_order_history(
     user_id: str | None,
     xai_features: list[dict[str, Any]],
+    last_order_only: bool = False,
 ) -> ResolvedContext:
     if not user_id:
         return ResolvedContext(
@@ -177,12 +184,12 @@ async def _resolve_order_history(
             xai_features=xai_features,
         )
 
-    rows = await get_order_history(user_id)
-    logger.info("resolve_order_history user=%r results=%d", user_id, len(rows))
+    rows = await get_order_history(user_id, limit=1 if last_order_only else 5)
+    logger.info("resolve_order_history user=%r last_only=%s results=%d", user_id, last_order_only, len(rows))
 
     return ResolvedContext(
         intent="order_history",
-        entities={"user_id": user_id},
+        entities={"user_id": user_id, "last_order_only": last_order_only},
         db_results=rows,
         db_source="db-order",
         has_data=bool(rows),
@@ -209,6 +216,49 @@ async def _resolve_buying_suggestions(
         entities=entities,
         db_results=rows,
         db_source="db-recommendation",
+        has_data=bool(rows),
+        xai_features=xai_features,
+    )
+
+
+async def _resolve_user_profile(
+    user_id: str | None,
+    xai_features: list[dict[str, Any]],
+) -> ResolvedContext:
+    if not user_id:
+        return ResolvedContext(
+            intent="user_profile",
+            entities={},
+            needs_clarification=True,
+            clarification_prompt_si="ඔබගේ profile විස්තර බලන්නට login කර ඇති වීම අවශ්‍යයි.",
+            xai_features=xai_features,
+        )
+
+    profile = await get_user_profile(user_id)
+    logger.info("resolve_user_profile user=%r found=%s", user_id, profile is not None)
+
+    has_data = profile is not None
+    return ResolvedContext(
+        intent="user_profile",
+        entities={"user_id": user_id},
+        db_results=[profile] if has_data else [],
+        db_source="db-profile",
+        has_data=has_data,
+        needs_clarification=not has_data,
+        clarification_prompt_si="" if has_data else "ඔබගේ ගිණුමේ profile දත්ත හමු නොවුණා.",
+        xai_features=xai_features,
+    )
+
+
+async def _resolve_promotions(xai_features: list[dict[str, Any]]) -> ResolvedContext:
+    rows = await get_active_promotions(limit=15)
+    logger.info("resolve_promotions results=%d", len(rows))
+
+    return ResolvedContext(
+        intent="promotions",
+        entities={},
+        db_results=rows,
+        db_source="db-promotions",
         has_data=bool(rows),
         xai_features=xai_features,
     )

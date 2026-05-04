@@ -300,22 +300,32 @@ class PersonalizedPromotionEngine:
         Get target customers for a product promotion.
 
         Strategies:
-        - 'ml_only': Use only purchase prediction model
+        - 'ml_only': Use only purchase prediction model (uses pre-loaded model, no retraining)
         - 'cf_only': Use only collaborative filtering
-        - 'hybrid': Combine both approaches (recommended)
+        - 'hybrid': Combine both approaches — delegates to generate_promotion_targets
         """
         print(f"\nGetting promotion targets for product: {product_id}")
         print(f"Strategy: {strategy}, Top N: {top_n}")
 
-        if strategy == "ml_only":
-            return self._get_targets_ml(product_id, top_n)
+        # 'hybrid' delegates to the optimized pipeline (no retraining)
+        if strategy in ("hybrid", "ml_only"):
+            result = self.generate_promotion_targets(product_id, top_n=top_n)
+            if result is not None and len(result) > 0:
+                if strategy == "ml_only":
+                    result = result.drop(columns=["cf_score", "hybrid_score"], errors="ignore")
+                return result
+            # Fallback to CF if ML pipeline returns nothing
+            return self._get_targets_cf(product_id, top_n)
         elif strategy == "cf_only":
             return self._get_targets_cf(product_id, top_n)
         else:
-            return self._get_targets_hybrid(product_id, top_n)
+            return self.generate_promotion_targets(product_id, top_n=top_n)
 
     def _get_targets_ml(self, product_id, top_n):
-        """Targets via ML prediction only."""
+        """
+        Score all customers for a product using the pre-loaded purchase model.
+        Uses precomputed customer features — does NOT rebuild training data.
+        """
         product = self.preprocessor.products[
             self.preprocessor.products["ProductID"] == product_id
         ]
@@ -323,27 +333,41 @@ class PersonalizedPromotionEngine:
             return pd.DataFrame(columns=["CustomerID", "purchase_probability"])
 
         product_category = product.iloc[0]["Category"]
-        training_data = self.preprocessor.create_training_data_for_promotion_targeting(product_id)
-        if len(training_data) == 0:
+
+        # Build a lightweight scoring frame from precomputed customer features
+        cust_features = self.preprocessor.create_customer_features()
+        if len(cust_features) == 0:
             return pd.DataFrame(columns=["CustomerID", "purchase_probability"])
+
+        # Add product context columns expected by the model
+        scoring = cust_features.copy()
+        scoring["ProductID"] = product_id
+        scoring["product_price"] = float(product.iloc[0]["Price"])
+        scoring["is_same_category"] = 1  # targeting this category
+
+        # Align to model feature columns
+        feature_cols = self.purchase_model.feature_cols or []
+        for col in feature_cols:
+            if col not in scoring.columns:
+                scoring[col] = 0
+        available = [c for c in feature_cols if c in scoring.columns]
+        if not available:
+            return pd.DataFrame(columns=["CustomerID", "purchase_probability"])
+
+        X = scoring[available].fillna(0)
+        scoring["purchase_probability"] = self.purchase_model.predict_proba(X)
 
         cat_prods = self.preprocessor.products[
             self.preprocessor.products["Category"] == product_category
         ]["ProductID"].tolist()
-        category_data = training_data[training_data["ProductID"].isin(cat_prods)].copy()
-        if len(category_data) == 0:
-            return pd.DataFrame(columns=["CustomerID", "purchase_probability"])
+        if product_id not in cat_prods:
+            cat_prods.append(product_id)
 
-        X, _, data = self.purchase_model.prepare_features(category_data)
-        data["purchase_probability"] = self.purchase_model.predict_proba(X)
-
-        customer_scores = data.groupby("CustomerID").agg({
-            "purchase_probability": "max",
-            "customer_promo_response_rate": "first",
-            "category_affinity": "first",
-        }).reset_index()
-        customer_scores["ProductID"] = product_id
-        return customer_scores.nlargest(top_n, "purchase_probability")
+        return (
+            scoring[["CustomerID", "purchase_probability"]]
+            .nlargest(top_n, "purchase_probability")
+            .reset_index(drop=True)
+        )
 
     def _get_targets_cf(self, product_id, top_n):
         """Targets via CF only."""

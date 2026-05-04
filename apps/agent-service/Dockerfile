@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
-COPY agent_service ./agent_service
+COPY src ./src
 
 RUN addgroup --system app && adduser --system --ingroup app app \
     && chown -R app:app /app

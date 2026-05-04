@@ -5,7 +5,7 @@ from typing import Any
 from ..config import settings
 
 _NOISE_WORDS = {
-    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද",
+    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද",
 }
 _TRIM_WORDS = {
@@ -30,6 +30,7 @@ _KEYWORDS: dict[str, list[str]] = {
         "ඇණවුම", "ඇණවුම්", "ඇනවුම", "ඇනවුම්", "පෙර ඇණවුම්",
         "අවසාන ඇණවුම", "අලුත්ම ඇණවුම", "අන්තිම ඇණවුම", "ඇණවුම් ඉතිහාස",
         "පෙර මිලදී ගැනීම්", "මගේ මිලදී ගැනීම්", "මිලදී ගත්",
+        "අන්තිමට ගත්", "අන්තිම", "ගත්තේ", "ගත්", "අලුත්ම", "අවසාන",
         "ඔර්ඩර්", "ඔර්ඩර්ස්", "ඕඩර්", "ඕඩර්ස්", "ඔඩර්", "ඔඩර්ස්",
         "ඕඩර", "ඕඩරස්", "ඔඩර", "ඔඩරස්",
     ],
@@ -37,11 +38,28 @@ _KEYWORDS: dict[str, list[str]] = {
         "suggest", "recommend", "buy", "what should i buy",
         "නිර්දේශ", "සැජෙස්ට්", "අදහස",
     ],
-    "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද", "කීය"],
+    "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද", "කීය", "මොකක්ද", "මොකද"],
     "product_search": [
         "search", "find", "show product", "product", "available",
         "availability", "stock", "භාණ්ඩ", "නිෂ්පාදන", "හොයන්න",
         "තියෙනවද", "තියෙනවාද", "තියෙනවා",
+    ],
+    "user_profile": [
+        "my profile", "profile", "my account", "account details",
+        "my info", "personal info", "who am i", "user details",
+        "loyalty", "my segment", "customer segment",
+        "මගේ profile", "profile බලන්න", "මගේ ගිණුම", "ගිණුම් විස්තර",
+        "මගේ තොරතුරු", "ගනුදෙනු කාණ්ඩය", "segment", "loyalty tier",
+        "profile විස්තර", "ගිණුම", "ගිනුම", "මා ගැන",
+    ],
+    "promotions": [
+        "promotion", "promotions", "promo", "flash sale", "sale",
+        "seasonal offer", "bundle", "clearance", "active promotion",
+        "current promotion", "today offer", "today deals",
+        "ප්‍රමෝෂන්", "ප්‍රමෝ", "flash sale", "seasonal",
+        "දැනට ඇති promotions", "දැනට promotions", "promotions මොනවාද",
+        "දැනට ඇති offers", "නව promotions", "sale ඇතිද",
+        "ප්‍රොමෝෂන්", "ප්‍රොමෝ", "සේල්",
     ],
     "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්"],
 }
@@ -65,6 +83,8 @@ _ORDER_HISTORY_STRONG_SIGNALS = [
     "ඇණවුම්",
     "ඇනවුම",
     "ඇනවුම්",
+    "අන්තිමට ගත්",
+    "ගත්තේ",
     "ඔර්ඩර්",
     "ඔර්ඩර්ස්",
     "ඕඩර්",
@@ -74,6 +94,32 @@ _ORDER_HISTORY_STRONG_SIGNALS = [
     "ඕඩර",
     "ඕඩරස්",
 ]
+
+
+_USER_PROFILE_STRONG_SIGNALS = [
+    "my profile", "my account", "profile", "account details",
+    "who am i", "my segment", "customer segment", "loyalty",
+    "මගේ profile", "profile බලන්න", "මගේ ගිණුම", "ගිණුම් විස්තර",
+    "ගනුදෙනු කාණ්ඩය", "segment", "profile විස්තර", "මා ගැන",
+    "loyalty tier",
+]
+
+_PROMOTIONS_STRONG_SIGNALS = [
+    "promotion", "promotions", "promo", "flash sale", "clearance",
+    "seasonal offer", "bundle deal", "active promotion", "current promotion",
+    "ප්‍රමෝෂන්", "ප්‍රොමෝෂන්", "ප්‍රමෝ", "ප්‍රොමෝ",
+    "දැනට ඇති promotions", "නව promotions",
+]
+
+
+def has_user_profile_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _USER_PROFILE_STRONG_SIGNALS)
+
+
+def has_promotions_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _PROMOTIONS_STRONG_SIGNALS)
 
 
 def detect_intent_and_entities(
@@ -119,9 +165,22 @@ def detect_intent_and_entities(
     return best_intent, confidence, entities, clarification
 
 
+_LAST_ORDER_SIGNALS = [
+    "last order", "latest order", "most recent order",
+    "අන්තිමට ගත්", "ගත්තේ", "අලුත්ම ඇණවුම", "අවසාන ඇණවුම",
+    "අන්තිම ඇණවුම", "latest purchase", "last purchase",
+    "අලුත්ම order", "latest order",
+]
+
+
 def has_order_history_signal(text: str) -> bool:
     lowered = (text or "").lower()
     return any(signal in lowered for signal in _ORDER_HISTORY_STRONG_SIGNALS)
+
+
+def is_last_order_query(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _LAST_ORDER_SIGNALS)
 
 
 def _sanitize_entity_candidate(candidate: str) -> str | None:
@@ -158,12 +217,13 @@ def _extract_product_hint(text: str) -> str | None:
             return value
 
     patterns = [
+        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:කිලෝ|kg|කිලෝව|gram|g)\s+(?:එකේ|එකට|1|එකක)?\s*(?:මිල|price|ගණන)",
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන)\s+([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+වල\s+මිල",
-        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+කීයද",
+        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+(?:කීයද|මොකක්ද|මොකද)",
         r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})\s+නිෂ්පාදන",
     ]
     for pattern in patterns:

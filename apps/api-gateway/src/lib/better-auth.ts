@@ -49,6 +49,37 @@ export const createBetterAuthInstance = (configService: ConfigService) => {
       minPasswordLength: 8,
       maxPasswordLength: 128,
     },
+    user: {
+      additionalFields: {
+        age: {
+          type: 'number',
+          required: false,
+        },
+        gender: {
+          type: 'string',
+          required: false,
+        },
+        City: {
+          type: 'string',
+          required: false,
+        },
+        mobileNumber: {
+          type: 'string',
+          required: false,
+        },
+        customerSegment: {
+          type: 'string',
+          required: false,
+          input: true,
+        },
+        role: {
+          type: 'string',
+          required: true,
+          input: false,
+          defaultValue: 'user',
+        },
+      },
+    },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,

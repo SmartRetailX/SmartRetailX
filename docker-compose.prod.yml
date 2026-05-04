@@ -92,10 +92,9 @@ services:
       BI_DASHBOARD_HTTP_MODE: ${BI_DASHBOARD_HTTP_MODE:-false}
       BI_DASHBOARD_PORT: 3001
       ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
-    ports:
-      - '${BI_DASHBOARD_PORT:-3001}:3001'
+    expose:
+      - '3001'
     networks:
-      - edge
       - backend
 
   websocket-service:
@@ -224,7 +223,6 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - edge
       - backend
 
   stt-agent:

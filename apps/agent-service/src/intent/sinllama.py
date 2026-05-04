@@ -5,12 +5,12 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from ..logging import logger
+from ..log import logger
 from ..models import IntentResult
 
 # Sinhala/English question words that are never product names
 _ENTITY_NOISE: set[str] = {
-    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද",
+    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද", "price", "මිල",
 }
 

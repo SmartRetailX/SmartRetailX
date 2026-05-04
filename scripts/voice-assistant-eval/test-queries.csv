@@ -1,0 +1,171 @@
+id,language,query,expectedIntent,expectedContains,expectedNotContains,notes
+q001,si-LK,අද තියෙන offers මොනවද?,offers,offer|discount|promo,error,base offers
+q002,si-LK,මේ සතියේ promotions දන්නවද?,offers,promo|offer|discount,error,offers synonym
+q003,si-LK,මට අද discount තියෙන භාණ්ඩ කියන්න,offers,discount|offer,error,offer by discount wording
+q004,si-LK,buy 1 get 1 offer තියෙනවද?,offers,offer|promo,error,bogo style
+q005,si-LK,supermarket එකේ special deals මොනවද?,offers,deal|offer,error,english mix
+q006,si-LK,අඩු කළ මිල තියෙන products list එක දෙන්න,offers,discount|reduced|offer,error,price-cut framing
+q007,si-LK,මගේ order history එක කියන්න,order_history,order|history,error,order history base
+q008,si-LK,මම අන්තිමට ගත්තේ මොනවද?,order_history,last|order|history,error,last purchase
+q009,si-LK,පසුගිය orders ටික පෙන්නන්න,order_history,order|history,error,past orders
+q010,si-LK,මාසෙ පුරා මගේ ඇනවුම් ටික summarize කරන්න,order_history,order|history,error,summarize history
+q011,si-LK,මගේ order එක delivery වෙලාද කියන්න,order_history,order|status,error,order status-like
+q012,si-LK,අන්තිම order එකේ items මොනවද?,order_history,order|item,error,last order items
+q013,si-LK,අද දූද මිල කීයද?,prices,price|lkr|rs,error,price query typo-ish
+q014,si-LK,කිරි පැකට් එකේ ගාණ කියන්න,prices,price|rs|lkr,error,milk price
+q015,si-LK,rice 1kg rate එක කීයද?,prices,price|rate|rs,error,english mix price
+q016,si-LK,ශැම්පු bottle එකේ මිල update එක දෙන්න,prices,price|lkr|rs,error,shampoo price
+q017,si-LK,ඇපල් kilo එකේ මිල මොකද්ද?,prices,price|lkr|rs,error,fruit price
+q018,si-LK,මේ item එකට tax එක්ක final price කීයද?,prices,price|total|lkr,error,price with tax ask
+q019,si-LK,මට breakfast වලට ගැලපෙන products suggest කරන්න,buying_suggestions,suggest|recommend,error,breakfast suggestion
+q020,si-LK,කුඩා budget එකකට ගන්න හොඳ භාණ්ඩ කියන්න,buying_suggestions,suggest|budget,error,budget suggestions
+q021,si-LK,දරුවන්ට snacks recommend කරන්න,buying_suggestions,recommend|suggest,error,kids snack recommendations
+q022,si-LK,healthy options ටිකක් කියන්න,buying_suggestions,healthy|suggest,error,health suggestions
+q023,si-LK,tea time එකට ගන්න දේවල් suggest කරන්,buying_suggestions,suggest|recommend,error,tea-time suggestions
+q024,si-LK,party එකකට අවශ්‍ය items list එකක් දෙන්න,buying_suggestions,list|suggest,error,occasion-based suggestion
+q025,si-LK,ශැම්පු හොයන්න,product_search,product|shampoo,error,search base
+q026,si-LK,soap products පෙන්නන්න,product_search,product|soap,error,soap search
+q027,si-LK,මට noodles තියෙන brand ටික හොයලා දෙන්න,product_search,noodles|product,error,noodle search
+q028,si-LK,චොකලට් category එකේ items මොනවද?,product_search,product|chocolate,error,category search
+q029,si-LK,organic label තියෙන rice products හොයන්න,product_search,organic|rice|product,error,filtered search
+q030,si-LK,baby diapers products තියෙනවද?,product_search,baby|diaper|product,error,baby product search
+q031,si-LK,හලෝ ඔයාට කොහොමද?,general,,error,greeting
+q032,si-LK,ඔයාට මට උදව් කරන්න පුළුවන්ද?,general,,error,capability ask
+q033,si-LK,ස්තූතියි!,general,,error,thanks
+q034,si-LK,සුබ උදෑසනක්,general,,error,morning greeting
+q035,si-LK,ඔයා කව්ද?,general,,error,identity ask
+q036,si-LK,මට shopping ගැන පොඩ්ඩක් guide කරන්න,general,guide|help,error,general help
+q037,si-LK,අද offer තියෙන shampoo වල price කීයද?,offers,offer|price,error,multi-intent offer+price prioritize offer
+q038,si-LK,මගේ අවසන් order එකේ තිබ්බ rice එකේ ගාණ දැන් කීයද?,prices,price|order,error,multi-intent order+price prioritize price
+q039,si-LK,දරුවන්ට snacks recommend කරලා discount තියෙන ඒවාත් කියන්න,buying_suggestions,suggest|discount,error,multi-intent suggest+offers prioritize suggest
+q040,si-LK,soap product එකක් හොයලා ඒකේ මිලත් කියන්න,product_search,product|soap,error,multi-intent search+price prioritize search
+q041,si-LK,මට,,, අද ... offers ???,offers,offer|promo,error,noisy punctuation
+q042,si-LK,pramotion තියෙන itemz මොනවද?,offers,offer|promo,error,misspelled english word
+q043,si-LK,maage order histroy eka pennanna,order_history,order|history,error,singlish typo
+q044,si-LK,mee item eke prce kiyanna,prices,price|rs|lkr,error,singlish typo price
+q045,si-LK,snaks recommend කරන්න,buying_suggestions,recommend|suggest,error,misspelled snacks
+q046,si-LK,shampu hoyanna,product_search,product|shampoo,error,singlish search typo
+q047,si-LK,offer offer offer කියලා තියෙනවද?,offers,offer,error,repetition robustness
+q048,si-LK,order එකක් නෑ මගේ history එක check කරන්න,order_history,order|history,error,no-data handling
+q049,si-LK,price එක unknown item එකකට කියන්න,prices,price,error,unknown product price handling
+q050,si-LK,recommend කරන්න හැබැයි sugar free දේවල් විතරක්,buying_suggestions,suggest|sugar,error,constraint suggestion
+q051,si-LK,search කරන්න gluten free bread,product_search,gluten|bread|product,error,constraint search
+q052,si-LK,ඔයාට politics ගැන කියන්න පුළුවන්ද?,general,,error,out-of-domain
+q053,si-LK,මම angry, සේවාව හොඳ නෑ,general,sorry|help,error,sentiment recovery
+q054,si-LK,order history කියනකොට privacy safe ද?,general,privacy|safe|secure,error,trust/safety question
+q055,si-LK,අද deals තියෙන drinks suggest කරන්න,buying_suggestions,suggest|deal,error,multi-intent with suggestion focus
+q056,si-LK,rice products වලින් cheapest එක මොකද්ද?,prices,price|cheap|lkr,error,comparative price
+q057,si-LK,මට lactose free milk products හොයන්න,product_search,lactose|milk|product,error,dietary search
+q058,si-LK,අද promo තියෙන diapers වල price range දෙන්න,offers,promo|price,error,promo with price range
+q059,si-LK,wishlist එකකට ගන්න top 5 items suggest කරන්න,buying_suggestions,suggest|top,error,top-N suggestions
+q060,si-LK,එකම දේ නැතුව වෙන විකල්ප products දෙන්න,buying_suggestions,alternative|suggest,error,alternatives request
+q061,si-LK,අද weekend offers වෙනම තියෙනවද?,offers,offer|weekend,error,weekend offer
+q062,si-LK,combo deal තියෙන products කියන්න,offers,deal|combo,error,combo deals
+q063,si-LK,clearance sale items පෙන්නන්න,offers,sale|offer,error,clearance wording
+q064,si-LK,voucher code එකක් තියෙනවද?,offers,voucher|offer,error,voucher ask
+q065,si-LK,discount වැඩිම category එක මොකද්ද?,offers,discount|category,error,category-level offer
+q066,si-LK,flash deal දැන් live ද?,offers,deal|offer,error,flash deal
+q067,si-LK,offers expire වෙන්නේ කවද්ද?,offers,expire|offer,error,offer validity
+q068,si-LK,3 for 2 deal තියෙන දේවල් දෙන්න,offers,deal|offer,error,multi-buy offer
+q069,si-LK,loyalty membersට වෙනම promotions තියෙනවද?,offers,promo|offer,error,member offers
+q070,si-LK,bank card offers තියෙනවද?,offers,offer|bank,error,payment offer
+q071,si-LK,මගේ orders වලින් වැඩිම ගත්ත item එක මොකද්ද?,order_history,order|item,error,top ordered item
+q072,si-LK,පසුගිය සතියේ order count එක කියන්න,order_history,order|count,error,weekly order count
+q073,si-LK,cancel කරපු orders තිබ්බද?,order_history,order|cancel,error,cancelled orders
+q074,si-LK,delivered orders විතරක් පෙන්නන්න,order_history,order|delivered,error,filter delivered
+q075,si-LK,refund වෙච්ච order තියෙනවද?,order_history,order|refund,error,refund history
+q076,si-LK,order history එක date අනුව sort කරන්න,order_history,order|date,error,sort ask
+q077,si-LK,අදට කලින් අන්තිම orders 5 කියන්න,order_history,order|last,error,last 5 orders
+q078,si-LK,මම නැවත ගත්ත products මොනවද?,order_history,product|order,error,repeat purchase
+q079,si-LK,order history එක empty නම් කියන්න,order_history,order|history,error,empty handling
+q080,si-LK,pending orders තියෙනවද කියන්න,order_history,order|pending,error,pending status
+q081,si-LK,පාන් මිල කීයද?,prices,price|rs|lkr,error,bread price
+q082,si-LK,බිත්තර 10 pack එකේ මිල කියන්න,prices,price|rs|lkr,error,egg price
+q083,si-LK,cheese slice packet එකේ ගාණ කීයද?,prices,price|rs|lkr,error,cheese price
+q084,si-LK,oil 1L cheapest option එකේ මිල කියන්න,prices,price|cheap,error,cheapest oil
+q085,si-LK,detergent powder price range දෙන්න,prices,price|range,error,range query
+q086,si-LK,same brand දෙකක් compare කරලා මිල කියන්න,prices,price|compare,error,price comparison
+q087,si-LK,අදට නවතම price update තියෙනවද?,prices,price|update,error,price freshness
+q088,si-LK,budget 1000කට ගන්න පුළුවන් items කියන්න,prices,budget|price,error,budget bound
+q089,si-LK,imported product එකේ මිල වැඩිද?,prices,price|imported,error,relative pricing
+q090,si-LK,unit price එකත් pack price එකත් දෙන්න,prices,price|unit,error,unit vs pack
+q091,si-LK,weight loss diet එකකට groceries suggest කරන්න,buying_suggestions,suggest|diet,error,diet plan suggestions
+q092,si-LK,office pantry එකට monthly list එකක් recommend කරන්න,buying_suggestions,recommend|list,error,office list
+q093,si-LK,student budget snacks suggest කරන්න,buying_suggestions,suggest|budget,error,student budget
+q094,si-LK,vegan options recommend කරන්න,buying_suggestions,vegan|suggest,error,vegan suggestion
+q095,si-LK,high protein breakfast suggestions දෙන්න,buying_suggestions,protein|suggest,error,protein query
+q096,si-LK,දියවැඩියා රෝගියෙකුට සුදුසු items කියන්න,buying_suggestions,suggest|suitable,error,diabetic suitability
+q097,si-LK,මාසික grocery bundle එකක් suggest කරන්න,buying_suggestions,bundle|suggest,error,bundle ask
+q098,si-LK,rainy day එකට instant food recommendations දෙන්න,buying_suggestions,recommend|instant,error,contextual suggestions
+q099,si-LK,kids lunch box ideas සඳහා items suggest කරන්න,buying_suggestions,suggest|kids,error,lunchbox suggestions
+q100,si-LK,elderly අයට easy-to-cook products recommend කරන්න,buying_suggestions,recommend|easy,error,elderly use case
+q101,si-LK,green tea products හොයන්න,product_search,green tea|product,error,tea search
+q102,si-LK,sugar free biscuits තියෙනවද?,product_search,sugar free|biscuit|product,error,constraint search
+q103,si-LK,gluten-free pasta products list කරන්න,product_search,gluten|pasta|product,error,gluten pasta
+q104,si-LK,low sodium soup items හොයන්න,product_search,sodium|soup|product,error,low sodium
+q105,si-LK,organic baby food products තියෙනවද?,product_search,organic|baby|product,error,organic baby
+q106,si-LK,imported chocolate brands හොයන්න,product_search,chocolate|brand|product,error,brand-oriented search
+q107,si-LK,household cleaning category එකේ top items දෙන්න,product_search,cleaning|product,error,category top
+q108,si-LK,frozen foods වලින් nuggets හොයන්න,product_search,frozen|nugget|product,error,frozen product search
+q109,si-LK,pet food products පෙන්නන්න,product_search,pet|food|product,error,pet category
+q110,si-LK,seasonal fruits products list කරන්න,product_search,fruit|product,error,seasonal query
+q111,si-LK,හරි මට ඔයාට අහන්න දෙයක් තියෙනවා,general,help|ask,error,conversation opener
+q112,si-LK,මේ app එකෙන් මොනා කරන්න පුළුවන්ද?,general,help|can,error,feature capability
+q113,si-LK,මට සිංහලෙන් පිළිතුරු දෙන්න පුළුවන්ද?,general,sinhala|help,error,language preference
+q114,si-LK,මට ඉංග්‍රීසිත් සමග mix කරලා කියන්න,general,help|language,error,mixed language preference
+q115,si-LK,ඇත්තටම data safe ද?,general,safe|secure|privacy,error,safety reassurance
+q116,si-LK,ඔයාගේ recommendation bias වෙනවද?,general,explain|help,error,meta question
+q117,si-LK,මට step by step explain කරන්න,general,step|explain,error,explanation style
+q118,si-LK,short answer එකක් දෙන්න,general,short|help,error,response-style request
+q119,si-LK,මට දැන් busy. quick summary දෙන්න,general,summary|quick,error,summary ask
+q120,si-LK,thanks machan!,general,,error,colloquial thanks
+q121,si-LK,offers තිබ්බොත් diapers price එකත් එකට කියන්න,offers,offer|diaper,error,multi intent offer-first
+q122,si-LK,order history බලලා next purchase එකකට suggest කරන්න,buying_suggestions,suggest|order,error,multi intent suggest
+q123,si-LK,shampoo හොයලා cheapest එකේ price කියන්න,product_search,shampoo|product,error,multi intent search-first
+q124,si-LK,price එක අඩුම soap තියෙන්නේ මොකද්ද?,prices,price|soap,error,price cheapest soap
+q125,si-LK,promo තියෙන snacks recommend කරන්න,buying_suggestions,suggest|promo,error,suggest + offer
+q126,si-LK,මට milk products හොයන්න,product_search,milk|product,error,milk search plain
+q127,si-LK,මට milk products හොයන්න!!!,product_search,milk|product,error,noisy punctuation
+q128,si-LK,milk prodcts hoyanna,product_search,milk|product,error,spelling noise
+q129,si-LK,ordeer histree pennanna,order_history,order|history,error,singlish noisy typo
+q130,si-LK,prce kiyanna oil ekak,prices,price|oil,error,singlish price noisy
+q131,si-LK,sugest karanna healthy dinner,buying_suggestions,suggest|healthy,error,leading space typo
+q132,si-LK,prodcut serch shampoo,product_search,product|shampoo,error,english typo intent
+q133,si-LK,offer nadda?,offers,offer,error,very short offer query
+q134,si-LK,order?,order_history,order,error,very short order query
+q135,si-LK,price?,prices,price,error,very short price query
+q136,si-LK,suggest?,buying_suggestions,suggest,error,very short suggest query
+q137,si-LK,search soap,product_search,soap|product,error,very short search query
+q138,si-LK,මට හිතන්නේ ඔයා වැරදි response දුන්නා,general,sorry|help,error,error recovery prompt
+q139,si-LK,මගේ previous request එක ignore කරලා new එක ගන්න,general,help|new,error,context reset ask
+q140,si-LK,අද වෙනදාට වඩා useful deals දෙන්න,offers,deal|offer,error,comparative deals ask
+q141,si-LK,මගේ profile බලන්න,user_profile,profile|name|segment,error,user profile base
+q142,si-LK,මගේ ගිණුම් විස්තර දෙන්න,user_profile,profile|name,error,account details sinhala
+q143,si-LK,මගේ customer segment කුමක්ද?,user_profile,segment|profile,error,segment query
+q144,si-LK,loyalty tier එක කීයද?,user_profile,segment|tier|profile,error,loyalty tier query
+q145,si-LK,මා ගැන information දෙන්න,user_profile,profile|name,error,about me sinhala
+q146,si-LK,my account details show me,user_profile,profile|account,error,account details english
+q147,si-LK,ගිණුම් විස්තර check කරන්නද?,user_profile,profile|account,error,account check sinhala
+q148,si-LK,ගනුදෙනු කාණ්ඩය කීයද?,user_profile,segment|profile,error,segment sinhala
+q149,si-LK,profile info check කරන්නද?,user_profile,profile,error,profile check mixed
+q150,si-LK,who am I in this system?,user_profile,profile|name,error,who am i english
+q151,si-LK,මම කොතරම් වියදම් කළාද?,user_profile,රු.|spent|total,error,total spend query
+q152,si-LK,මගේ loyalty status දෙන්නකෝ,user_profile,segment|profile,error,loyalty status
+q153,si-LK,profile ekata gihilla segment check karanna,user_profile,segment|profile,error,singlish profile
+q154,si-LK,mage account details pennanna,user_profile,profile|account,error,singlish account
+q155,si-LK,දැනට ඇති promotions මොනවාද?,promotions,promotion|discount|%,error,promotions base
+q156,si-LK,ප්‍රමෝෂන් ලිස්ට් එක දෙන්න,promotions,promotion|discount,error,promotions sinhala label
+q157,si-LK,flash sale ඇතිද?,promotions,sale|promotion|discount,error,flash sale query
+q158,si-LK,current promotions show me,promotions,promotion|discount,error,promotions english
+q159,si-LK,දැනට active promotions,promotions,promotion|discount,error,active promotions
+q160,si-LK,sale ඇතිද?,promotions,promotion|sale,error,sale short query
+q161,si-LK,නව promotions show කරන්න,promotions,promotion|discount,error,new promotions
+q162,si-LK,seasonal offers ඇතිද?,promotions,promotion|offer,error,seasonal promotions
+q163,si-LK,ප්‍රොමෝ codes ඇතිද?,promotions,promotion|promo,error,promo codes
+q164,si-LK,flash deal promotions live ද?,promotions,promotion|sale,error,flash deal promotions
+q165,si-LK,clearance sale items ඇතිද?,promotions,promotion|sale|clearance,error,clearance promotions
+q166,si-LK,bundle promotions list දෙන්නකෝ,promotions,promotion|bundle,error,bundle promotions
+q167,si-LK,ප්‍රොමෝ ekak thiyanawada?,promotions,promotion|discount,error,singlish promo
+q168,si-LK,promotions expire date කොටස් කරන්න,promotions,expire|promotion,error,promotions expiry
+q169,si-LK,discount percentage වැඩිම promotion එක,promotions,promotion|discount|%,error,max discount promotion
+q170,si-LK,promo teka pennanna,promotions,promotion|discount,error,singlish promo short

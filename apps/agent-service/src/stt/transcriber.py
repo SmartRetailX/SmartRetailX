@@ -8,7 +8,7 @@ import httpx
 
 from ..config import settings
 from ..db.queries import get_stt_vocabulary
-from ..logging import logger
+from ..log import logger
 from .audio import normalize_audio_to_wav, resolve_audio_upload_metadata
 from .validation import (
     build_vocab_prompt,
