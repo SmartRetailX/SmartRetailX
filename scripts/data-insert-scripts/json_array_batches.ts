@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { basename, extname, join, resolve } from 'path';
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -22,6 +22,26 @@ function readJsonArray(filePath: string): JsonValue[] {
 
 function writeJson(filePath: string, value: JsonValue) {
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function collectJsonFilesRecursively(dirPath: string): string[] {
+  const entries = readdirSync(dirPath, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const entryPath = join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...collectJsonFilesRecursively(entryPath));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.json')) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
 }
 
 function splitArray(inputFile: string, batchSize: number) {
@@ -48,9 +68,13 @@ function splitArray(inputFile: string, batchSize: number) {
 
 function mergeArrays(inputDir: string, outputName?: string) {
   const absoluteInputDir = resolve(inputDir);
-  const files = readdirSync(absoluteInputDir)
-    .filter((file) => file.endsWith('.json'))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  if (!existsSync(absoluteInputDir) || !statSync(absoluteInputDir).isDirectory()) {
+    throw new Error(`Input directory does not exist or is not a directory: ${absoluteInputDir}`);
+  }
+
+  const files = collectJsonFilesRecursively(absoluteInputDir).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
 
   if (files.length === 0) {
     throw new Error(`No JSON files found in ${absoluteInputDir}`);
@@ -58,7 +82,7 @@ function mergeArrays(inputDir: string, outputName?: string) {
 
   const merged: JsonValue[] = [];
   for (const file of files) {
-    const currentItems = readJsonArray(join(absoluteInputDir, file));
+    const currentItems = readJsonArray(file);
     merged.push(...currentItems);
   }
 
