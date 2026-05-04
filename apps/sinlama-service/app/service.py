@@ -64,11 +64,35 @@ KEYWORDS: dict[str, list[str]] = {
     "buying_suggestions": [
         "suggest",
         "recommend",
+        "suggestion",
+        "ideas",
+        "options",
+        "budget",
+        "breakfast",
+        "snack",
+        "snacks",
+        "tea time",
+        "party",
+        "healthy",
+        "vegan",
+        "high protein",
+        "sugar free",
+        "weight loss",
+        "diet",
+        "kids",
+        "lunch box",
+        "easy cook",
+        "elderly",
+        "next purchase",
         "what should i buy",
         "shopping list",
         "buying list",
         "නිර්දේශ",
         "යෝජනා",
+        "දරුවන්ට",
+        "කුඩා budget",
+        "ලංච් බොක්ස්",
+        "දියවැඩියා",
         "සැජෙස්ට්",
     ],
     "prices": ["price", "cost", "how much", "මිල", "කීයද", "කීය", "රු"],
@@ -85,6 +109,41 @@ KEYWORDS: dict[str, list[str]] = {
     ],
     "general": ["help", "assist", "උදව්", "ප්‍රශ්න"],
 }
+
+_BUYING_SIGNALS = {
+    "suggest",
+    "recommend",
+    "suggestion",
+    "options",
+    "budget",
+    "breakfast",
+    "snack",
+    "snacks",
+    "healthy",
+    "vegan",
+    "high protein",
+    "sugar free",
+    "weight loss",
+    "diet",
+    "kids",
+    "lunch box",
+    "next purchase",
+    "නිර්දේශ",
+    "යෝජනා",
+    "සැජෙස්ට්",
+}
+
+_PROMO_SIGNALS = {
+    "promo",
+    "promotion",
+    "promotions",
+    "offer",
+    "offers",
+    "discount",
+    "වට්ටම්",
+    "ඔෆර්",
+}
+_ORDER_SIGNALS = {"order history", "orders", "ඇණවුම්", "history"}
 
 
 def _extract_product(text: str) -> str | None:
@@ -124,6 +183,16 @@ def detect_intent(payload: IntentRequest) -> IntentResponse:
                 scores[intent] += weight
                 matched[intent].append((word, min(weight, 1.0)))
 
+    buying_signal = any(sig in lowered for sig in _BUYING_SIGNALS)
+    promo_signal = any(sig in lowered for sig in _PROMO_SIGNALS)
+    order_signal = any(sig in lowered for sig in _ORDER_SIGNALS)
+    if "buying_suggestions" in intents and buying_signal:
+        scores["buying_suggestions"] += 1.8
+        if promo_signal:
+            scores["buying_suggestions"] += 1.0
+        if order_signal:
+            scores["buying_suggestions"] += 1.0
+
     best_intent = intents[0] if intents else "general"
     best_score = 0.0
     for intent in intents:
@@ -136,10 +205,14 @@ def detect_intent(payload: IntentRequest) -> IntentResponse:
 
     confidence = 0.35 if best_score <= 0 else min(0.95, 0.45 + best_score * 0.15)
     entities: dict[str, str] = {}
-    if best_intent in ("prices", "product_search"):
+    if best_intent in ("prices", "product_search", "buying_suggestions"):
         product = _extract_product(text)
         if product:
             entities["product"] = product
+    if best_intent == "buying_suggestions" and promo_signal:
+        entities["requires_promo"] = "true"
+    if best_intent == "buying_suggestions" and order_signal:
+        entities["use_order_history"] = "true"
 
     features = [
         ExplanationFeature(name=name, weight=round(weight, 3), evidence=name)

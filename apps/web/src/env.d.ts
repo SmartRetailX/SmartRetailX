@@ -9,3 +9,10 @@ declare module '*.svg?react' {
   const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
   export default ReactComponent;
 }
+
+interface Window {
+  __SMART_RETAILX_CONFIG__?: {
+    PUBLIC_BASE_URL?: string;
+    PUBLIC_WEBSOCKET_URL?: string;
+  };
+}

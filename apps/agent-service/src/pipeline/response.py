@@ -288,10 +288,59 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
     }.get(source, "යෝජිත භාණ්ඩ")
 
     count = len(ctx.db_results)
+    preference_line = _build_buying_preference_line(ctx.entities)
+    extra = f"\n\n{preference_line}" if preference_line else ""
     return (
         f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
-        f"යෝජිත භාණ්ඩ {count}ක් හමු විය."
+        f"යෝජිත භාණ්ඩ {count}ක් හමු විය.{extra}"
     )
+
+
+def _build_buying_preference_line(entities: dict[str, Any]) -> str:
+    if not entities:
+        return ""
+    labels: list[str] = []
+    if entities.get("occasion") == "breakfast":
+        labels.append("Breakfast")
+    elif entities.get("occasion") == "tea_time":
+        labels.append("Tea time")
+    elif entities.get("occasion") == "party":
+        labels.append("Party")
+    elif entities.get("occasion") == "lunch_box":
+        labels.append("Lunch box")
+
+    if entities.get("dietary") == "vegan":
+        labels.append("Vegan")
+    elif entities.get("dietary") == "high_protein":
+        labels.append("High protein")
+    elif entities.get("dietary") == "sugar_free":
+        labels.append("Sugar free")
+    elif entities.get("dietary") == "diabetic_friendly":
+        labels.append("Diabetic-friendly")
+
+    if entities.get("diet_goal") == "healthy":
+        labels.append("Healthy")
+    elif entities.get("diet_goal") == "weight_loss":
+        labels.append("Weight loss")
+
+    if entities.get("audience") == "kids":
+        labels.append("Kids")
+    elif entities.get("audience") == "elderly":
+        labels.append("Elderly")
+
+    if entities.get("preparation") == "easy_cook":
+        labels.append("Easy cook")
+    if entities.get("budget") == "low":
+        labels.append("Budget-friendly")
+    if entities.get("requires_promo"):
+        labels.append("Promo available")
+    if entities.get("use_order_history"):
+        labels.append("Order history based")
+
+    if not labels:
+        return ""
+    joined = ", ".join(labels)
+    return f"ඔබ ඉල්ලූ කොන්දේසි: **{joined}**."
 
 
 def _render_user_profile(ctx: ResolvedContext) -> str:

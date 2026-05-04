@@ -256,10 +256,18 @@ async def _resolve_buying_suggestions(
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
     category_hint = str(entities.get("category") or entities.get("product") or "").strip() or None
-    rows = await get_buying_suggestions(user_id, category_hint, limit=20)
+    rows = await get_buying_suggestions(
+        user_id,
+        category_hint,
+        limit=20,
+        filters=entities,
+    )
     logger.info(
-        "resolve_buying_suggestions user=%r category=%r results=%d",
-        user_id, category_hint, len(rows),
+        "resolve_buying_suggestions user=%r category=%r requires_promo=%s results=%d",
+        user_id,
+        category_hint,
+        bool(entities.get("requires_promo")),
+        len(rows),
     )
 
     return ResolvedContext(

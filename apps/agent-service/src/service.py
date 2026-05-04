@@ -22,6 +22,7 @@ from .intent.keyword import (
     _extract_product_hint,
     detect_intent_and_entities,
     detect_offer_type,
+    has_buying_suggestions_signal,
     has_order_history_signal,
     has_promotions_signal,
     has_user_profile_signal,
@@ -136,10 +137,42 @@ async def process_voice_chat(
         intent_result = await _resolve_with_session(
             transcription, language, session_id, user_id, intents, session
         )
+        buying_signal = has_buying_suggestions_signal(transcription)
+        if buying_signal and intent_result.intent != "buying_suggestions":
+            local_intent, local_conf, local_entities, _ = detect_intent_and_entities(
+                transcription,
+                intents,
+            )
+            if local_intent == "buying_suggestions":
+                logger.info(
+                    "Buying-suggestions override applied: detected_intent=%s local_conf=%.2f text=%r",
+                    intent_result.intent,
+                    local_conf,
+                    transcription[:160],
+                )
+                merged_entities = dict(intent_result.entities)
+                merged_entities.update(local_entities)
+                intent_result = IntentResult(
+                    intent="buying_suggestions",
+                    confidence=max(intent_result.confidence, max(local_conf, 0.86)),
+                    entities=merged_entities,
+                    explainability={
+                        "source": "buying-suggestions-override",
+                        "confidence": max(intent_result.confidence, max(local_conf, 0.86)),
+                        "rationale": "Strong recommendation request detected with shopping constraints.",
+                        "features": [
+                            {
+                                "name": "buying_suggestion_signal",
+                                "weight": 1.0,
+                                "evidence": transcription[:120],
+                            }
+                        ],
+                    },
+                )
 
         if intent_result.intent != "order_history" and has_order_history_signal(
             transcription
-        ):
+        ) and not buying_signal:
             logger.info(
                 "Order-history override applied: detected_intent=%s userId=%s text=%r",
                 intent_result.intent,
@@ -193,7 +226,7 @@ async def process_voice_chat(
 
         elif intent_result.intent != "promotions" and has_promotions_signal(
             transcription
-        ):
+        ) and not buying_signal:
             logger.info(
                 "Promotions override applied: detected_intent=%s text=%r",
                 intent_result.intent,

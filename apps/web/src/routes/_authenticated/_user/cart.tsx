@@ -101,7 +101,7 @@ function RouteComponent() {
                   </CardHeader>
                   <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="text-sm text-muted-foreground">
-                      Unit price ${item.unitPrice.toFixed(2)}. Available stock {item.currentStock}.
+                      Unit price Rs. {item.unitPrice.toFixed(2)}. Available stock {item.currentStock}.
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -143,7 +143,7 @@ function RouteComponent() {
                   </CardContent>
                   <CardFooter className="justify-between">
                     <span className="text-sm text-muted-foreground">{item.quantity} units</span>
-                    <span className="text-lg font-semibold">${item.totalPrice.toFixed(2)}</span>
+                    <span className="text-lg font-semibold">Rs. {item.totalPrice.toFixed(2)}</span>
                   </CardFooter>
                 </Card>
               ))}
@@ -194,7 +194,7 @@ function RouteComponent() {
                   </div>
                   <div className="flex items-center justify-between text-lg font-semibold">
                     <span>Total</span>
-                    <span>${cart.subtotal.toFixed(2)}</span>
+                    <span>Rs. {cart.subtotal.toFixed(2)}</span>
                   </div>
                   <Button
                     disabled={!canCheckout || checkout.isPending}

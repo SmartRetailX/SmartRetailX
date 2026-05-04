@@ -227,9 +227,51 @@ _KEYWORDS: dict[str, list[str]] = {
     "buying_suggestions": [
         "suggest",
         "recommend",
+        "suggestion",
+        "suggestions",
+        "recommended",
+        "ideas",
+        "idea",
+        "options",
+        "best for",
+        "good for",
+        "shopping list",
+        "list දෙන්න",
+        "items list",
+        "top 5",
+        "budget",
+        "cheap",
+        "affordable",
+        "breakfast",
+        "snack",
+        "snacks",
+        "tea time",
+        "party",
+        "healthy",
+        "vegan",
+        "high protein",
+        "sugar free",
+        "weight loss",
+        "diet",
+        "kids",
+        "lunch box",
+        "easy cook",
+        "elderly",
+        "next purchase",
         "buy",
         "what should i buy",
         "නිර්දේශ",
+        "යෝජනා",
+        "හොඳ items",
+        "items කියන්න",
+        "අයිටම්ස්",
+        "කුඩා budget",
+        "දරුවන්ට",
+        "උදේ කෑම",
+        "ලංච් බොක්ස්",
+        "සෞඛ්‍ය සම්පන්න",
+        "දියවැඩියා",
+        "වැඩි ප්‍රෝටීන්",
         "සැජෙස්ට්",
         "අදහස",
     ],
@@ -401,6 +443,109 @@ _PROMOTIONS_STRONG_SIGNALS = [
     "ගෙට් 1",
 ]
 
+_BUYING_SUGGESTION_STRONG_SIGNALS = [
+    "suggest",
+    "suggestion",
+    "suggestions",
+    "recommend",
+    "recommended",
+    "ideas",
+    "options",
+    "what should i buy",
+    "shopping list",
+    "buying list",
+    "items list",
+    "top 5",
+    "breakfast",
+    "snack",
+    "snacks",
+    "tea time",
+    "party",
+    "healthy",
+    "vegan",
+    "high protein",
+    "sugar free",
+    "weight loss",
+    "diet",
+    "kids",
+    "lunch box",
+    "easy cook",
+    "elderly",
+    "next purchase",
+    "budget",
+    "affordable",
+    "නිර්දේශ",
+    "යෝජනා",
+    "සැජෙස්ට්",
+    "කුඩා budget",
+    "දරුවන්ට",
+    "ලංච් බොක්ස්",
+    "දියවැඩියා",
+]
+
+_BUYING_CONTEXT_ENTITY_MAP: list[tuple[str, str, str]] = [
+    ("breakfast", "occasion", "breakfast"),
+    ("උදේ කෑම", "occasion", "breakfast"),
+    ("tea time", "occasion", "tea_time"),
+    ("party", "occasion", "party"),
+    ("lunch box", "occasion", "lunch_box"),
+    ("lunchbox", "occasion", "lunch_box"),
+    ("ලංච් බොක්ස්", "occasion", "lunch_box"),
+    ("kids lunch", "occasion", "lunch_box"),
+    ("weight loss", "diet_goal", "weight_loss"),
+    ("diet", "diet_goal", "diet"),
+    ("healthy", "diet_goal", "healthy"),
+    ("vegan", "dietary", "vegan"),
+    ("high protein", "dietary", "high_protein"),
+    ("protein", "dietary", "high_protein"),
+    ("sugar free", "dietary", "sugar_free"),
+    ("sugar-free", "dietary", "sugar_free"),
+    ("diabetic", "dietary", "diabetic_friendly"),
+    ("දියවැඩියා", "dietary", "diabetic_friendly"),
+    ("kids", "audience", "kids"),
+    ("children", "audience", "kids"),
+    ("දරුවන්", "audience", "kids"),
+    ("ළමයි", "audience", "kids"),
+    ("elderly", "audience", "elderly"),
+    ("senior", "audience", "elderly"),
+    ("වයස්ගත", "audience", "elderly"),
+    ("easy cook", "preparation", "easy_cook"),
+    ("easy-to-cook", "preparation", "easy_cook"),
+]
+
+_BUYING_TOPIC_KEYWORDS: list[tuple[str, str]] = [
+    ("snacks", "snack"),
+    ("snack", "snack"),
+    ("snaks", "snack"),
+    ("drinks", "drinks"),
+    ("drink", "drinks"),
+    ("beverage", "drinks"),
+    ("tea", "tea"),
+    ("groceries", "grocery"),
+    ("grocery", "grocery"),
+    ("products", "products"),
+    ("items", "items"),
+]
+
+_PROMO_REQUEST_KEYWORDS = [
+    "promo",
+    "promotion",
+    "promotions",
+    "offer",
+    "offers",
+    "discount",
+    "deals",
+    "වට්ටම්",
+    "ඔෆර්",
+]
+
+_NEXT_PURCHASE_KEYWORDS = [
+    "next purchase",
+    "recommend next",
+    "order history බලලා",
+    "history බලලා",
+]
+
 
 def has_user_profile_signal(text: str) -> bool:
     lowered = (text or "").lower()
@@ -412,20 +557,79 @@ def has_promotions_signal(text: str) -> bool:
     return any(signal in lowered for signal in _PROMOTIONS_STRONG_SIGNALS)
 
 
+def has_buying_suggestions_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _BUYING_SUGGESTION_STRONG_SIGNALS)
+
+
+def _extract_buying_suggestion_entities(text: str) -> dict[str, Any]:
+    lowered = (text or "").lower()
+    entities: dict[str, Any] = {}
+
+    for token, key, value in _BUYING_CONTEXT_ENTITY_MAP:
+        if token in lowered and key not in entities:
+            entities[key] = value
+
+    for token, topic in _BUYING_TOPIC_KEYWORDS:
+        if token in lowered:
+            entities["topic"] = topic
+            if "category" not in entities and topic not in {"items", "products"}:
+                entities["category"] = topic
+            break
+
+    if any(token in lowered for token in _PROMO_REQUEST_KEYWORDS):
+        entities["requires_promo"] = True
+
+    if any(token in lowered for token in _NEXT_PURCHASE_KEYWORDS):
+        entities["use_order_history"] = True
+
+    if any(token in lowered for token in {"budget", "affordable", "cheap", "කුඩා budget"}):
+        entities["budget"] = "low"
+
+    if "category" not in entities and "breakfast" in lowered:
+        entities["category"] = "breakfast"
+
+    return entities
+
+
 def detect_intent_and_entities(
     text: str,
     allowed_intents: list[str] | None,
 ) -> tuple[str, float, dict[str, Any], str | None]:
     lowered = text.lower()
     intents = list(dict.fromkeys(allowed_intents or settings.default_intents))
-    scores: dict[str, int] = {intent: 0 for intent in intents}
+    scores: dict[str, float] = {intent: 0.0 for intent in intents}
 
     for intent, words in _KEYWORDS.items():
         if intent not in scores:
             continue
         for word in words:
             if word in lowered:
-                scores[intent] += 1
+                scores[intent] += 1.0
+
+    buying_signal = has_buying_suggestions_signal(text)
+    promo_signal = has_promotions_signal(text)
+    order_signal = has_order_history_signal(text)
+
+    if "buying_suggestions" in scores:
+        if buying_signal:
+            scores["buying_suggestions"] += 2.0
+
+        buying_entities = _extract_buying_suggestion_entities(text)
+        if buying_entities:
+            scores["buying_suggestions"] += 0.9
+
+        # "promo + recommend" and "history + next purchase suggest" should stay
+        # in buying_suggestions, with those conditions carried as entities.
+        if buying_signal and promo_signal:
+            scores["buying_suggestions"] += 1.1
+            for promo_intent in ("offers", "promotions"):
+                if promo_intent in scores:
+                    scores[promo_intent] = max(0.0, scores[promo_intent] - 0.35)
+        if buying_signal and order_signal:
+            scores["buying_suggestions"] += 1.3
+            if "order_history" in scores:
+                scores["order_history"] = max(0.0, scores["order_history"] - 0.2)
 
     if scores:
         best_score = max(scores.values())
@@ -440,13 +644,22 @@ def detect_intent_and_entities(
     else:
         best_intent = "general"
 
-    best_score = scores.get(best_intent, 0)
-    confidence = min(0.95, 0.4 + best_score * 0.18) if best_score > 0 else 0.35
+    best_score = scores.get(best_intent, 0.0)
+    confidence = min(0.95, 0.4 + best_score * 0.12) if best_score > 0 else 0.35
 
     entities: dict[str, Any] = {}
+    if best_intent == "buying_suggestions":
+        entities.update(_extract_buying_suggestion_entities(text))
+
     product_hint = _extract_product_hint(text, best_intent)
-    if product_hint:
+    if product_hint and "product" not in entities:
         entities["product"] = product_hint
+
+    # For suggestion queries, a product-like hint often behaves as a topic/category.
+    if best_intent == "buying_suggestions" and "category" not in entities:
+        candidate = str(entities.get("product") or "").strip().lower()
+        if candidate in {"snack", "snacks", "snaks", "drink", "drinks", "grocery", "groceries", "breakfast"}:
+            entities["category"] = "snack" if candidate in {"snack", "snacks", "snaks"} else candidate.rstrip("s")
 
     price_match = re.search(r"(රු\.?|lkr|rs\.?)\s*([0-9,]+)", lowered, re.IGNORECASE)
     if price_match:
