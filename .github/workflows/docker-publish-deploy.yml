@@ -246,7 +246,7 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            PUBLIC_BASE_URL=${{ vars.PUBLIC_BASE_URL || 'http://localhost:3000' }}
+            PUBLIC_BASE_URL=${{ vars.PUBLIC_BASE_URL || '' }}
           tags: ${{ steps.image.outputs.tags }}
           cache-from: type=gha,scope=smart-retail-x-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=smart-retail-x-${{ matrix.service }}

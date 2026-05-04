@@ -7,20 +7,28 @@ from ..config import settings
 _NOISE_WORDS = {
     "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද",
+    "අඩු", "කරලා", "තියෙනවා", "තියෙනවාද", "දෙන්න", "ගන්න",
 }
 _TRIM_WORDS = {
     "වල", "වර්ග", "වර්ගයේ", "මිල", "නිෂ්පාදන", "භාණ්ඩ",
     "product", "products", "of",
+    "ලිස්ට්", "ප්‍රඩක්ලිස්ට්", "list", "දෙන්න", "එක", "එකක්",
+    "ලබාදෙන්න", "කියන්න", "පෙන්වන්න",
 }
 _LEADING_FILLERS = {
-    "මට", "මිලදී", "ගත", "හැකි", "ඔබට", "අවශ්‍ය",
+    "මට", "මිලදී", "ගත", "හැකි", "ඔබට", "අවශ්‍ය", "හොයන්න",
     "please", "show", "find", "search", "available", "availability",
+}
+_DEMONSTRATIVES = {
+    "මේකවල", "ඒකවල", "ඒකේ", "මේකේ", "මෙකේ", "මෙකවල", "this", "that",
 }
 
 _KEYWORDS: dict[str, list[str]] = {
     "offers": [
         "offer", "promotion", "discount", "deal", "special",
         "වට්ටම්", "offer එක", "promotions", "ඔෆර්", "ඔෆර්ස්", "ඔපර්", "ඔපර්ස්",
+        "අඩු", "මිල අඩු", "අඩු කරලා", "price reduced", "price cut", "reduced price",
+        "ලාභ", "ලාභ මිල", "sale price", "discounted",
     ],
     "order_history": [
         "order history", "order status", "order details", "past order",
@@ -109,6 +117,7 @@ _PROMOTIONS_STRONG_SIGNALS = [
     "seasonal offer", "bundle deal", "active promotion", "current promotion",
     "ප්‍රමෝෂන්", "ප්‍රොමෝෂන්", "ප්‍රමෝ", "ප්‍රොමෝ",
     "දැනට ඇති promotions", "නව promotions",
+    "මිල අඩු", "අඩු කරලා", "price reduced", "price cut",
 ]
 
 
@@ -199,6 +208,9 @@ def _sanitize_entity_candidate(candidate: str) -> str | None:
     while tokens and tokens[-1].lower() in _NOISE_WORDS:
         tokens.pop()
 
+    # Drop demonstratives (this/that/මේකවල) — they refer to context, not a product name
+    tokens = [t for t in tokens if t.lower() not in _DEMONSTRATIVES]
+
     if not tokens:
         return None
 
@@ -218,13 +230,15 @@ def _extract_product_hint(text: str) -> str | None:
 
     patterns = [
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:කිලෝ|kg|කිලෝව|gram|g)\s+(?:එකේ|එකට|1|එකක)?\s*(?:මිල|price|ගණන)",
-        r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})",
-        r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන)\s+([A-Za-z0-9඀-෿\s\-]{2,40})",
+        r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?(?!අඩු|reduced|cut)([A-Za-z0-9඀-෿\s\-]{2,40})",
+        r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන|හොයන්න)\s+([A-Za-z0-9඀-෿\s\-]{2,60})",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+වල\s+මිල",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+(?:කීයද|මොකක්ද|මොකද)",
         r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})\s+නිෂ්පාදන",
+        r"(?:මට|මමට)?\s*([A-Za-z0-9඀-෿\s\-]{2,60})\s+හොයන්න",
+        r"(?:මට|මමට)\s+([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:මිල|price|ගණන)",
     ]
     for pattern in patterns:
         match = re.search(pattern, normalized, re.IGNORECASE)

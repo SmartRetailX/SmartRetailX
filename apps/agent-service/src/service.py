@@ -29,6 +29,7 @@ from .intent.sinllama import detect_intent_with_sinllama
 from .llm.client import generate_simple_result_explanation, generate_sinhala_response
 from .log import logger
 from .models import IntentResult, VoiceChatResult
+from .session import get_session
 from .pipeline.commands import (
     handle_product_detail_command,
     handle_product_page_command,
@@ -117,7 +118,11 @@ async def process_voice_chat(
             )
 
         # 3. Intent detection (SinLlama → keyword fallback)
-        intent_result = await _detect_intent(transcription, language, session_id, user_id, intents)
+        #    But first: check if this turn is a reply to a previous clarification question.
+        session = get_session(session_id)
+        intent_result = await _resolve_with_session(
+            transcription, language, session_id, user_id, intents, session
+        )
 
         if intent_result.intent != "order_history" and has_order_history_signal(transcription):
             logger.info(
@@ -197,6 +202,8 @@ async def process_voice_chat(
         # 5. Clarification shortcut — skip LLM when more info is needed
         if ctx.needs_clarification and not ctx.has_data:
             clarification = ctx.clarification_prompt_si
+            # Save pending intent so the next turn can resume without re-asking
+            session.set_clarification(intent_result.intent, intent_result.entities)
             latency_ms = int((time.perf_counter() - started) * 1000)
             return VoiceChatResult(
                 success=True,
@@ -341,3 +348,54 @@ async def _detect_intent(
             ],
         },
     )
+
+
+async def _resolve_with_session(
+    transcription: str,
+    language: str,
+    session_id: str,
+    user_id: str | None,
+    intents: list[str] | None,
+    session: Any,
+) -> IntentResult:
+    """Detect intent, merging with any pending clarification state from the session.
+
+    If the previous turn asked the user for a product name (needs_clarification),
+    we treat the current short reply as the product entity and resume the saved intent.
+    """
+    intent_result = await _detect_intent(transcription, language, session_id, user_id, intents)
+
+    pending = session.consume_clarification()
+    if pending:
+        saved_intent, saved_entities = pending
+        current_intent = intent_result.intent
+        current_entities = dict(intent_result.entities)
+
+        # If this turn has no product entity but the last turn was waiting for one,
+        # treat the whole transcription as the product answer (unless the user clearly
+        # switched to a different intent with real keyword signals).
+        missing_product = "product" not in current_entities
+        no_intent_switch = current_intent in ("general", saved_intent)
+
+        if missing_product and no_intent_switch:
+            from .intent.keyword import _sanitize_entity_candidate
+            product_answer = _sanitize_entity_candidate(transcription)
+            if product_answer:
+                merged_entities = {**saved_entities, "product": product_answer}
+                logger.info(
+                    "Session clarification resolved: session=%s intent=%s product=%r",
+                    session_id, saved_intent, product_answer,
+                )
+                return IntentResult(
+                    intent=saved_intent,
+                    confidence=0.90,
+                    entities=merged_entities,
+                    explainability={
+                        "source": "session-clarification",
+                        "confidence": 0.90,
+                        "rationale": f"User replied with product name after clarification for intent '{saved_intent}'",
+                        "features": [{"name": "product", "weight": 1.0, "evidence": product_answer}],
+                    },
+                )
+
+    return intent_result
