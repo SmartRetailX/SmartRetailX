@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 COPY . .
 RUN pnpm exec prisma generate --schema libs/database/prisma/schema.prisma \
-    && if [ -f "apps/bi-dashboard-services-gateway/prisma/schema.prisma" ]; then pnpm --dir "apps/bi-dashboard-services-gateway" exec prisma generate; fi \
+    && if [ -f "apps/bi-dashboard-services-gateway/prisma/schema.prisma" ]; then pnpm exec prisma generate --schema apps/bi-dashboard-services-gateway/prisma/schema.prisma; fi \
     && pnpm nx build bi-dashboard-services-gateway \
     && pnpm prune --prod
 
