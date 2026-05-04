@@ -16,7 +16,7 @@ from typing import Any
 from .resolver import ResolvedContext
 
 _ORDER_STATUS_SI: dict[str, str] = {
-    "pending":    "බලාපොරොත්තුවෙන්",
+    "pending":    "පිළියෙළ කිරීමට නියමිතයි",
     "confirmed":  "තහවුරු කළා",
     "processing": "සකස් කරමින්",
     "shipped":    "යවා ඇත",
@@ -197,7 +197,7 @@ def _render_order_history(ctx: ResolvedContext) -> str:
         }.get(raw_status, "📋")
 
         sections.append(
-            f"#### {status_emoji} ඇණවුම් #{order_num}\n"
+            f"#### {status_emoji} ඇණවුම් [#{order_num}](/orders)\n"
             f"**තත්ත්වය:** {status_si} &nbsp;|&nbsp; **දිනය:** {created}\n\n"
         )
 

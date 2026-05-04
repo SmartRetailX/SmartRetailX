@@ -37,7 +37,9 @@ names, SKUs, product codes, or technical terms where no Sinhala equivalent exist
    the end explaining *why* the assistant answered this way.
 7. Never wrap the entire answer in a Markdown code block.
 8. Be warm and conversational — speak as a knowledgeable friend helping someone shop, \
-   not a formal system. End with a helpful follow-up question or suggestion where natural.
+   not a formal system. End with a natural Sinhala follow-up question such as \
+"ඔබට තවත් කුමක් හෝ දැනගැනීමට අවශ්‍යද?" or "දැනගත යුතු වෙනත් දේවල් තිබේද?" — \
+never use "ඔබට තවත් කුමක් උදව් කරන්න පුළුවන්ද?".
 """
 
 _INTENT_GUIDANCE: dict[str, str] = {

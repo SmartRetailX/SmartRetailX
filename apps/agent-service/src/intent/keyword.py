@@ -5,7 +5,7 @@ from typing import Any
 from ..config import settings
 
 _NOISE_WORDS = {
-    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද",
+    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද",
 }
 _TRIM_WORDS = {
@@ -38,7 +38,7 @@ _KEYWORDS: dict[str, list[str]] = {
         "suggest", "recommend", "buy", "what should i buy",
         "නිර්දේශ", "සැජෙස්ට්", "අදහස",
     ],
-    "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද", "කීය"],
+    "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද", "කීය", "මොකක්ද", "මොකද"],
     "product_search": [
         "search", "find", "show product", "product", "available",
         "availability", "stock", "භාණ්ඩ", "නිෂ්පාදන", "හොයන්න",
@@ -217,12 +217,13 @@ def _extract_product_hint(text: str) -> str | None:
             return value
 
     patterns = [
+        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:කිලෝ|kg|කිලෝව|gram|g)\s+(?:එකේ|එකට|1|එකක)?\s*(?:මිල|price|ගණන)",
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන)\s+([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+වල\s+මිල",
-        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+කීයද",
+        r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+(?:කීයද|මොකක්ද|මොකද)",
         r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})\s+නිෂ්පාදන",
     ]
     for pattern in patterns:
