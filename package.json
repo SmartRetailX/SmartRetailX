@@ -265,6 +265,7 @@
     "typeorm": "^0.3.28",
     "xlsx": "^0.18.5",
     "zod": "^4.1.13",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "@prisma/client-runtime-utils": "^7.8.0"
   }
 }
