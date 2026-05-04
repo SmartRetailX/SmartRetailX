@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
+
+import { loadEnvFile } from './load-env.mjs';
 
 const commands = [
   {
@@ -12,12 +13,26 @@ const commands = [
   {
     label: 'Create or update main application schema',
     command: 'pnpm',
-    args: ['exec', 'prisma', 'db', 'push', '--schema', 'libs/database/prisma/schema.prisma', '--skip-generate'],
+    args: [
+      'exec',
+      'prisma',
+      'db',
+      'push',
+      '--schema',
+      'libs/database/prisma/schema.prisma',
+      '--skip-generate',
+    ],
   },
   {
     label: 'Generate BI dashboard Prisma client',
     command: 'pnpm',
-    args: ['exec', 'prisma', 'generate', '--schema', 'apps/bi-dashboard-services-gateway/prisma/schema.prisma'],
+    args: [
+      'exec',
+      'prisma',
+      'generate',
+      '--schema',
+      'apps/bi-dashboard-services-gateway/prisma/schema.prisma',
+    ],
   },
   {
     label: 'Create or update BI dashboard schema',
@@ -35,10 +50,20 @@ const commands = [
 ];
 
 const isDryRun = process.argv.includes('--dry-run');
+const envResult = loadEnvFile();
 const databaseUrl = process.env.DATABASE_URL?.trim();
 
 if (!databaseUrl) {
-  console.error('DATABASE_URL is required before bootstrapping the database.');
+  if (!envResult.loaded) {
+    console.error('DATABASE_URL is required before bootstrapping the database.');
+    console.error(
+      'No .env file was found in the repository root. Copy .env.example to .env and set DATABASE_URL.',
+    );
+  } else {
+    console.error('DATABASE_URL is required before bootstrapping the database.');
+    console.error(`Loaded ${envResult.path}, but DATABASE_URL is missing or empty.`);
+  }
+
   process.exit(1);
 }
 
