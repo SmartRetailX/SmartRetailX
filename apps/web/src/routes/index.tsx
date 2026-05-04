@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  useAuth,
+  useCatalogCategoriesQuery,
+  useInfiniteCatalogProductsQuery,
+  useStoreMutations,
+} from '@/hooks';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, ImageOff, Package, ShieldCheck, ShoppingBag, Truck } from 'lucide-react';
 
-import { useAuth, useCatalogCategoriesQuery, useInfiniteCatalogProductsQuery, useStoreMutations } from '@/hooks';
 import { PageContainer } from '@/components/partials/container/page-container';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -128,24 +133,39 @@ function RouteComponent() {
                 Stock, cart, checkout, and admin inventory flows are now connected.
               </h1>
               <p className="max-w-2xl text-base text-white/90 md:text-lg">
-                Browse the live catalog, filter by category, add items to cart, place orders, and manage products and order statuses from the admin dashboard.
+                Browse the live catalog, filter by category, add items to cart, place orders, and
+                manage products and order statuses from the admin dashboard.
               </p>
               <div className="flex flex-wrap gap-3">
                 {user?.role === 'admin' ? (
-                  <Button className="bg-white text-primary hover:bg-white/90" onClick={() => window.location.assign('/admin')}>
+                  <Button
+                    className="bg-white text-primary hover:bg-white/90"
+                    onClick={() => window.location.assign('/admin')}
+                  >
                     Open Admin Dashboard
                   </Button>
                 ) : (
-                  <Button className="bg-white text-primary hover:bg-white/90" onClick={() => window.location.assign('/cart')}>
+                  <Button
+                    className="bg-white text-primary hover:bg-white/90"
+                    onClick={() => window.location.assign('/cart')}
+                  >
                     Open Cart
                   </Button>
                 )}
                 {user ? (
-                  <Button variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10" onClick={() => signOut()}>
+                  <Button
+                    variant="outline"
+                    className="border-white/40 bg-transparent text-white hover:bg-white/10"
+                    onClick={() => signOut()}
+                  >
                     Sign Out
                   </Button>
                 ) : (
-                  <Button variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10" onClick={() => window.location.assign('/sign-in')}>
+                  <Button
+                    variant="outline"
+                    className="border-white/40 bg-transparent text-white hover:bg-white/10"
+                    onClick={() => window.location.assign('/sign-in')}
+                  >
                     Sign In to Buy
                   </Button>
                 )}
@@ -178,9 +198,7 @@ function RouteComponent() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Catalog unavailable</AlertTitle>
-            <AlertDescription>
-              {(productsQuery.error as Error).message}
-            </AlertDescription>
+            <AlertDescription>{(productsQuery.error as Error).message}</AlertDescription>
           </Alert>
         )}
 
@@ -253,7 +271,11 @@ function RouteComponent() {
                               {product.sku}
                             </p>
                           </div>
-                          <Badge variant={product.status === 'OUT_OF_STOCK' ? 'destructive' : 'secondary'}>
+                          <Badge
+                            variant={
+                              product.status === 'OUT_OF_STOCK' ? 'destructive' : 'secondary'
+                            }
+                          >
                             {product.status.replace(/_/g, ' ')}
                           </Badge>
                         </div>
@@ -264,13 +286,18 @@ function RouteComponent() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="text-2xl font-bold">${product.price.toFixed(2)}</div>
-                          <div className="text-sm text-muted-foreground">Stock {product.currentStock}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Stock {product.currentStock}
+                          </div>
                         </div>
                       </CardContent>
                       <CardFooter className="justify-between gap-3">
                         <div className="text-xs text-muted-foreground">{product.category}</div>
                         {user?.role === 'admin' ? (
-                          <Button variant="outline" onClick={() => window.location.assign('/admin')}>
+                          <Button
+                            variant="outline"
+                            onClick={() => window.location.assign('/admin')}
+                          >
                             Manage
                           </Button>
                         ) : (
@@ -292,7 +319,9 @@ function RouteComponent() {
                   ) : productsQuery.hasNextPage ? (
                     <p className="text-sm text-muted-foreground">Scroll to load more products</p>
                   ) : (
-                    <p className="text-sm text-muted-foreground">You&apos;ve reached the end of the catalog</p>
+                    <p className="text-sm text-muted-foreground">
+                      You&apos;ve reached the end of the catalog
+                    </p>
                   )}
                 </div>
               </div>

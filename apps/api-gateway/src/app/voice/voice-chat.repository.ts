@@ -1,14 +1,13 @@
+import { randomUUID } from 'crypto';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@smart-retail-x/config';
-import { randomUUID } from 'crypto';
-import { Pool, type PoolClient } from 'pg';
-
 import {
   type VoiceChatInputMode,
   type VoiceChatSessionDto,
   type VoiceChatStoredMessage,
   type VoiceLanguageCode,
 } from '@smart-retail-x/shared-types';
+import { Pool, type PoolClient } from 'pg';
 
 type VoiceChatSessionRow = {
   id: string;
@@ -145,7 +144,8 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           role: 'user',
           channel: params.channel,
           content: params.userText.trim(),
-          transcription: params.channel === 'voice' ? (params.transcription ?? params.userText).trim() : null,
+          transcription:
+            params.channel === 'voice' ? (params.transcription ?? params.userText).trim() : null,
           audioUrl: params.channel === 'voice' ? (params.userAudioUrl ?? null) : null,
           language: params.language,
         });
@@ -251,8 +251,12 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
   private async resolveTableRefs(): Promise<void> {
     const userTableSchema = await this.detectExistingSchema('user', ['auth']);
-    const sessionTableSchema = await this.detectExistingSchema('agent_chat_session', [this.coreSchemaName]);
-    const messageTableSchema = await this.detectExistingSchema('agent_chat_message', [this.coreSchemaName]);
+    const sessionTableSchema = await this.detectExistingSchema('agent_chat_session', [
+      this.coreSchemaName,
+    ]);
+    const messageTableSchema = await this.detectExistingSchema('agent_chat_message', [
+      this.coreSchemaName,
+    ]);
     const chatTableSchema = sessionTableSchema ?? messageTableSchema ?? this.coreSchemaName;
 
     this.userTableRef = this.qualifyTable(userTableSchema, 'user');
@@ -264,7 +268,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async detectExistingSchema(tableName: string, schemaPreference: string[]): Promise<string | null> {
+  private async detectExistingSchema(
+    tableName: string,
+    schemaPreference: string[],
+  ): Promise<string | null> {
     const schemaListSql = schemaPreference.map((_, index) => `$${index + 2}`).join(', ');
     const orderingSql = schemaPreference
       .map((schema, index) => `WHEN '${schema}' THEN ${index}`)

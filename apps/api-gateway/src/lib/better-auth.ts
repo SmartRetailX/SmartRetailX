@@ -1,7 +1,7 @@
 import { expo } from '@better-auth/expo';
 import { ConfigService } from '@smart-retail-x/config';
-import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { betterAuth } from 'better-auth';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { admin as adminPlugin, openAPI } from 'better-auth/plugins';
 
 import { prisma } from './prisma';

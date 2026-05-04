@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type PrismaClient, StockEntryType } from '@prisma/client';
+import { Prisma, StockEntryType, type PrismaClient } from '@prisma/client';
 import { PrismaService } from '@smart-retail-x/database';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient | PrismaClient;
@@ -30,7 +30,9 @@ export class InventoryService {
     }
 
     const nextQuantity =
-      input.balanceTo !== undefined ? Math.max(0, Math.floor(input.balanceTo)) : product.stockQuantity + Math.floor(input.quantityChange ?? 0);
+      input.balanceTo !== undefined
+        ? Math.max(0, Math.floor(input.balanceTo))
+        : product.stockQuantity + Math.floor(input.quantityChange ?? 0);
     const quantityChange = nextQuantity - product.stockQuantity;
 
     if (nextQuantity < 0) {
@@ -61,7 +63,11 @@ export class InventoryService {
     };
   }
 
-  async requireAvailableStock(productId: string, requiredQuantity: number, executor?: PrismaExecutor) {
+  async requireAvailableStock(
+    productId: string,
+    requiredQuantity: number,
+    executor?: PrismaExecutor,
+  ) {
     const client = executor ?? this.prisma;
     const product = await client.product.findUnique({
       where: { productId },

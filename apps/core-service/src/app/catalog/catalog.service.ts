@@ -188,11 +188,11 @@ function toProduct(row: ProductRow, includeStockEntries = false): CatalogListPro
     categoryId: row.categoryId,
     category: row.category.name,
     categoryNameSi: row.category.nameSi,
-  price: Number(row.price),
-  currentStock: row.stockQuantity,
-  brand: row.brand,
-  purchaseFrequency: row.purchaseFrequency,
-  imageUrl: row.imageUrl,
+    price: Number(row.price),
+    currentStock: row.stockQuantity,
+    brand: row.brand,
+    purchaseFrequency: row.purchaseFrequency,
+    imageUrl: row.imageUrl,
     isActive: row.isActive,
     status: stockStatus(row.stockQuantity),
     createdBy: row.createdBy,
@@ -298,12 +298,19 @@ export class CatalogService {
 
     const name = normalizeCatalogQuery(row.name || '');
     const nameSi = normalizeCatalogQuery(row.nameSi || '');
-    const exact = name === normalizedTerm || nameSi === normalizedTerm || row.sku.toLowerCase() === normalizedTerm;
+    const exact =
+      name === normalizedTerm ||
+      nameSi === normalizedTerm ||
+      row.sku.toLowerCase() === normalizedTerm;
     const starts = name.startsWith(normalizedTerm) || nameSi.startsWith(normalizedTerm);
     const phrase = searchableFields.some((field) => field.includes(normalizedTerm));
-    const tokenHits = searchTokens.filter((token) => searchableFields.some((field) => field.includes(token))).length;
+    const tokenHits = searchTokens.filter((token) =>
+      searchableFields.some((field) => field.includes(token)),
+    ).length;
     const leadingToken = searchTokens[0] || '';
-    const leadingTokenHit = Boolean(leadingToken && searchableFields.some((field) => field.includes(leadingToken)));
+    const leadingTokenHit = Boolean(
+      leadingToken && searchableFields.some((field) => field.includes(leadingToken)),
+    );
     const fuzzyScore = fuzzyScoreBySku.get(row.sku.toLowerCase()) || 0;
     const dbScore = this.computeDbSearchScore(row, normalizedTerm, searchTokens);
 
@@ -317,7 +324,11 @@ export class CatalogService {
   ): Promise<CatalogSearchRow[]> {
     await this.ensurePgTrgmReady();
 
-    const trgmCandidates = await this.fetchTrgmCandidateIds(normalizedTerm, searchTokens, Math.max(safeLimit * 25, 120));
+    const trgmCandidates = await this.fetchTrgmCandidateIds(
+      normalizedTerm,
+      searchTokens,
+      Math.max(safeLimit * 25, 120),
+    );
     if (trgmCandidates.length > 0) {
       const scoreById = new Map(trgmCandidates.map((row) => [row.productId, row.score]));
       const rows = await this.prisma.product.findMany({
@@ -338,7 +349,10 @@ export class CatalogService {
       );
     }
 
-    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(0, 8);
+    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(
+      0,
+      8,
+    );
     const orFilters: Prisma.ProductWhereInput[] = tokenSet.flatMap((token) => [
       { name: { contains: token, mode: 'insensitive' } },
       { nameSi: { contains: token, mode: 'insensitive' } },
@@ -395,7 +409,9 @@ export class CatalogService {
       await this.prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm');
       this.pgTrgmReady = true;
     } catch (error) {
-      this.logger.warn(`pg_trgm extension init failed, falling back to lexical search: ${(error as Error).message}`);
+      this.logger.warn(
+        `pg_trgm extension init failed, falling back to lexical search: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -404,14 +420,19 @@ export class CatalogService {
     searchTokens: string[],
     maxCandidates: number,
   ): Promise<CatalogCandidateScoreRow[]> {
-    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(0, 8);
+    const tokenSet = Array.from(new Set([normalizedTerm, ...searchTokens].filter(Boolean))).slice(
+      0,
+      8,
+    );
 
     if (tokenSet.length === 0) {
       return [];
     }
 
     try {
-      const rows = await this.prisma.$queryRaw<Array<{ product_id: string; score: number }>>(Prisma.sql`
+      const rows = await this.prisma.$queryRaw<
+        Array<{ product_id: string; score: number }>
+      >(Prisma.sql`
         WITH q AS (
           SELECT ${normalizedTerm}::text AS term
         ),
@@ -503,12 +524,18 @@ export class CatalogService {
 
       return rows.map((row) => ({ productId: row.product_id, score: Number(row.score) }));
     } catch (error) {
-      this.logger.warn(`pg_trgm candidate query failed, fallback enabled: ${(error as Error).message}`);
+      this.logger.warn(
+        `pg_trgm candidate query failed, fallback enabled: ${(error as Error).message}`,
+      );
       return [];
     }
   }
 
-  private computeDbSearchScore(row: CatalogSearchRow, normalizedTerm: string, searchTokens: string[]): number {
+  private computeDbSearchScore(
+    row: CatalogSearchRow,
+    normalizedTerm: string,
+    searchTokens: string[],
+  ): number {
     const fields = [
       row.name,
       row.nameSi,
@@ -539,7 +566,8 @@ export class CatalogService {
 
     const tokenCoverage =
       searchTokens.length > 0
-        ? searchTokens.filter((token) => fields.some((field) => field.includes(token))).length / searchTokens.length
+        ? searchTokens.filter((token) => fields.some((field) => field.includes(token))).length /
+          searchTokens.length
         : 0;
     score += Math.round(tokenCoverage * 20);
 

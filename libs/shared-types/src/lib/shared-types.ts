@@ -37,7 +37,13 @@ export interface VoiceExplainabilityFeature {
 }
 
 export interface VoiceExplainability {
-  source: 'sinllama' | 'fallback-keyword' | 'db-catalog' | 'db-order' | 'db-offers' | 'db-recommendation';
+  source:
+    | 'sinllama'
+    | 'fallback-keyword'
+    | 'db-catalog'
+    | 'db-order'
+    | 'db-offers'
+    | 'db-recommendation';
   confidence?: number;
   rationale?: string;
   features?: VoiceExplainabilityFeature[];

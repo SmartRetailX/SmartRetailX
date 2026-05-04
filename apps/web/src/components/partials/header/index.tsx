@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react';
+import { useCartQuery, useCatalogCategoriesQuery } from '@/hooks';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { LogOut, Menu, Mic, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
+import { LogOut, Menu, Mic, Search, ShieldCheck, ShoppingCart, UserIcon } from 'lucide-react';
 
-import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { USER_ROLE, User } from '@/types/auth';
+import { User, USER_ROLE } from '@/types/auth';
 
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
   const [search, setSearch] = useState('');

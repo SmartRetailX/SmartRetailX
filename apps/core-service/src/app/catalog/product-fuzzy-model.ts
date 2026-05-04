@@ -112,7 +112,9 @@ export const findFuzzyProductCandidates = (
   return products
     .map((product) => {
       const score = Math.max(
-        ...searchableFields(product).map((field) => Math.max(diceScore(normalizedQuery, field), compactTokenDiceScore(query, field))),
+        ...searchableFields(product).map((field) =>
+          Math.max(diceScore(normalizedQuery, field), compactTokenDiceScore(query, field)),
+        ),
         0,
       );
       return { sku: product.sku, score };
