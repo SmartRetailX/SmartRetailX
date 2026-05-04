@@ -76,6 +76,15 @@ _INTENT_GUIDANCE: dict[str, str] = {
     ),
 }
 
+_SIMPLE_EXPLAIN_SYSTEM_PROMPT = """\
+You write exactly one short Sinhala sentence for retail users.
+Rules:
+1. Sinhala script only (keep brand/product terms as-is if needed).
+2. Keep it simple and natural (max 22 words).
+3. No Markdown, no bullets, no quotes, no extra lines.
+4. Mention why these results were shown, based on intent + query + result count.
+"""
+
 
 async def generate_sinhala_response(
     text: str,
@@ -151,6 +160,73 @@ async def generate_sinhala_response(
         return ""
 
 
+async def generate_simple_result_explanation(
+    *,
+    intent_name: str,
+    entities: dict[str, Any] | None,
+    result_count: int,
+    db_source: str,
+    language: str = "si-LK",
+) -> str:
+    entity_product = str((entities or {}).get("product") or "").strip()
+    entity_category = str((entities or {}).get("category") or "").strip()
+
+    fallback = _fallback_simple_explanation(
+        intent_name=intent_name,
+        product=entity_product,
+        category=entity_category,
+        result_count=result_count,
+    )
+
+    payload = {
+        "model": settings.openai_response_model,
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": _SIMPLE_EXPLAIN_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"language={language}\n"
+                    f"intent={intent_name}\n"
+                    f"product={entity_product or '-'}\n"
+                    f"category={entity_category or '-'}\n"
+                    f"result_count={result_count}\n"
+                    f"db_source={db_source}\n"
+                    "Write one short Sinhala sentence."
+                ),
+            },
+        ],
+    }
+
+    headers = {"Content-Type": "application/json"}
+    if settings.openai_api_key:
+        headers["Authorization"] = f"Bearer {settings.openai_api_key}"
+    else:
+        return fallback
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.openai_response_timeout_ms / 1000) as client:
+            response = await client.post(
+                f"{settings.openai_api_base_url.rstrip('/')}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        if not content:
+            return fallback
+        return " ".join(content.splitlines()).strip()
+    except httpx.HTTPError:
+        return fallback
+
+
 def _build_xai_block(explainability: dict[str, Any] | None) -> str:
     if not explainability:
         return ""
@@ -172,3 +248,19 @@ def _build_xai_block(explainability: dict[str, Any] | None) -> str:
         )
 
     return ("[XAI Features]\n" + "\n".join(lines)) if lines else ""
+
+
+def _fallback_simple_explanation(
+    *,
+    intent_name: str,
+    product: str,
+    category: str,
+    result_count: int,
+) -> str:
+    if product:
+        return f"ඔබ {product} ගැන ඇසූ නිසා ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."
+    if category:
+        return f"ඔබ ඉල්ලූ {category} category එකට ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."
+    if intent_name == "order_history":
+        return f"ඔබගේ ඇණවුම් ඉතිහාසය අනුව ඇණවුම් {result_count}ක් පෙන්වලා තියෙනවා."
+    return f"ඔබගේ ඉල්ලීමට ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."

@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 COPY . .
 RUN pnpm exec prisma generate --schema libs/database/prisma/schema.prisma \
-    && if [ -f "apps/websocket-service/prisma/schema.prisma" ]; then pnpm --dir "apps/websocket-service" exec prisma generate; fi \
+    && if [ -f "apps/websocket-service/prisma/schema.prisma" ]; then pnpm exec prisma generate --schema apps/websocket-service/prisma/schema.prisma; fi \
     && pnpm nx build websocket-service \
     && pnpm prune --prod
 
