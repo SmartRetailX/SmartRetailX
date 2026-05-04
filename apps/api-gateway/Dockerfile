@@ -4,7 +4,11 @@ ARG PNPM_VERSION=10.32.1
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 ARG PNPM_VERSION
 ENV PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH
+    PATH=/pnpm:$PATH \
+    CI=true \
+    NX_CLOUD=false \
+    NX_DAEMON=false \
+    NX_NO_CLOUD=true
 WORKDIR /workspace
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \

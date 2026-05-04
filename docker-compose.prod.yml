@@ -15,15 +15,15 @@ x-node-environment: &node-environment
 
 services:
   sinlama:
-    image: ${SINLAMA_IMAGE:-smart-retail-x/sinlama-service:latest}
+    image: ${SINLAMA_IMAGE:-${IMAGE_PREFIX:-smart-retail-x}/sinlama-service:${TAG:-latest}}
     build:
       context: .
       dockerfile: apps/sinlama-service/Dockerfile
     restart: unless-stopped
     expose:
-      - "8080"
+      - '8080'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -32,7 +32,7 @@ services:
       - backend
 
   api-gateway:
-    image: smart-retail-x/api-gateway:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/api-gateway:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
@@ -54,19 +54,19 @@ services:
       OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
       PROMOTION_ENGINE_URL: ${PROMOTION_ENGINE_URL:-http://promotion-engine:8001}
     ports:
-      - "${API_GATEWAY_PORT:-3000}:3000"
+      - '${API_GATEWAY_PORT:-3000}:3000'
     networks:
       - edge
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health/live || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/health/live || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
 
   core-service:
-    image: smart-retail-x/core-service:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/core-service:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/core-service/Dockerfile
@@ -79,7 +79,7 @@ services:
       - backend
 
   bi-dashboard-services-gateway:
-    image: smart-retail-x/bi-dashboard-services-gateway:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/bi-dashboard-services-gateway:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/bi-dashboard-services-gateway/Dockerfile
@@ -93,13 +93,13 @@ services:
       BI_DASHBOARD_PORT: 3001
       ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
     ports:
-      - "${BI_DASHBOARD_PORT:-3001}:3001"
+      - '${BI_DASHBOARD_PORT:-3001}:3001'
     networks:
       - edge
       - backend
 
   websocket-service:
-    image: smart-retail-x/websocket-service:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/websocket-service:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/websocket-service/Dockerfile
@@ -108,12 +108,12 @@ services:
       <<: *node-environment
       WEBSOCKET_SERVICE_PORT: 3004
     expose:
-      - "3004"
+      - '3004'
     networks:
       - backend
 
   web:
-    image: smart-retail-x/web:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/web:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -124,13 +124,13 @@ services:
       api-gateway:
         condition: service_healthy
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - '${WEB_PORT:-8080}:80'
     networks:
       - edge
       - backend
 
   bi-dashboard-ml-service:
-    image: smart-retail-x/bi-dashboard-ml-service:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/bi-dashboard-ml-service:${TAG:-latest}
     build:
       context: ./apps/bi-dashboard-ml-service
       dockerfile: Dockerfile
@@ -140,9 +140,9 @@ services:
       ML_SERVICE_HOST: 0.0.0.0
       ML_SERVICE_PORT: 8000
     expose:
-      - "8000"
+      - '8000'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8000/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
@@ -151,7 +151,7 @@ services:
       - backend
 
   promotion-engine:
-    image: smart-retail-x/promotion-engine:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/promotion-engine:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/personalized-promotion-engine-ml-service/Dockerfile
@@ -159,9 +159,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
     expose:
-      - "8001"
+      - '8001'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8001/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8001/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
@@ -170,7 +170,7 @@ services:
       - backend
 
   segmentation-service:
-    image: smart-retail-x/segmentation-service:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/segmentation-service:${TAG:-latest}
     build:
       context: .
       dockerfile: apps/segmentation-service/Dockerfile
@@ -178,9 +178,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
     expose:
-      - "8002"
+      - '8002'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/docs || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8002/docs || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
@@ -189,7 +189,7 @@ services:
       - backend
 
   agent-service:
-    image: smart-retail-x/agent-service:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/agent-service:${TAG:-latest}
     build:
       context: ./apps/agent-service
       dockerfile: Dockerfile
@@ -215,10 +215,10 @@ services:
       OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
       OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
     expose:
-      - "8010"
-      - "8877"
+      - '8010'
+      - '8877'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8010/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8010/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
@@ -228,7 +228,7 @@ services:
       - backend
 
   stt-agent:
-    image: smart-retail-x/stt-agent:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-smart-retail-x}/stt-agent:${TAG:-latest}
     build:
       context: ./apps/stt-agent
       dockerfile: Dockerfile
@@ -244,9 +244,9 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     expose:
-      - "8003"
+      - '8003'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8003/docs >/dev/null || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8003/docs >/dev/null || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
