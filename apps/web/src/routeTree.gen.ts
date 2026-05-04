@@ -26,7 +26,6 @@ import { Route as AuthenticatedAdminAdminTiersRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminAdminTierDetailsRouteImport } from './routes/_authenticated/_admin/admin.tier-details'
 import { Route as AuthenticatedAdminAdminStockRouteImport } from './routes/_authenticated/_admin/admin.stock'
 import { Route as AuthenticatedAdminAdminPromotionsRouteImport } from './routes/_authenticated/_admin/admin.promotions'
-import { Route as AuthenticatedAdminAdminPromotionsRouteImport } from './routes/_authenticated/_admin/admin.promotions'
 import { Route as AuthenticatedAdminAdminProductsRouteImport } from './routes/_authenticated/_admin/admin.products'
 import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_authenticated/_admin/admin.orders'
 import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'

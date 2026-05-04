@@ -7,6 +7,7 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    DialogFooter,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -62,20 +63,22 @@ export function XAIExplanationDialog({
                 </DialogHeader>
 
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-12">
+                    <div className="flex items-center justify-center py-8 px-6">
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             <span>Loading explanation...</span>
                         </div>
                     </div>
                 ) : error ? (
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Failed to load explanation</AlertTitle>
-                        <AlertDescription>{error.message}</AlertDescription>
-                    </Alert>
+                    <div className="p-6">
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Failed to load explanation</AlertTitle>
+                            <AlertDescription>{error.message}</AlertDescription>
+                        </Alert>
+                    </div>
                 ) : explanation ? (
-                    <div className="space-y-6">
+                    <div className="px-6 py-6 space-y-6">
                         {/* Summary Section */}
                         {explanation.summary && (
                             <div className="rounded-2xl border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-900/20 p-4">
@@ -154,7 +157,7 @@ export function XAIExplanationDialog({
                         {explanation.features && explanation.features.length > 0 && (
                             <div>
                                 <h3 className="font-semibold mb-3">Detailed Feature Analysis</h3>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-2">
                                     {explanation.features
                                         .sort((a, b) => Math.abs((b.contribution ?? b.impact ?? 0)) - Math.abs((a.contribution ?? a.impact ?? 0)))
                                         .map((feature, idx) => (
@@ -228,16 +231,15 @@ export function XAIExplanationDialog({
                             </div>
                         )}
 
-                        {/* Export Section */}
-                        <div className="flex justify-end gap-2 pt-4 border-t">
+                        <DialogFooter>
                             <Button variant="outline">
                                 <Download className="mr-2 h-4 w-4" />
                                 Export Report
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    <div className="flex items-center justify-center py-8 px-6 text-muted-foreground">
                         <p>No explanation data available</p>
                     </div>
                 )}

@@ -43,21 +43,21 @@ function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
+    return (
     <div
       data-slot="dialog-header"
-      className={cn('border-b border-border/60 px-5 py-4', className)}
+      className={cn('border-b border-border/60 px-6 py-4', className)}
       {...props}
     />
   );
 }
 
 function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
+    return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-wrap items-center justify-end gap-2 border-t border-border/60 bg-muted/30 px-5 py-4',
+        'flex flex-wrap items-center justify-end gap-2 border-t border-border/60 bg-muted/30 px-6 py-4',
         className,
       )}
       {...props}
