@@ -1,9 +1,7 @@
 """
-Intent resolver: bridges intent detection output → database query → structured context.
+Intent resolver: intent detection output → DB query → structured context.
 
-For every supported intent the resolver runs the appropriate DB query and
-returns a typed `ResolvedContext` that the response builder can consume.
-No rendering happens here – this module is pure data retrieval.
+No rendering happens here — this module is pure data retrieval.
 """
 
 from __future__ import annotations
@@ -11,37 +9,29 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .db_queries import (
+from ..db.queries import (
     get_active_offers,
     get_buying_suggestions,
     get_order_history,
     get_product_price,
     search_products,
 )
-from .logging_setup import logger
+from ..logging import logger
 
-
-# ---------------------------------------------------------------------------
-# Output type
-# ---------------------------------------------------------------------------
 
 @dataclass
 class ResolvedContext:
-    """Structured data returned after resolving an intent against the DB."""
+    """Typed data returned after resolving an intent against the database."""
 
     intent: str
     entities: dict[str, Any]
     db_results: list[dict[str, Any]] = field(default_factory=list)
-    db_source: str = "none"          # which query was executed
-    has_data: bool = False           # True if db_results is non-empty
+    db_source: str = "none"
+    has_data: bool = False
     needs_clarification: bool = False
     clarification_prompt_si: str = ""
     xai_features: list[dict[str, Any]] = field(default_factory=list)
 
-
-# ---------------------------------------------------------------------------
-# Public entry-point
-# ---------------------------------------------------------------------------
 
 async def resolve_intent(
     intent: str,
@@ -49,54 +39,36 @@ async def resolve_intent(
     user_id: str | None,
     explainability: dict[str, Any] | None,
 ) -> ResolvedContext:
-    """
-    Dispatch to the correct DB query based on intent and extracted entities.
-
-    Returns a `ResolvedContext` with all data the response builder needs.
-    """
     xai_features = _extract_xai_features(explainability)
 
     if intent == "prices":
         return await _resolve_prices(entities, xai_features)
-
     if intent == "product_search":
         return await _resolve_product_search(entities, xai_features)
-
     if intent == "offers":
         return await _resolve_offers(xai_features)
-
     if intent == "order_history":
         return await _resolve_order_history(user_id, xai_features)
-
     if intent == "buying_suggestions":
         return await _resolve_buying_suggestions(user_id, entities, xai_features)
 
-    # general / unknown intent – no DB query needed
-    return ResolvedContext(
-        intent=intent,
-        entities=entities,
-        db_source="none",
-        has_data=False,
-        xai_features=xai_features,
-    )
+    return ResolvedContext(intent=intent, entities=entities, xai_features=xai_features)
 
 
 # ---------------------------------------------------------------------------
-# Intent-specific resolvers
+# Per-intent resolvers
 # ---------------------------------------------------------------------------
 
 async def _resolve_prices(
     entities: dict[str, Any],
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
-    product_name: str = str(entities.get("product") or "").strip()
+    product_name = str(entities.get("product") or "").strip()
 
     if not product_name:
         return ResolvedContext(
             intent="prices",
             entities=entities,
-            db_source="none",
-            has_data=False,
             needs_clarification=True,
             clarification_prompt_si=(
                 "ඔබට මිල දැනගන්න ඕන භාණ්ඩයේ නම කියන්න. "
@@ -128,14 +100,12 @@ async def _resolve_product_search(
     entities: dict[str, Any],
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
-    product_name: str = str(entities.get("product") or "").strip()
+    product_name = str(entities.get("product") or "").strip()
 
     if not product_name:
         return ResolvedContext(
             intent="product_search",
             entities=entities,
-            db_source="none",
-            has_data=False,
             needs_clarification=True,
             clarification_prompt_si=(
                 "හොයන්න ඕන භාණ්ඩයේ නම හෝ category එක කියන්න. "
@@ -163,9 +133,7 @@ async def _resolve_product_search(
     )
 
 
-async def _resolve_offers(
-    xai_features: list[dict[str, Any]],
-) -> ResolvedContext:
+async def _resolve_offers(xai_features: list[dict[str, Any]]) -> ResolvedContext:
     rows = await get_active_offers()
     logger.info("resolve_offers results=%d", len(rows))
 
@@ -187,12 +155,8 @@ async def _resolve_order_history(
         return ResolvedContext(
             intent="order_history",
             entities={},
-            db_source="none",
-            has_data=False,
             needs_clarification=True,
-            clarification_prompt_si=(
-                "ඇණවුම් ඉතිහාසය බලන්නට login කර ඇති වීම අවශ්‍යයි."
-            ),
+            clarification_prompt_si="ඇණවුම් ඉතිහාසය බලන්නට login කර ඇති වීම අවශ්‍යයි.",
             xai_features=xai_features,
         )
 
@@ -206,10 +170,7 @@ async def _resolve_order_history(
         db_source="db-order",
         has_data=bool(rows),
         needs_clarification=not rows,
-        clarification_prompt_si=(
-            "" if rows else
-            "ඔබගේ ගිණුමේ ඇණවුම් ඉතිහාසයක් හමු නොවුණා."
-        ),
+        clarification_prompt_si="" if rows else "ඔබගේ ගිණුමේ ඇණවුම් ඉතිහාසයක් හමු නොවුණා.",
         xai_features=xai_features,
     )
 
@@ -241,7 +202,6 @@ async def _resolve_buying_suggestions(
 # ---------------------------------------------------------------------------
 
 def _extract_xai_features(explainability: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Pull normalised feature list out of the explainability payload."""
     if not explainability:
         return []
     raw = explainability.get("features")
@@ -253,9 +213,5 @@ def _extract_xai_features(explainability: dict[str, Any] | None) -> list[dict[st
             continue
         name = str(item.get("name") or "").strip()
         if name:
-            features.append({
-                "name": name,
-                "weight": item.get("weight"),
-                "evidence": item.get("evidence"),
-            })
+            features.append({"name": name, "weight": item.get("weight"), "evidence": item.get("evidence")})
     return features

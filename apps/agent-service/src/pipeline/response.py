@@ -1,24 +1,20 @@
 """
-Response builder: converts ResolvedContext → structured Markdown Sinhala response.
+Response builder: ResolvedContext → structured Sinhala Markdown.
 
 Responsibilities:
-  - Render DB result data as GitHub-flavoured Markdown tables / bullet lists
-  - Append a concise XAI explanation block so users understand *why* the
-    assistant answered the way it did (explainability requirement)
-  - Produce a complete, ready-to-display Sinhala string without calling any
-    external service (deterministic fallback path)
-  - Expose a context summary dict for the LLM prompt so the LLM can enrich
-    the response with natural-language fluency while staying grounded in
-    the DB data
+  - Render DB results as GitHub-flavoured Markdown tables / bullet lists.
+  - Append a concise XAI explanation block (explainability requirement).
+  - Produce a complete, ready-to-display response without any external calls.
+  - Expose a compact context summary for the LLM prompt so the model stays
+    grounded in real data and cannot hallucinate.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from .intent_resolver import ResolvedContext
+from .resolver import ResolvedContext
 
-# Sinhala order status labels
 _ORDER_STATUS_SI: dict[str, str] = {
     "pending":    "බලාපොරොත්තු",
     "confirmed":  "තහවුරු",
@@ -40,27 +36,20 @@ _PURCHASE_FREQ_SI: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 def build_deterministic_response(ctx: ResolvedContext) -> str:
-    """
-    Produce a complete Sinhala Markdown response purely from DB data.
-    Used when the LLM is unavailable or the intent is DB-only.
-    """
+    """Produce a complete Sinhala Markdown response purely from DB data."""
     if ctx.needs_clarification and not ctx.has_data:
         return _with_xai(ctx.clarification_prompt_si or _generic_clarification(), ctx)
 
-    if ctx.intent == "prices":
-        return _with_xai(_render_prices(ctx), ctx)
-
-    if ctx.intent == "product_search":
-        return _with_xai(_render_product_search(ctx), ctx)
-
-    if ctx.intent == "offers":
-        return _with_xai(_render_offers(ctx), ctx)
-
-    if ctx.intent == "order_history":
-        return _with_xai(_render_order_history(ctx), ctx)
-
-    if ctx.intent == "buying_suggestions":
-        return _with_xai(_render_buying_suggestions(ctx), ctx)
+    renderers = {
+        "prices":            _render_prices,
+        "product_search":    _render_product_search,
+        "offers":            _render_offers,
+        "order_history":     _render_order_history,
+        "buying_suggestions": _render_buying_suggestions,
+    }
+    renderer = renderers.get(ctx.intent)
+    if renderer:
+        return _with_xai(renderer(ctx), ctx)
 
     return _with_xai(
         "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් "
@@ -70,30 +59,22 @@ def build_deterministic_response(ctx: ResolvedContext) -> str:
 
 
 def build_llm_context_summary(ctx: ResolvedContext) -> str:
-    """
-    Return a compact, LLM-readable summary of the DB results and XAI data.
-    This is injected into the LLM system/user prompt so the model stays
-    grounded in real data rather than hallucinating.
-    """
+    """Compact LLM-readable summary of DB results and XAI data."""
     lines: list[str] = [
         f"[DB Source: {ctx.db_source}]",
         f"[Intent: {ctx.intent}]",
         f"[Has Data: {ctx.has_data}]",
     ]
-
     if ctx.entities:
         lines.append(f"[Entities: {ctx.entities}]")
-
     if ctx.needs_clarification:
         lines.append(f"[Needs clarification: {ctx.clarification_prompt_si}]")
-
     if ctx.xai_features:
         feat_strs = [
             f"{f['name']} (weight={f.get('weight', '?')}, evidence={f.get('evidence', '')})"
             for f in ctx.xai_features
         ]
         lines.append(f"[XAI features: {'; '.join(feat_strs)}]")
-
     if ctx.db_results:
         lines.append(f"\n--- DB Results ({len(ctx.db_results)} rows) ---")
         for i, row in enumerate(ctx.db_results[:10], 1):
@@ -112,8 +93,8 @@ def _render_prices(ctx: ResolvedContext) -> str:
 
     product_name = ctx.entities.get("product", "")
     header = f"### 💰 {product_name} – මිල ගණන්\n\n" if product_name else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
-
     rows = ctx.db_results
+
     if len(rows) == 1:
         p = rows[0]
         stock_label = "✅ ඇත" if (p.get("stock_quantity") or 0) > 0 else "❌ නැත"
@@ -122,19 +103,14 @@ def _render_prices(ctx: ResolvedContext) -> str:
             + f"**{p['name']}**"
             + (f" / {p['name_si']}" if p.get("name_si") else "")
             + "\n\n"
-            + f"| | |\n|---|---|\n"
+            + "| | |\n|---|---|\n"
             + f"| මිල | **රු. {p['price']:.2f}** |\n"
             + f"| ස්ටොක් | {stock_label} ({p.get('stock_quantity', 0)} units) |\n"
             + f"| Brand | {p.get('brand', '-')} |\n"
             + f"| Category | {p.get('category', '-')} |\n"
         )
 
-    # Multiple results → table
-    table = (
-        header
-        + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් |\n"
-        + "|---|---|---|---|\n"
-    )
+    table = header + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් |\n|---|---|---|---|\n"
     for p in rows:
         stock = "✅" if (p.get("stock_quantity") or 0) > 0 else "❌"
         name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
@@ -148,23 +124,14 @@ def _render_product_search(ctx: ResolvedContext) -> str:
 
     query = ctx.entities.get("product", "")
     header = (
-        f"### 🔍 \"{query}\" – සෙවීමේ ප්‍රතිඵල\n\n"
-        if query else
-        "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
+        f"### 🔍 \"{query}\" – සෙවීමේ ප්‍රතිඵල\n\n" if query
+        else "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
     )
-
-    table = (
-        header
-        + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් | Brand |\n"
-        + "|---|---|---|---|---|\n"
-    )
+    table = header + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් | Brand |\n|---|---|---|---|---|\n"
     for p in ctx.db_results:
         stock = "✅" if (p.get("stock_quantity") or 0) > 0 else "❌"
         name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
-        table += (
-            f"| {name} | {p.get('category', '-')} "
-            f"| {p['price']:.2f} | {stock} | {p.get('brand', '-')} |\n"
-        )
+        table += f"| {name} | {p.get('category', '-')} | {p['price']:.2f} | {stock} | {p.get('brand', '-')} |\n"
     return table
 
 
@@ -173,19 +140,12 @@ def _render_offers(ctx: ResolvedContext) -> str:
         return "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
 
     header = "### 🎉 දැනට ඇති Offers & Featured Products\n\n"
-    table = (
-        header
-        + "| භාණ්ඩය | Category | මිල (රු.) | Brand |\n"
-        + "|---|---|---|---|\n"
-    )
+    table = header + "| භාණ්ඩය | Category | මිල (රු.) | Brand |\n|---|---|---|---|\n"
     for p in ctx.db_results:
         name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
         discount = p.get("avg_discount")
         discount_str = f" (රු. {discount:.2f} discount)" if discount and discount > 0 else ""
-        table += (
-            f"| {name}{discount_str} | {p.get('category', '-')} "
-            f"| {p['price']:.2f} | {p.get('brand', '-')} |\n"
-        )
+        table += f"| {name}{discount_str} | {p.get('category', '-')} | {p['price']:.2f} | {p.get('brand', '-')} |\n"
     return table
 
 
@@ -193,18 +153,13 @@ def _render_order_history(ctx: ResolvedContext) -> str:
     if not ctx.has_data:
         return ctx.clarification_prompt_si or "ඔබගේ ඇණවුම් ඉතිහාසයක් හමු නොවුණා."
 
-    header = "### 📦 ඔබගේ ඇණවුම් ඉතිහාසය\n\n"
-    sections: list[str] = [header]
-
+    sections: list[str] = ["### 📦 ඔබගේ ඇණවුම් ඉතිහාසය\n\n"]
     for order in ctx.db_results:
         status_si = _ORDER_STATUS_SI.get(str(order.get("status", "")), str(order.get("status", "")))
         created = str(order.get("created_at", ""))[:10]
-        sections.append(
-            f"#### ඇණවුම #{order['order_number']}  "
-            f"&nbsp; `{status_si}` &nbsp; _{created}_\n\n"
-        )
+        sections.append(f"#### ඇණවුම #{order['order_number']}  &nbsp; `{status_si}` &nbsp; _{created}_\n\n")
 
-        items: list[dict] = order.get("items", [])
+        items: list[dict[str, Any]] = order.get("items", [])
         if items:
             sections.append("| භාණ්ඩය | ප්‍රමාණය | එකක මිල | එකතුව |\n|---|---|---|---|\n")
             for item in items:
@@ -217,11 +172,10 @@ def _render_order_history(ctx: ResolvedContext) -> str:
                     f"| රු. {item['total_price']:.2f} |\n"
                 )
 
-        sections.append(
-            f"\n> **මුළු මුදල:** රු. {order['total']:.2f}"
-            + (f" &nbsp;|&nbsp; **Discount:** රු. {order['discount']:.2f}" if order.get("discount", 0) > 0 else "")
-            + "\n\n---\n\n"
-        )
+        total_line = f"\n> **මුළු මුදල:** රු. {order['total']:.2f}"
+        if order.get("discount", 0) > 0:
+            total_line += f" &nbsp;|&nbsp; **Discount:** රු. {order['discount']:.2f}"
+        sections.append(total_line + "\n\n---\n\n")
 
     return "".join(sections)
 
@@ -233,28 +187,21 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
             "Category නමක් කිවොත් නිශ්චිතව කියන්නම්."
         )
 
+    source = str((ctx.db_results[0] or {}).get("recommendation_source", "bestsellers"))
     source_label = {
-        "personalised":  "ඔබේ ගැනුම් ඉතිහාසය මත",
+        "personalised":   "ඔබේ ගැනුම් ඉතිහාසය මත",
         "category-match": "ඔබ ඉල්ලූ category එකෙන්",
-        "bestsellers":   "ජනප්‍රිය භාණ්ඩ",
-    }.get(
-        str((ctx.db_results[0] or {}).get("recommendation_source", "bestsellers")),
-        "යෝජිත භාණ්ඩ",
-    )
+        "bestsellers":    "ජනප්‍රිය භාණ්ඩ",
+    }.get(source, "යෝජිත භාණ්ඩ")
 
-    header = f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
     table = (
-        header
-        + "| භාණ්ඩය | Category | මිල (රු.) | ජනප්‍රියතාව |\n"
-        + "|---|---|---|---|\n"
+        f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
+        "| භාණ්ඩය | Category | මිල (රු.) | ජනප්‍රියතාව |\n|---|---|---|---|\n"
     )
     for p in ctx.db_results:
         name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
         freq = _PURCHASE_FREQ_SI.get(str(p.get("purchase_frequency", "")), "-")
-        table += (
-            f"| {name} | {p.get('category', '-')} "
-            f"| {p['price']:.2f} | {freq} |\n"
-        )
+        table += f"| {name} | {p.get('category', '-')} | {p['price']:.2f} | {freq} |\n"
     return table
 
 
@@ -263,7 +210,6 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 
 def _with_xai(body: str, ctx: ResolvedContext) -> str:
-    """Append a short, user-readable XAI explanation after the main body."""
     if not ctx.xai_features:
         return body
 
@@ -284,14 +230,10 @@ def _with_xai(body: str, ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 
 def _generic_clarification() -> str:
-    return (
-        "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් "
-        "මම නිවැරදිව උත්තර දෙන්නම්."
-    )
+    return "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් මම නිවැරදිව උත්තර දෙන්නම්."
 
 
 def _compact_row(row: dict[str, Any]) -> str:
-    """Single-line summary of a DB row for LLM context injection."""
     skip = {"product_id", "image_url", "description", "descriptionSi"}
     parts = []
     for k, v in row.items():

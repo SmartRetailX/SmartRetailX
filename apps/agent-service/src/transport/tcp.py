@@ -3,8 +3,8 @@ import base64
 import json
 from typing import Any
 
-from .logging_setup import logger
-from .service import process_voice_chat
+from ..logging import logger
+from ..service import process_voice_chat
 
 
 def make_frame(payload: dict[str, Any]) -> bytes:
@@ -12,7 +12,7 @@ def make_frame(payload: dict[str, Any]) -> bytes:
     return f"{len(body)}#{body}".encode("utf-8")
 
 
-def parse_pattern(packet: dict[str, Any]) -> str:
+def _parse_command(packet: dict[str, Any]) -> str:
     pattern = packet.get("pattern")
     if isinstance(pattern, str):
         try:
@@ -26,8 +26,8 @@ def parse_pattern(packet: dict[str, Any]) -> str:
     return ""
 
 
-async def handle_nest_packet(packet: dict[str, Any]) -> dict[str, Any]:
-    cmd = parse_pattern(packet)
+async def _handle_packet(packet: dict[str, Any]) -> dict[str, Any]:
+    cmd = _parse_command(packet)
     payload = packet.get("data", {})
     request_id = packet.get("id")
 
@@ -36,6 +36,7 @@ async def handle_nest_packet(packet: dict[str, Any]) -> dict[str, Any]:
 
     audio_base64 = payload.get("audioBase64")
     transcript_text = (payload.get("transcriptText") or "").strip()
+
     if not audio_base64 and not transcript_text:
         return {"id": request_id, "err": "audioBase64 or transcriptText is required", "isDisposed": True}
 
@@ -46,7 +47,10 @@ async def handle_nest_packet(packet: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             return {"id": request_id, "err": "Invalid base64 audio payload", "isDisposed": True}
 
-    logger.info("TCP packet received: cmd=%s audio_size=%s session=%s", cmd, len(audio_bytes), payload.get("sessionId"))
+    logger.info(
+        "TCP packet received: cmd=%s audio_size=%d session=%s",
+        cmd, len(audio_bytes), payload.get("sessionId"),
+    )
 
     result = await process_voice_chat(
         audio_bytes=audio_bytes,
@@ -59,7 +63,7 @@ async def handle_nest_packet(packet: dict[str, Any]) -> dict[str, Any]:
         transcript_text=payload.get("transcriptText"),
     )
 
-    return {"id": request_id, "response": result.__dict__, "isDisposed": True}
+    return {"id": request_id, "response": result.model_dump(), "isDisposed": True}
 
 
 async def tcp_client_loop(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -69,7 +73,7 @@ async def tcp_client_loop(reader: asyncio.StreamReader, writer: asyncio.StreamWr
             body_length = int(header[:-1].decode("utf-8"))
             body = await reader.readexactly(body_length)
             packet = json.loads(body.decode("utf-8"))
-            response_packet = await handle_nest_packet(packet)
+            response_packet = await _handle_packet(packet)
             writer.write(make_frame(response_packet))
             await writer.drain()
     except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError, json.JSONDecodeError):
