@@ -179,10 +179,21 @@ def _render_product_search(ctx: ResolvedContext) -> str:
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
+    product_name = str(ctx.entities.get("product") or "").strip()
     offer_type = str(ctx.entities.get("offer_type") or "")
     offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
 
     if not ctx.has_data:
+        if product_name:
+            if offer_label:
+                return (
+                    f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
+                    "ළඟදීම නව offers එකතු වෙනවා!"
+                )
+            return (
+                f"දැනට **{product_name}** වලට offers නැත. "
+                "ළඟදීම නව offers එකතු වෙනවා!"
+            )
         if offer_label:
             return (
                 f"දැනට **{offer_label}** ආකාරයේ offers හමු නොවුණා. "

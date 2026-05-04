@@ -571,6 +571,69 @@ async def get_active_offers(limit: int = 6) -> list[dict[str, Any]]:
         return []
 
 
+async def get_active_offers_for_product(
+    product_name: str,
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    norm_query = _norm(product_name)
+    if not norm_query:
+        return []
+
+    safe_limit = max(1, min(limit, 50))
+
+    try:
+        async with acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    p.id::text          AS product_id,
+                    p.sku,
+                    p.name,
+                    p.name_si,
+                    p.price::float      AS price,
+                    p.stock_quantity,
+                    p.brand,
+                    c.name              AS category,
+                    c.name_si           AS category_si,
+                    p.image_url,
+                    COUNT(DISTINCT oi.order_id) AS order_count,
+                    AVG(o.discount::float)      AS avg_discount
+                FROM core.products p
+                JOIN core.categories c ON c.id = p.category_id
+                JOIN core.order_items oi ON oi.product_id = p.id
+                JOIN core.orders o      ON o.id = oi.order_id
+                WHERE p.is_active = true
+                  AND o.discount > 0
+                  AND o.created_at >= NOW() - INTERVAL '30 days'
+                  AND (
+                    lower(p.name)    LIKE $1
+                    OR lower(p.name_si) LIKE $1
+                    OR lower(p.sku)  LIKE $1
+                    OR lower(p.brand) LIKE $1
+                  )
+                GROUP BY p.id, p.sku, p.name, p.name_si, p.price, p.brand,
+                         c.name, c.name_si
+                ORDER BY
+                    CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
+                    avg_discount DESC,
+                    order_count DESC
+                LIMIT $3
+                """,
+                f"%{norm_query}%",
+                norm_query,
+                safe_limit,
+            )
+            return [_row(r) for r in rows]
+
+    except Exception as exc:
+        logger.warning(
+            "get_active_offers_for_product failed name=%r error=%s",
+            product_name,
+            exc,
+        )
+        return []
+
+
 # ---------------------------------------------------------------------------
 # 4. Order history  (intent: order_history)
 # ---------------------------------------------------------------------------

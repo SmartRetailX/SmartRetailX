@@ -12,6 +12,7 @@ from typing import Any
 from ..db.queries import (
     fuzzy_suggest_products,
     get_active_offers,
+    get_active_offers_for_product,
     get_active_promotions,
     get_buying_suggestions,
     get_order_history,
@@ -50,7 +51,7 @@ async def resolve_intent(
     if intent == "product_search":
         return await _resolve_product_search(entities, xai_features)
     if intent == "offers":
-        return await _resolve_offers(xai_features)
+        return await _resolve_offers(entities, xai_features)
     if intent == "order_history":
         return await _resolve_order_history(user_id, xai_features, last_order_only=bool(entities.get("last_order_only")))
     if intent == "buying_suggestions":
@@ -156,13 +157,63 @@ async def _resolve_product_search(
     )
 
 
-async def _resolve_offers(xai_features: list[dict[str, Any]]) -> ResolvedContext:
+async def _resolve_offers(
+    entities: dict[str, Any],
+    xai_features: list[dict[str, Any]],
+) -> ResolvedContext:
+    product_name = str(entities.get("product") or "").strip()
+    if product_name:
+        rows = await get_active_offers_for_product(product_name, limit=20)
+        logger.info(
+            "resolve_offers product=%r results=%d",
+            product_name,
+            len(rows),
+        )
+
+        if rows:
+            return ResolvedContext(
+                intent="offers",
+                entities=entities,
+                db_results=rows,
+                db_source="db-offers",
+                has_data=True,
+                xai_features=xai_features,
+            )
+
+        # Product-aware no-offer case: don't show unrelated global offers.
+        catalog_matches = await search_products(product_name, limit=3)
+        if not catalog_matches:
+            suggestions = await fuzzy_suggest_products(product_name)
+            return ResolvedContext(
+                intent="offers",
+                entities=entities,
+                db_results=[],
+                db_source="db-offers",
+                has_data=False,
+                needs_clarification=True,
+                clarification_prompt_si=(
+                    f"**{product_name}** නමින් භාණ්ඩයක් හමු නොවුණා. "
+                    "නම තව ටිකක් නිවැරදිව දෙන්නද?"
+                ),
+                suggestions=suggestions,
+                xai_features=xai_features,
+            )
+
+        return ResolvedContext(
+            intent="offers",
+            entities=entities,
+            db_results=[],
+            db_source="db-offers",
+            has_data=False,
+            xai_features=xai_features,
+        )
+
     rows = await get_active_offers(limit=20)
     logger.info("resolve_offers results=%d", len(rows))
 
     return ResolvedContext(
         intent="offers",
-        entities={},
+        entities=entities,
         db_results=rows,
         db_source="db-offers",
         has_data=bool(rows),

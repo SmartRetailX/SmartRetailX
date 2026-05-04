@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .intent.keyword import (
+    _extract_product_hint,
     detect_intent_and_entities,
     detect_offer_type,
     has_order_history_signal,
@@ -215,6 +216,21 @@ async def process_voice_chat(
                     ],
                 },
             )
+
+        # Backfill missing product entity from transcript for product-centric intents.
+        if (
+            intent_result.intent
+            in {"prices", "product_search", "offers", "promotions", "buying_suggestions"}
+            and not str(intent_result.entities.get("product") or "").strip()
+        ):
+            product_hint = _extract_product_hint(transcription)
+            if product_hint:
+                intent_result.entities["product"] = product_hint
+                logger.info(
+                    "Entity backfill applied: intent=%s product=%r",
+                    intent_result.intent,
+                    product_hint,
+                )
 
         explainability = intent_result.explainability
         logger.info(

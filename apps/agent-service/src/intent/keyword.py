@@ -44,6 +44,18 @@ _TRIM_WORDS = {
     "ලබාදෙන්න",
     "කියන්න",
     "පෙන්වන්න",
+    "වලට",
+    "සඳහා",
+    "offer",
+    "offers",
+    "promotion",
+    "promotions",
+    "discount",
+    "deal",
+    "special",
+    "වට්ටම්",
+    "ඔෆර්",
+    "ඔෆර්ස්",
 }
 _LEADING_FILLERS = {
     "මට",
@@ -492,6 +504,8 @@ def _extract_product_hint(text: str) -> str | None:
             return value
 
     patterns = [
+        r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:වලට|වල|සඳහා)\s+(?:offer|offers|promotion|promotions|discount|deal|special|වට්ටම්|ඔෆර්|ඔෆර්ස්)",
+        r"(?:offer|offers|promotion|promotions|discount|deal|special|වට්ටම්|ඔෆර්|ඔෆර්ස්)\s+(?:on|for|about)?\s*([A-Za-z0-9඀-෿\s\-]{2,60})",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:කිලෝ|kg|කිලෝව|gram|g)\s+(?:එකේ|එකට|1|එකක)?\s*(?:මිල|price|ගණන)",
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?(?!අඩු|reduced|cut)([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන|හොයන්න)\s+([A-Za-z0-9඀-෿\s\-]{2,60})",
