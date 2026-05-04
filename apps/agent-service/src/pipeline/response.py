@@ -16,32 +16,32 @@ from typing import Any
 from .resolver import ResolvedContext
 
 _ORDER_STATUS_SI: dict[str, str] = {
-    "pending":    "පිළියෙළ කිරීමට නියමිතයි",
-    "confirmed":  "තහවුරු කළා",
+    "pending": "පිළියෙළ කිරීමට නියමිතයි",
+    "confirmed": "තහවුරු කළා",
     "processing": "සකස් කරමින්",
-    "shipped":    "යවා ඇත",
-    "delivered":  "ලැබී ඇත",
-    "cancelled":  "අවලංගු කළා",
+    "shipped": "යවා ඇත",
+    "delivered": "ලැබී ඇත",
+    "cancelled": "අවලංගු කළා",
 }
 
 _PURCHASE_FREQ_SI: dict[str, str] = {
-    "high":   "ජනප්‍රිය",
+    "high": "ජනප්‍රිය",
     "medium": "මධ්‍යම",
-    "low":    "දුර්ලභ",
+    "low": "දුර්ලභ",
 }
 
 _GENDER_SI: dict[str, str] = {
-    "male":   "පිරිමි",
+    "male": "පිරිමි",
     "female": "ගැහැනු",
-    "other":  "වෙනත්",
+    "other": "වෙනත්",
 }
 
 _SEGMENT_SI: dict[str, str] = {
-    "premium":    "ප්‍රීමියම්",
-    "regular":    "සාමාන්‍ය",
+    "premium": "ප්‍රීමියම්",
+    "regular": "සාමාන්‍ය",
     "occasional": "කලාතුරකින්",
-    "vip":        "VIP",
-    "new":        "නව",
+    "vip": "VIP",
+    "new": "නව",
 }
 
 _SEGMENT_DESCRIPTION_SI: dict[str, str] = {
@@ -74,9 +74,18 @@ _SEGMENT_DESCRIPTION_SI: dict[str, str] = {
 _PROMOTION_TYPE_SI: dict[str, str] = {
     "percentage": "ප්‍රතිශත වට්ටමක්",
     "flash_sale": "Flash Sale",
-    "seasonal":   "සෘතුමය ඉතිරිය",
-    "clearance":  "Clearance Sale",
-    "bundle":     "Bundle Deal",
+    "seasonal": "සෘතුමය ඉතිරිය",
+    "clearance": "Clearance Sale",
+    "bundle": "Bundle Deal",
+    "buy_one_get_one": "Buy 1 Get 1",
+    "buy_two_get_one": "Buy 2 Get 1",
+    "three_for_two": "3 for 2",
+}
+
+_OFFER_TYPE_LABEL_SI: dict[str, str] = {
+    "buy_one_get_one": "Buy 1 Get 1",
+    "buy_two_get_one": "Buy 2 Get 1",
+    "three_for_two": "3 for 2",
 }
 
 
@@ -84,19 +93,20 @@ _PROMOTION_TYPE_SI: dict[str, str] = {
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def build_deterministic_response(ctx: ResolvedContext) -> str:
     """Produce a complete Sinhala Markdown response purely from DB data."""
     if ctx.needs_clarification and not ctx.has_data:
         return _with_xai(ctx.clarification_prompt_si or _generic_clarification(), ctx)
 
     renderers = {
-        "prices":            _render_prices,
-        "product_search":    _render_product_search,
-        "offers":            _render_offers,
-        "order_history":     _render_order_history,
+        "prices": _render_prices,
+        "product_search": _render_product_search,
+        "offers": _render_offers,
+        "order_history": _render_order_history,
         "buying_suggestions": _render_buying_suggestions,
-        "user_profile":      _render_user_profile,
-        "promotions":        _render_promotions,
+        "user_profile": _render_user_profile,
+        "promotions": _render_promotions,
     }
     renderer = renderers.get(ctx.intent)
     if renderer:
@@ -138,13 +148,18 @@ def build_llm_context_summary(ctx: ResolvedContext) -> str:
 # Per-intent renderers
 # ---------------------------------------------------------------------------
 
+
 def _render_prices(ctx: ResolvedContext) -> str:
     if not ctx.has_data:
         return ctx.clarification_prompt_si or _generic_clarification()
 
     product_name = ctx.entities.get("product", "")
     count = len(ctx.db_results)
-    header = f"### 💰 {product_name} – මිල ගණන්\n\n" if product_name else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
+    header = (
+        f"### 💰 {product_name} – මිල ගණන්\n\n"
+        if product_name
+        else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
+    )
     # Product cards are rendered by the frontend UI — just emit the header + count summary
     return header + f"භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
@@ -156,18 +171,34 @@ def _render_product_search(ctx: ResolvedContext) -> str:
     query = ctx.entities.get("product", "")
     count = len(ctx.db_results)
     header = (
-        f"### 🔍 \"{query}\" – සෙවීමේ ප්‍රතිඵල\n\n" if query
+        f'### 🔍 "{query}" – සෙවීමේ ප්‍රතිඵල\n\n'
+        if query
         else "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
     )
     return header + f"ගැලපෙන භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
+    offer_type = str(ctx.entities.get("offer_type") or "")
+    offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
+
     if not ctx.has_data:
-        return "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
+        if offer_label:
+            return (
+                f"දැනට **{offer_label}** ආකාරයේ offers හමු නොවුණා. "
+                "ළඟදීම නව offers එකතු වෙනවා — නැවත check කරන්න!"
+            )
+        return (
+            "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
+        )
 
     count = len(ctx.db_results)
-    return f"### 🎉 දැනට ඇති Offers & Featured Products\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    heading = (
+        f"### 🎉 {offer_label} Offers"
+        if offer_label
+        else "### 🎉 දැනට ඇති Offers & Featured Products"
+    )
+    return f"{heading}\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
 
 def _render_order_history(ctx: ResolvedContext) -> str:
@@ -188,12 +219,12 @@ def _render_order_history(ctx: ResolvedContext) -> str:
         order_num = order.get("order_number", "N/A")
 
         status_emoji = {
-            "pending":    "⏳",
-            "confirmed":  "✅",
+            "pending": "⏳",
+            "confirmed": "✅",
             "processing": "🔄",
-            "shipped":    "🚚",
-            "delivered":  "📬",
-            "cancelled":  "❌",
+            "shipped": "🚚",
+            "delivered": "📬",
+            "cancelled": "❌",
         }.get(raw_status, "📋")
 
         sections.append(
@@ -203,7 +234,9 @@ def _render_order_history(ctx: ResolvedContext) -> str:
 
         items: list[dict[str, Any]] = order.get("items", [])
         if items:
-            sections.append("| භාණ්ඩය | ප්‍රමාණය | එකක මිල (රු.) | එකතුව (රු.) |\n|---|:---:|---:|---:|\n")
+            sections.append(
+                "| භාණ්ඩය | ප්‍රමාණය | එකක මිල (රු.) | එකතුව (රු.) |\n|---|:---:|---:|---:|\n"
+            )
             for item in items:
                 name = item.get("product_name", "-")
                 if item.get("product_name_si"):
@@ -238,9 +271,9 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
 
     source = str((ctx.db_results[0] or {}).get("recommendation_source", "bestsellers"))
     source_label = {
-        "personalised":   "ඔබේ ගැනුම් ඉතිහාසය මත",
+        "personalised": "ඔබේ ගැනුම් ඉතිහාසය මත",
         "category-match": "ඔබ ඉල්ලූ category එකෙන්",
-        "bestsellers":    "ජනප්‍රිය භාණ්ඩ",
+        "bestsellers": "ජනප්‍රිය භාණ්ඩ",
     }.get(source, "යෝජිත භාණ්ඩ")
 
     count = len(ctx.db_results)
@@ -256,20 +289,24 @@ def _render_user_profile(ctx: ResolvedContext) -> str:
 
     p = ctx.db_results[0]
 
-    name     = str(p.get("name") or "")
-    email    = str(p.get("email") or "")
-    city     = str(p.get("city") or "")
-    mobile   = str(p.get("mobile_number") or "")
-    gender   = _GENDER_SI.get(str(p.get("gender") or "").lower(), "")
-    age      = p.get("age")
-    segment  = str(p.get("customer_segment") or "").lower()
-    joined   = str(p.get("joined_at") or "")[:10]
+    name = str(p.get("name") or "")
+    email = str(p.get("email") or "")
+    city = str(p.get("city") or "")
+    mobile = str(p.get("mobile_number") or "")
+    gender = _GENDER_SI.get(str(p.get("gender") or "").lower(), "")
+    age = p.get("age")
+    segment = str(p.get("customer_segment") or "").lower()
+    joined = str(p.get("joined_at") or "")[:10]
     total_orders = int(p.get("total_orders") or 0)
-    total_spent  = float(p.get("total_spent") or 0)
-    last_order   = str(p.get("last_order_at") or "")[:10] if p.get("last_order_at") else None
+    total_spent = float(p.get("total_spent") or 0)
+    last_order = (
+        str(p.get("last_order_at") or "")[:10] if p.get("last_order_at") else None
+    )
 
-    segment_label = _SEGMENT_SI.get(segment, segment.capitalize() if segment else "නිර්ණය කර නැත")
-    segment_desc  = _SEGMENT_DESCRIPTION_SI.get(segment, "")
+    segment_label = _SEGMENT_SI.get(
+        segment, segment.capitalize() if segment else "නිර්ණය කර නැත"
+    )
+    segment_desc = _SEGMENT_DESCRIPTION_SI.get(segment, "")
 
     lines: list[str] = [f"### 👤 ඔබගේ Profile – {name}\n\n"]
 
@@ -306,15 +343,28 @@ def _render_user_profile(ctx: ResolvedContext) -> str:
 
 
 def _render_promotions(ctx: ResolvedContext) -> str:
+    offer_type = str(ctx.entities.get("offer_type") or "")
+    offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
+
     if not ctx.has_data:
+        if offer_label:
+            return (
+                f"දැනට **{offer_label}** ආකාරයේ promotions හමු නොවුණා. "
+                "ළඟදීම නව promotions එකතු වෙනවා — නැවත check කරන්න!"
+            )
         return (
             "දැනට සක්‍රිය promotions හමු නොවුණා. "
             "ළඟදීම නව offers හා promotions එකතු වෙනවා — නැවත check කරන්න!"
         )
 
     count = len(ctx.db_results)
+    heading = (
+        f"### 🎁 {offer_label} Promotions"
+        if offer_label
+        else "### 🎁 දැනට ක්‍රියාත්මක Promotions"
+    )
     lines: list[str] = [
-        f"### 🎁 දැනට ක්‍රියාත්මක Promotions\n\n"
+        f"{heading}\n\n"
         f"ඔබට ලැබිය හැකි **{count}ක්** promotions හමු විය!\n\n"
         "| භාණ්ඩය | Brand | වට්ටම | ආකාරය | අවසන් දිනය |\n"
         "|---|---|:---:|---|---|\n"
@@ -323,20 +373,24 @@ def _render_promotions(ctx: ResolvedContext) -> str:
     for promo in ctx.db_results:
         product_name = str(promo.get("product_name") or "")
         product_name_si = str(promo.get("product_name_si") or "")
-        name_display = f"{product_name_si} / {product_name}" if product_name_si else product_name
+        name_display = (
+            f"{product_name_si} / {product_name}" if product_name_si else product_name
+        )
 
-        brand        = str(promo.get("brand") or "-")
+        brand = str(promo.get("brand") or "-")
         discount_pct = float(promo.get("discount_percentage") or 0)
-        promo_type   = str(promo.get("promotion_type") or "")
+        promo_type = str(promo.get("promotion_type") or "")
         promo_type_si = _PROMOTION_TYPE_SI.get(promo_type, promo_type)
-        end_date     = str(promo.get("end_date") or "")[:10]
+        end_date = str(promo.get("end_date") or "")[:10]
 
-        original_price    = float(promo.get("original_price") or 0)
-        discounted_price  = original_price * (1 - discount_pct / 100)
+        original_price = float(promo.get("original_price") or 0)
+        discounted_price = original_price * (1 - discount_pct / 100)
 
         price_note = ""
         if original_price > 0:
-            price_note = f" ~~රු.{original_price:,.2f}~~ → **රු.{discounted_price:,.2f}**"
+            price_note = (
+                f" ~~රු.{original_price:,.2f}~~ → **රු.{discounted_price:,.2f}**"
+            )
 
         lines.append(
             f"| {name_display}{price_note} | {brand} | **{discount_pct:.0f}%** | {promo_type_si} | {end_date} |\n"
@@ -351,6 +405,7 @@ def _render_promotions(ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 # XAI block
 # ---------------------------------------------------------------------------
+
 
 def _with_xai(body: str, ctx: ResolvedContext) -> str:
     if not ctx.xai_features and not ctx.entities and not ctx.db_source:
@@ -368,6 +423,7 @@ def _with_xai(body: str, ctx: ResolvedContext) -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
     reasons: list[str] = []
 
@@ -375,9 +431,13 @@ def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
     category = str(ctx.entities.get("category") or "").strip() if ctx.entities else ""
 
     if product:
-        reasons.append(f"ඔබ **{product}** ගැන අහපු නිසා ඒකට ගැලපෙන ප්‍රතිඵල සොයා පෙන්වුවා.")
+        reasons.append(
+            f"ඔබ **{product}** ගැන අහපු නිසා ඒකට ගැලපෙන ප්‍රතිඵල සොයා පෙන්වුවා."
+        )
     elif category:
-        reasons.append(f"ඔබ ඉල්ලූ **{category}** category එකට ගැලපෙන දත්ත පාවිච්චි කළා.")
+        reasons.append(
+            f"ඔබ ඉල්ලූ **{category}** category එකට ගැලපෙන දත්ත පාවිච්චි කළා."
+        )
     else:
         reasons.append(_intent_reason(ctx.intent))
 
@@ -394,11 +454,15 @@ def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
         if ctx.intent in {"prices", "product_search", "offers", "buying_suggestions"}:
             reasons.append(f"මෙම පිළිතුර අදාළ භාණ්ඩ **{count}ක්** මත ගොඩනැගුණා.")
         elif ctx.intent == "order_history":
-            reasons.append(f"මෙම පිළිතුර ඔබගේ ඇණවුම් **{count}ක්** පදනම් කරගෙන දීලා තියෙනවා.")
+            reasons.append(
+                f"මෙම පිළිතුර ඔබගේ ඇණවුම් **{count}ක්** පදනම් කරගෙන දීලා තියෙනවා."
+            )
         elif ctx.intent == "promotions":
             reasons.append(f"සක්‍රිය promotions **{count}ක්** catalog එකෙන් ලබාගත්තා.")
         elif ctx.intent == "user_profile":
-            reasons.append("ඔබගේ account දත්ත ආරක්ෂිතව ලබාගෙන profile සාරාංශය සකස් කළා.")
+            reasons.append(
+                "ඔබගේ account දත්ත ආරක්ෂිතව ලබාගෙන profile සාරාංශය සකස් කළා."
+            )
     elif ctx.needs_clarification:
         reasons.append("නිවැරදි ප්‍රතිඵල දෙන්න තව ටිකක් පැහැදිලි විස්තර අවශ්‍ය වුණා.")
 
@@ -423,7 +487,9 @@ def _intent_reason(intent: str) -> str:
     if intent == "product_search":
         return "ඔබ භාණ්ඩ සෙවුමක් කළ නිසා නම/brand/category ගැලපීම් අනුව ප්‍රතිඵල තෝරාගත්තා."
     if intent == "offers":
-        return "ඔබ offers ගැන අහපු නිසා discount සහ ගනුදෙනු දත්ත බලලා ප්‍රතිඵල තෝරාගත්තා."
+        return (
+            "ඔබ offers ගැන අහපු නිසා discount සහ ගනුදෙනු දත්ත බලලා ප්‍රතිඵල තෝරාගත්තා."
+        )
     if intent == "order_history":
         return "ඔබගේ ඉල්ලීම අනුව ඔබට අදාළ ඇණවුම් ඉතිහාස දත්ත භාවිත කළා."
     if intent == "buying_suggestions":
@@ -431,7 +497,7 @@ def _intent_reason(intent: str) -> str:
     if intent == "user_profile":
         return "ඔබ profile ගැන අහපු නිසා ඔබගේ ගිණුම් දත්ත ආරක්ෂිතව ලබාගෙන සාරාංශ කළා."
     if intent == "promotions":
-        return "ඔබ promotions ගැන අහපු නිසා දැනට ක්‍රියාත්මක promotions catalog එකෙන් ලබාගත්තා."
+        return "ඔයා promotions ගැන අහපු නිසා, දැනට තියෙන promotions catalog එකෙන් මම විස්තර ටික ගත්තා."
     return "ඔබගේ ප්‍රශ්නයේ අර්ථය අනුව ගැලපෙන දත්ත තෝරාගෙන පිළිතුර සකස් කළා."
 
 
@@ -469,7 +535,7 @@ def _feature_reason(features: list[dict[str, Any]]) -> str:
 
 
 def _generic_clarification() -> str:
-    return "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් මම නිවැරදිව උත්තර දෙන්නම්."
+    return "ප්‍රශ්නය පැහැදිලියි, හැබැයි ඒ ගැන තව විස්තර ටිකක් දෙනවා නම් මට වඩාත් නිවැරදිව උදව් කරන්න පුළුවන්."
 
 
 def _compact_row(row: dict[str, Any]) -> str:

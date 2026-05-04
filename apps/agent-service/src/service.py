@@ -20,6 +20,7 @@ from typing import Any
 
 from .intent.keyword import (
     detect_intent_and_entities,
+    detect_offer_type,
     has_order_history_signal,
     has_promotions_signal,
     has_user_profile_signal,
@@ -43,13 +44,19 @@ from .stt.transcriber import transcribe_audio
 from .stt.validation import normalize_transcript
 
 _RESPONSE_MODEL_LABEL = "openai-grounded-agent"
-_PRODUCT_LIST_INTENTS = frozenset({"prices", "product_search", "offers", "buying_suggestions"})
+_PRODUCT_LIST_INTENTS = frozenset(
+    {"prices", "product_search", "offers", "buying_suggestions"}
+)
 _RICH_TEXT_INTENTS = frozenset({"order_history", "user_profile", "promotions"})
 _EXPLANATION_SECTION_MARKER = "\n\n---\n\n**🔍"
 
 
 def _message(role: str, content: str) -> dict[str, str]:
-    return {"role": role, "content": content, "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _strip_explanation_section(content: str) -> str:
@@ -77,7 +84,12 @@ async def process_voice_chat(
     intents: list[str] | None = None,
     transcript_text: str | None = None,
 ) -> VoiceChatResult:
-    logger.info("Voice chat start: session=%s language=%s userId=%s", session_id, language, user_id)
+    logger.info(
+        "Voice chat start: session=%s language=%s userId=%s",
+        session_id,
+        language,
+        user_id,
+    )
     started = time.perf_counter()
     session_id = session_id or f"voice-{uuid.uuid4().hex[:12]}"
     transcription = ""
@@ -124,10 +136,14 @@ async def process_voice_chat(
             transcription, language, session_id, user_id, intents, session
         )
 
-        if intent_result.intent != "order_history" and has_order_history_signal(transcription):
+        if intent_result.intent != "order_history" and has_order_history_signal(
+            transcription
+        ):
             logger.info(
                 "Order-history override applied: detected_intent=%s userId=%s text=%r",
-                intent_result.intent, user_id, transcription[:160],
+                intent_result.intent,
+                user_id,
+                transcription[:160],
             )
             intent_result = IntentResult(
                 intent="order_history",
@@ -138,15 +154,23 @@ async def process_voice_chat(
                     "confidence": max(intent_result.confidence, 0.90),
                     "rationale": "Strong order-history keywords detected in user message.",
                     "features": [
-                        {"name": "order_history_signal", "weight": 1.0, "evidence": transcription[:120]}
+                        {
+                            "name": "order_history_signal",
+                            "weight": 1.0,
+                            "evidence": transcription[:120],
+                        }
                     ],
                 },
             )
 
-        elif intent_result.intent != "user_profile" and has_user_profile_signal(transcription):
+        elif intent_result.intent != "user_profile" and has_user_profile_signal(
+            transcription
+        ):
             logger.info(
                 "User-profile override applied: detected_intent=%s userId=%s text=%r",
-                intent_result.intent, user_id, transcription[:160],
+                intent_result.intent,
+                user_id,
+                transcription[:160],
             )
             intent_result = IntentResult(
                 intent="user_profile",
@@ -157,15 +181,22 @@ async def process_voice_chat(
                     "confidence": max(intent_result.confidence, 0.88),
                     "rationale": "Strong user-profile keywords detected in user message.",
                     "features": [
-                        {"name": "user_profile_signal", "weight": 1.0, "evidence": transcription[:120]}
+                        {
+                            "name": "user_profile_signal",
+                            "weight": 1.0,
+                            "evidence": transcription[:120],
+                        }
                     ],
                 },
             )
 
-        elif intent_result.intent != "promotions" and has_promotions_signal(transcription):
+        elif intent_result.intent != "promotions" and has_promotions_signal(
+            transcription
+        ):
             logger.info(
                 "Promotions override applied: detected_intent=%s text=%r",
-                intent_result.intent, transcription[:160],
+                intent_result.intent,
+                transcription[:160],
             )
             intent_result = IntentResult(
                 intent="promotions",
@@ -176,7 +207,11 @@ async def process_voice_chat(
                     "confidence": max(intent_result.confidence, 0.88),
                     "rationale": "Strong promotions keywords detected in user message.",
                     "features": [
-                        {"name": "promotions_signal", "weight": 1.0, "evidence": transcription[:120]}
+                        {
+                            "name": "promotions_signal",
+                            "weight": 1.0,
+                            "evidence": transcription[:120],
+                        }
                     ],
                 },
             )
@@ -184,12 +219,22 @@ async def process_voice_chat(
         explainability = intent_result.explainability
         logger.info(
             "Intent detected: intent=%s confidence=%.2f entities=%s",
-            intent_result.intent, intent_result.confidence, intent_result.entities,
+            intent_result.intent,
+            intent_result.confidence,
+            intent_result.entities,
         )
 
         # Tag last-order queries so the resolver limits to 1 result
-        if intent_result.intent == "order_history" and is_last_order_query(transcription):
+        if intent_result.intent == "order_history" and is_last_order_query(
+            transcription
+        ):
             intent_result.entities["last_order_only"] = True
+
+        # Tag BOGO / multi-buy offer type so the response can acknowledge it
+        if intent_result.intent in ("offers", "promotions"):
+            offer_type = detect_offer_type(transcription)
+            if offer_type:
+                intent_result.entities["offer_type"] = offer_type
 
         # 4. Intent resolution (DB query)
         ctx = await resolve_intent(
@@ -211,7 +256,10 @@ async def process_voice_chat(
                 response=clarification,
                 language=language,
                 sessionId=session_id,
-                messages=[_message("user", transcription), _message("assistant", clarification)],
+                messages=[
+                    _message("user", transcription),
+                    _message("assistant", clarification),
+                ],
                 model="clarification",
                 latencyMs=latency_ms,
                 intent=intent_result.intent,
@@ -247,7 +295,9 @@ async def process_voice_chat(
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info(
             "Voice chat done: session=%s intent=%s latency=%dms",
-            session_id, intent_result.intent, latency_ms,
+            session_id,
+            intent_result.intent,
+            latency_ms,
         )
 
         products = (
@@ -263,10 +313,14 @@ async def process_voice_chat(
                 db_source=ctx.db_source,
                 language=language,
             )
-            response_text = _append_simple_explanation(response_text, simple_explanation)
+            response_text = _append_simple_explanation(
+                response_text, simple_explanation
+            )
 
         primary_query = str(intent_result.entities.get("product") or "").strip() or None
-        category_hint = str(intent_result.entities.get("category") or "").strip() or None
+        category_hint = (
+            str(intent_result.entities.get("category") or "").strip() or None
+        )
         product_pagination = (
             build_product_pagination(
                 intent=intent_result.intent,
@@ -287,7 +341,10 @@ async def process_voice_chat(
             response=response_text,
             language=language,
             sessionId=session_id,
-            messages=[_message("user", transcription), _message("assistant", response_text)],
+            messages=[
+                _message("user", transcription),
+                _message("assistant", response_text),
+            ],
             model=_RESPONSE_MODEL_LABEL,
             latencyMs=latency_ms,
             intent=intent_result.intent,
@@ -333,7 +390,9 @@ async def _detect_intent(
     if remote:
         return remote
 
-    intent_name, confidence, entities, _clarification = detect_intent_and_entities(transcription, intents)
+    intent_name, confidence, entities, _clarification = detect_intent_and_entities(
+        transcription, intents
+    )
     return IntentResult(
         intent=intent_name,
         confidence=confidence,
@@ -363,7 +422,9 @@ async def _resolve_with_session(
     If the previous turn asked the user for a product name (needs_clarification),
     we treat the current short reply as the product entity and resume the saved intent.
     """
-    intent_result = await _detect_intent(transcription, language, session_id, user_id, intents)
+    intent_result = await _detect_intent(
+        transcription, language, session_id, user_id, intents
+    )
 
     pending = session.consume_clarification()
     if pending:
@@ -379,12 +440,15 @@ async def _resolve_with_session(
 
         if missing_product and no_intent_switch:
             from .intent.keyword import _sanitize_entity_candidate
+
             product_answer = _sanitize_entity_candidate(transcription)
             if product_answer:
                 merged_entities = {**saved_entities, "product": product_answer}
                 logger.info(
                     "Session clarification resolved: session=%s intent=%s product=%r",
-                    session_id, saved_intent, product_answer,
+                    session_id,
+                    saved_intent,
+                    product_answer,
                 )
                 return IntentResult(
                     intent=saved_intent,
@@ -394,7 +458,13 @@ async def _resolve_with_session(
                         "source": "session-clarification",
                         "confidence": 0.90,
                         "rationale": f"User replied with product name after clarification for intent '{saved_intent}'",
-                        "features": [{"name": "product", "weight": 1.0, "evidence": product_answer}],
+                        "features": [
+                            {
+                                "name": "product",
+                                "weight": 1.0,
+                                "evidence": product_answer,
+                            }
+                        ],
                     },
                 )
 

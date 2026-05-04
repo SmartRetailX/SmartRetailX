@@ -1,8 +1,8 @@
 id,language,query,expectedIntent,expectedContains,expectedNotContains,notes
 q001,si-LK,අද තියෙන offers මොනවද?,offers,offer|discount|promo,error,base offers
-q002,si-LK,මේ සතියේ promotions දන්නවද?,offers,promo|offer|discount,error,offers synonym
-q003,si-LK,මට අද discount තියෙන භාණ්ඩ කියන්න,offers,discount|offer,error,offer by discount wording
-q004,si-LK,buy 1 get 1 offer තියෙනවද?,offers,offer|promo,error,bogo style
+q002,si-LK,මේ සතියේ promotions තියනවද?,offers,promo|offer|discount,error,offers synonym
+q003,si-LK,අද මට discount තියෙන භාණ්ඩ කියන්න,offers,discount|offer,error,offer by discount wording
+q004,si-LK,buy 1 get 1 offer තියෙනවද?,offers,Buy 1 Get 1|offer,භාණ්ඩ හමු නොවුණා,bogo english – must not resolve as product search
 q005,si-LK,supermarket එකේ special deals මොනවද?,offers,deal|offer,error,english mix
 q006,si-LK,අඩු කළ මිල තියෙන products list එක දෙන්න,offers,discount|reduced|offer,error,price-cut framing
 q007,si-LK,මගේ order history එක කියන්න,order_history,order|history,error,order history base
