@@ -37,5 +37,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/dist/apps/websocket-service/ ./
+RUN npm install --omit=dev --no-save tslib@2
 USER node
 CMD ["node", "main.js"]
