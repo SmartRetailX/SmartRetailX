@@ -14,4 +14,4 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
-pnpm exec prisma generate --schema libs/database/prisma/schema.prisma
+pnpm exec prisma generate
