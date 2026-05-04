@@ -3,11 +3,14 @@ import {
   Bell,
   Boxes,
   FolderTree,
+  Gift,
+  Layers,
   LayoutDashboard,
   LogOut,
   Package,
   ShoppingBag,
   Store,
+  Users,
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -56,6 +59,24 @@ const adminNavItems = [
     path: '/admin/orders',
     href: '/admin/orders?page=1&limit=10',
     icon: ShoppingBag,
+  },
+  {
+    label: 'Static Segmentation',
+    path: '/admin/customers',
+    href: '/admin/customers',
+    icon: Users,
+  },
+  {
+    label: 'Dynamic Segmentations',
+    path: '/admin/tiers',
+    href: '/admin/tiers',
+    icon: Layers,
+  },
+  {
+    label: 'Loayalty Tiers',
+    path: '/admin/loyalty',
+    href: '/admin/loyalty',
+    icon: Gift,
   },
 ];
 
