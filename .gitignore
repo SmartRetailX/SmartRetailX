@@ -143,3 +143,4 @@ evaluation/results/*.pdf
 scripts/data-insert-scripts/all_products.json
 scripts/data-insert-scripts/prompt.txt
 !scripts/README.md
+.claude
