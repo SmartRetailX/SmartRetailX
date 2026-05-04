@@ -14,10 +14,39 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Form } from '@/components/ui/form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 
 type SignUpFormValues = SignUpSchema;
+
+const CITY_OPTIONS = [
+  'Colombo',
+  'Gampaha',
+  'Kalutara',
+  'Kandy',
+  'Matara',
+  'Galle',
+  'Kurunegala',
+  'Ratnapura',
+  'Anuradhapura',
+  'Badulla',
+  'Nuwara Eliya',
+  'Negombo',
+  'Trincomalee',
+  'Tissamaharama',
+  'Batticaloa',
+  'Kilinochchi',
+  'Jaffna',
+  'Vavuniya',
+  'Moratuwa',
+];
 
 type SignUpProps = {
   onSubmit: (values: SignUpFormValues) => Promise<void>;
@@ -33,6 +62,10 @@ export function SignUp({ onSubmit, isSubmitting, isPending, errorMessage }: Sign
       name: '',
       email: undefined,
       password: '',
+      age: '',
+      gender: undefined,
+      City: '',
+      mobileNumber: '',
     },
   });
 
@@ -69,6 +102,72 @@ export function SignUp({ onSubmit, isSubmitting, isPending, errorMessage }: Sign
                 type="password"
                 placeholder="Minimum 8 characters"
                 autoComplete="new-password"
+              />
+
+              <AuthFormInput
+                control={form.control}
+                name="age"
+                label="Age"
+                type="number"
+                placeholder="Optional"
+                autoComplete="off"
+              />
+
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Gender</FormLabel>
+                    <FormControl>
+                      <select
+                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={field.value ?? ''}
+                        onChange={(event) =>
+                          field.onChange(event.target.value ? event.target.value : undefined)
+                        }
+                      >
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="City"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <select
+                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                      >
+                        <option value="">Select city</option>
+                        {CITY_OPTIONS.map((city) => (
+                          <option key={city} value={city}>
+                            {city}
+                          </option>
+                        ))}
+                      </select>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+
+              <AuthFormInput
+                control={form.control}
+                name="mobileNumber"
+                label="Mobile Number"
+                placeholder="Optional"
+                autoComplete="tel"
               />
 
               {errorMessage ? (

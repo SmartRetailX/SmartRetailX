@@ -1,0 +1,7 @@
+id,status,query,language,expectedIntent,actualIntent,intentPass,expectedContains,containsPass,expectedNotContains,notContainsPass,success,latencyMs,error,assistantResponse
+q001,FAIL,අද තියෙන offers මොනවද?,si-LK,offers,,false,offer|discount|promo,false,error,true,false,0,fetch failed,
+q002,FAIL,මගේ order history එක කියන්න,si-LK,order_history,,false,order|history,false,error,true,false,0,fetch failed,
+q003,FAIL,What is the price of milk?,en-US,prices,,false,price|lkr|rs,false,error,true,false,0,fetch failed,
+q004,FAIL,Suggest products for breakfast,en-US,buying_suggestions,,false,suggest|recommend,false,error,true,false,0,fetch failed,
+q005,FAIL,Find shampoo products,en-US,product_search,,false,product|shampoo,false,error,true,false,0,fetch failed,
+q006,FAIL,හලෝ ඔයාට කොහොමද,si-LK,general,,false,,true,error,true,false,0,fetch failed,

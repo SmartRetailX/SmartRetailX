@@ -45,3 +45,4 @@ networks:
   backend:
     name: smart-retail-backend
     driver: bridge
+    internal: true
