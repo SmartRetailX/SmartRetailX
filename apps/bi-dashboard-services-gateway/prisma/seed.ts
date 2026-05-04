@@ -164,9 +164,110 @@ async function main() {
     console.log(`✅ ${saleRows.length} sales transactions created (${itemRows.length} items)`);
   }
 
-  // NOTE: Alerts are NOT seeded - they are generated dynamically by the ML service
-  // Call POST /v1/alerts/generate to create alerts based on real inventory analysis
-  console.log('ℹ️  Alerts are generated dynamically. Run: POST /v1/alerts/generate');
+  // Seed cached forecast rows so the dashboard can render forecast charts even if the ML service
+  // has not warmed up yet.
+  const forecastProducts = [products[0], products[1], products[4], products[8], products[9]];
+  const forecastStartDate = new Date();
+  forecastStartDate.setHours(0, 0, 0, 0);
+
+  await prisma.forecast.deleteMany({
+    where: {
+      productId: {
+        in: forecastProducts.map((product) => product.id),
+      },
+    },
+  });
+
+  await prisma.forecastDriver.deleteMany({
+    where: {
+      productId: {
+        in: forecastProducts.map((product) => product.id),
+      },
+    },
+  });
+
+  const forecastRows: any[] = [];
+  const forecastDriverRows: any[] = [];
+
+  forecastProducts.forEach((product, productIndex) => {
+    const baselineDemand = Math.max(8, Math.round(product.currentStock / 45));
+
+    forecastDriverRows.push(
+      {
+        productId: product.id,
+        name: 'Seasonality factor',
+        nameSi: 'කාලීය සාධකය',
+        impact: 0.36,
+        description: 'Weekly demand swings based on recurring buying patterns.',
+        descriptionSi: 'නැවත නැවත පෙනෙන මිලදී ගැනීමේ රටාවන් මත සතිපතා ඉල්ලුම් වෙනස්වීම්.',
+      },
+      {
+        productId: product.id,
+        name: 'Stock coverage',
+        nameSi: 'තොග ආවරණය',
+        impact: 0.28,
+        description: 'Available stock keeps the forecast grounded in inventory reality.',
+        descriptionSi: 'ඇතැම් තොග ප්‍රමාණය ඉල්ලුම ඇස්තමේන්තුව සැබෑ තොග තත්ත්වයට ගැළපේ.',
+      },
+      {
+        productId: product.id,
+        name: 'Promotion lift',
+        nameSi: 'ප්‍රවර්ධන බලපෑම',
+        impact: 0.21,
+        description: 'Short-term uplift from promotional campaigns and bundles.',
+        descriptionSi: 'ප්‍රවර්ධන සහ බණ්ඩල් දීමනා මගින් කෙටි කාලීන වර්ධනය.',
+      },
+    );
+
+    for (let day = 1; day <= 30; day++) {
+      const date = new Date(forecastStartDate);
+      date.setDate(date.getDate() + day);
+
+      const seasonality = 1 + Math.sin(((day + productIndex) / 7) * Math.PI * 2) * 0.12;
+      const promotionBoost = productIndex === 0 ? 1.08 : 1;
+      const predictedSales = Number((baselineDemand * seasonality * promotionBoost).toFixed(2));
+
+      forecastRows.push({
+        productId: product.id,
+        date,
+        predictedSales,
+        confidenceLower: Number((predictedSales * 0.82).toFixed(2)),
+        confidenceUpper: Number((predictedSales * 1.18).toFixed(2)),
+        revenue: Number((predictedSales * product.price).toFixed(2)),
+        modelType: 'Prophet',
+        confidence: 0.87,
+      });
+    }
+  });
+
+  await prisma.forecast.createMany({ data: forecastRows });
+  await prisma.forecastDriver.createMany({ data: forecastDriverRows });
+  console.log(`✅ ${forecastRows.length} forecast points created (${forecastDriverRows.length} drivers)`);
+
+  // Seed a few realistic open alerts so the dashboard has something to display immediately.
+  const existingAlertsCount = await prisma.alert.count();
+  if (existingAlertsCount === 0) {
+    const seededAlerts = forecastProducts
+      .filter((product) => product.currentStock <= product.reorderLevel)
+      .slice(0, 3)
+      .map((product, index) => ({
+        type: 'RESTOCK' as const,
+        urgency: index === 0 ? ('HIGH' as const) : ('MEDIUM' as const),
+        productId: product.id,
+        currentStock: product.currentStock,
+        recommendedQuantity: Math.max(product.reorderLevel - product.currentStock + 40, 20),
+        reason: `${product.name} is below the reorder threshold and should be replenished soon.`,
+        reasonSi: `${product.nameSi} නැවත ඇණවුම් සීමාවට අඩු වී ඇත. ඉක්මනින් නැවත පුරවන්න.`,
+        confidence: 0.91 - index * 0.05,
+        estimatedStockoutDate: new Date(Date.now() + (7 + index * 3) * 24 * 60 * 60 * 1000),
+        status: 'PENDING' as const,
+      }));
+
+    if (seededAlerts.length > 0) {
+      await prisma.alert.createMany({ data: seededAlerts });
+      console.log(`✅ ${seededAlerts.length} sample alerts created`);
+    }
+  }
 
   // Create Promotions
   const promotionData = {

@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Bell,
   Boxes,
+  BarChart3,
   FolderTree,
   LayoutDashboard,
   LogOut,
@@ -56,6 +57,12 @@ const adminNavItems = [
     path: '/admin/orders',
     href: '/admin/orders?page=1&limit=10',
     icon: ShoppingBag,
+  },
+  {
+    label: 'BI Dashboard',
+    path: '/admin/bi-dashboard',
+    href: '/admin/bi-dashboard',
+    icon: BarChart3,
   },
 ];
 

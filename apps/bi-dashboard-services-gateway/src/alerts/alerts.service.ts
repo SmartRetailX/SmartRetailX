@@ -177,20 +177,30 @@ export class AlertsService implements OnModuleInit {
           console.log(`  ✏️  Updated alert: ${updated.id} for ${alertData.productId}`);
         } else {
           // Create new alert
-          const created = await this.prisma.alert.create({
-            data: {
-              type: alertData.type,
-              urgency: alertData.urgency,
-              productId: alertData.productId,
-              currentStock: alertData.currentStock,
-              recommendedQuantity: alertData.recommendedQuantity,
-              reason: alertData.reason,
-              reasonSi: alertData.reasonSi,
-              confidence: alertData.confidence,
-              estimatedStockoutDate: new Date(alertData.estimatedStockoutDate),
-              status: 'PENDING',
-            },
-          });
+          // Ensure we don't violate the FK: only set productId if the product exists
+          const createData: any = {
+            type: alertData.type,
+            urgency: alertData.urgency,
+            currentStock: alertData.currentStock,
+            recommendedQuantity: alertData.recommendedQuantity,
+            reason: alertData.reason,
+            reasonSi: alertData.reasonSi,
+            confidence: alertData.confidence,
+            estimatedStockoutDate: new Date(alertData.estimatedStockoutDate),
+            status: 'PENDING',
+          };
+
+          if (alertData.productId) {
+            const product = await this.prisma.product.findUnique({ where: { id: alertData.productId } });
+            if (product) {
+              createData.productId = alertData.productId;
+            } else {
+              // Product not found in this database — avoid FK violation and record original id in the reason
+              createData.reason = `${createData.reason} (originalProductId: ${alertData.productId} not found in DB)`;
+            }
+          }
+
+          const created = await this.prisma.alert.create({ data: createData });
           savedAlerts.push(created);
           console.log(`  ➕ Created alert: ${created.id} for ${alertData.productId}`);
         }

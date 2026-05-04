@@ -3,6 +3,44 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@ne
 
 import { PrismaService } from '../prisma/prisma.service';
 
+function toDateKey(value: Date) {
+  return value.toISOString().split('T')[0];
+}
+
+function buildDateSeries(start: Date, end: Date, values: Map<string, { revenue: number; orders: number }>) {
+  const series: Array<{ date: string; revenue: number; orders: number }> = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    const dateKey = toDateKey(cursor);
+    const current = values.get(dateKey) ?? { revenue: 0, orders: 0 };
+
+    series.push({
+      date: dateKey,
+      revenue: current.revenue,
+      orders: current.orders,
+    });
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return series;
+}
+
+function calculateChange(current: number, previous: number) {
+  if (previous === 0) {
+    return current === 0 ? 0 : 100;
+  }
+
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+}
+
+function calculateTrend(current: number, previous: number) {
+  if (current > previous) return 'up';
+  if (current < previous) return 'down';
+  return 'stable';
+}
+
 @Injectable()
 class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -37,6 +75,36 @@ class AnalyticsService {
     // Determine date range based on period
     const periodDays = query.period === 'day' ? 1 : query.period === 'week' ? 7 : query.period === 'year' ? 365 : 30;
     const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const previousSince = new Date(since.getTime() - periodDays * 24 * 60 * 60 * 1000);
+
+    const [currentSalesSummary, previousSalesSummary, forecastConfidenceSummary] = await Promise.all([
+      this.prisma.$queryRaw<{ revenue: number; orders: number }[]>`
+        SELECT
+          COALESCE(SUM(final_amount), 0)::float8 AS revenue,
+          COUNT(*)::int AS orders
+        FROM bi_dashboard.sales
+        WHERE timestamp >= ${since}
+      `,
+      this.prisma.$queryRaw<{ revenue: number; orders: number }[]>`
+        SELECT
+          COALESCE(SUM(final_amount), 0)::float8 AS revenue,
+          COUNT(*)::int AS orders
+        FROM bi_dashboard.sales
+        WHERE timestamp >= ${previousSince}
+          AND timestamp < ${since}
+      `,
+      this.prisma.$queryRaw<{ confidence: number }[]>`
+        SELECT COALESCE(AVG(confidence), 0)::float8 AS confidence
+        FROM bi_dashboard.sales_forecasts
+        WHERE generated_at >= ${since}
+      `,
+    ]);
+
+    const currentRevenue = Number(currentSalesSummary[0]?.revenue || 0);
+    const currentOrders = Number(currentSalesSummary[0]?.orders || 0);
+    const previousRevenue = Number(previousSalesSummary[0]?.revenue || 0);
+    const previousOrders = Number(previousSalesSummary[0]?.orders || 0);
+    const forecastConfidence = Number(forecastConfidenceSummary[0]?.confidence || 0);
 
     // Sales trend: daily revenue + order count
     const salesTrendRaw = await this.prisma.$queryRaw<{ date: string; revenue: number; orders: number }[]>`
@@ -49,11 +117,19 @@ class AnalyticsService {
       GROUP BY DATE(timestamp)
       ORDER BY DATE(timestamp) ASC
     `;
-    const salesTrend = salesTrendRaw.map((r) => ({
-      date: r.date,
-      revenue: Number(r.revenue),
-      orders: Number(r.orders),
-    }));
+    const salesTrend = buildDateSeries(
+      since,
+      new Date(),
+      new Map(
+        salesTrendRaw.map((r) => [
+          r.date,
+          {
+            revenue: Number(r.revenue),
+            orders: Number(r.orders),
+          },
+        ]),
+      ),
+    );
 
     // Top products: by revenue in the period
     const topProductsRaw = await this.prisma.$queryRaw<{ id: string; name: string; revenue: number; quantity: number }[]>`
@@ -81,11 +157,19 @@ class AnalyticsService {
       success: true,
       data: {
         kpis: {
-          totalRevenue: { value: 1250000.0, change: 12.5, trend: 'up' },
-          totalOrders: { value: 4567, change: 8.3, trend: 'up' },
-          activeAlerts: { value: activeAlertsCount, change: -15.2, trend: 'down' },
+          totalRevenue: {
+            value: currentRevenue,
+            change: calculateChange(currentRevenue, previousRevenue),
+            trend: calculateTrend(currentRevenue, previousRevenue),
+          },
+          totalOrders: {
+            value: currentOrders,
+            change: calculateChange(currentOrders, previousOrders),
+            trend: calculateTrend(currentOrders, previousOrders),
+          },
+          activeAlerts: { value: activeAlertsCount, change: 0, trend: 'stable' },
           criticalAlerts: { value: criticalAlertsCount, change: 0, trend: 'stable' },
-          forecastAccuracy: { value: 94.2, change: 2.1, trend: 'up' },
+          forecastAccuracy: { value: forecastConfidence, change: 0, trend: 'stable' },
           totalProducts: { value: totalProducts, change: 0, trend: 'stable' },
           lowStockProducts: { value: lowStockProducts, change: 0, trend: 'stable' },
         },

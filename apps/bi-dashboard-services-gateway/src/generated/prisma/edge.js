@@ -363,7 +363,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/workspaces/smart-retail-x/apps/bi-dashboard-services-gateway/src/generated/prisma",
+      "value": "/home/thath/SmartRetailX/apps/bi-dashboard-services-gateway/src/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -379,12 +379,11 @@ const config = {
     "previewFeatures": [
       "multiSchema"
     ],
-    "sourceFilePath": "/workspaces/smart-retail-x/apps/bi-dashboard-services-gateway/prisma/schema.prisma",
+    "sourceFilePath": "/home/thath/SmartRetailX/apps/bi-dashboard-services-gateway/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": null,
-    "schemaEnvPath": "../../../../../.env"
+    "rootEnvPath": null
   },
   "relativePath": "../../../prisma",
   "clientVersion": "5.22.0",
