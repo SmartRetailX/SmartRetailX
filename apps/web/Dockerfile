@@ -6,7 +6,11 @@ ARG PNPM_VERSION
 ARG PUBLIC_BASE_URL=http://localhost:3000
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
-    PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+    PUBLIC_BASE_URL=${PUBLIC_BASE_URL} \
+    CI=true \
+    NX_CLOUD=false \
+    NX_DAEMON=false \
+    NX_NO_CLOUD=true
 WORKDIR /workspace
 RUN corepack enable \
     && corepack prepare pnpm@${PNPM_VERSION} --activate
