@@ -3,8 +3,8 @@ Customer-facing promotion notifications API.
 
 Customers fetch their targeted promotions (and mark them as read) via these routes.
 The authenticated user's email is passed from the NestJS auth-aware proxy as a
-query parameter — the Python service then joins pe_customers.email to resolve
-customer_id without requiring any migration of the auth user table.
+query parameter — the Python service then joins auth.user.email to resolve
+customer_id via the Prisma-managed schema.
 """
 
 from fastapi import APIRouter, HTTPException, Query

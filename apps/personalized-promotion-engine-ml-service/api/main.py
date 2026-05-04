@@ -1,12 +1,19 @@
 """
 FastAPI application for the Personalized Promotion Engine.
 Loads ML models and exposes REST API endpoints.
+
+Aligned with Prisma schema:
+  auth.user          -> customers
+  core.products      -> products  (joined with core.categories)
+  core.transactions  -> transactions
+  core.promotions    -> promotions
 """
 
 import os
 import sys
 from contextlib import asynccontextmanager
 
+import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,37 +35,39 @@ app_state = {
 
 
 def load_data_from_db(preprocessor):
-    """Override DataPreprocessor's CSV loading with database loading."""
-    print("Loading data from PostgreSQL (pe_* tables)...")
+    """
+    Override DataPreprocessor's CSV loading with database loading.
+    Reads from the Prisma-managed schema tables via database.py.
+    """
+    print("Loading data from PostgreSQL (Prisma schema tables)...")
 
     preprocessor.customers = get_customers()
     preprocessor.products = get_products()
     preprocessor.transactions = get_transactions()
     preprocessor.promotions = get_promotions()
 
-    # Convert dates
+    # Ensure date columns are datetime
     preprocessor.transactions['TransactionDate'] = pd.to_datetime(
         preprocessor.transactions['TransactionDate']
     )
-    preprocessor.customers['RegistrationDate'] = pd.to_datetime(
-        preprocessor.customers['RegistrationDate']
-    )
+    if 'RegistrationDate' in preprocessor.customers.columns:
+        preprocessor.customers['RegistrationDate'] = pd.to_datetime(
+            preprocessor.customers['RegistrationDate']
+        )
 
-    # Fit category encoder
+    # Fit category encoder on actual category names
     preprocessor.category_encoder.fit(preprocessor.products['Category'].unique())
 
-    print(f"  Customers: {len(preprocessor.customers)}")
-    print(f"  Products:  {len(preprocessor.products)}")
+    print(f"  Customers:    {len(preprocessor.customers)}")
+    print(f"  Products:     {len(preprocessor.products)}")
     print(f"  Transactions: {len(preprocessor.transactions)}")
-    print(f"  Promotions: {len(preprocessor.promotions)}")
-    print(f"  Categories: {list(preprocessor.category_encoder.classes_)}")
+    print(f"  Promotions:   {len(preprocessor.promotions)}")
+    print(f"  Categories:   {list(preprocessor.category_encoder.classes_)}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load ML models and data on startup."""
-    import pandas as pd
-
     print("=" * 60)
     print(" Starting Promotion Engine API...")
     print("=" * 60)
@@ -72,8 +81,7 @@ async def lifespan(app: FastAPI):
         load_data_from_db(preprocessor)
         app_state["preprocessor"] = preprocessor
 
-        # 2. Create engine and manually load models (NOT engine.load_models()
-        #    because that creates a new DataPreprocessor from CSV which fails)
+        # 2. Create engine and wire preprocessor
         models_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             'models'
@@ -81,10 +89,9 @@ async def lifespan(app: FastAPI):
         engine = PersonalizedPromotionEngine(models_dir=models_dir)
         engine.preprocessor = preprocessor
 
-        # Manually load the trained .pkl models
+        # 3. Load trained .pkl models
         from models.purchase_prediction import PurchasePredictionModel
         from models.collaborative_filtering import CollaborativeFilteringModel
-        from models.promotion_optimizer import PromotionOptimizer
 
         pp_path = os.path.join(models_dir, 'purchase_prediction_model.pkl')
         cf_path = os.path.join(models_dir, 'collaborative_filtering_model.pkl')
@@ -101,11 +108,27 @@ async def lifespan(app: FastAPI):
         else:
             print(f"  [MISSING] collaborative_filtering_model.pkl not found at {cf_path}")
 
-        engine.optimizer = PromotionOptimizer()
+        # 4. Wire optimizer (optional)
+        try:
+            from models.promotion_optimizer import PromotionOptimizer
+            optimizer = PromotionOptimizer()
+            cust_features = preprocessor.create_customer_features()
+            optimizer.customer_features = cust_features
+            promo_txns = preprocessor.transactions[
+                preprocessor.transactions["PromotionID"] != "None"
+            ].copy()
+            promo_txns["TransactionDate"] = pd.to_datetime(
+                promo_txns["TransactionDate"], errors="coerce"
+            )
+            optimizer.promotion_history = promo_txns
+            engine.optimizer = optimizer
+            print("  [OK] Promotion optimizer loaded")
+        except Exception as opt_err:
+            print(f"  [NOTE] Optimizer not loaded: {opt_err}")
+            engine.optimizer = None
 
         app_state["engine"] = engine
         app_state["ready"] = True
-
         print("\n[OK] Promotion Engine API ready!")
 
     except Exception as e:
@@ -117,13 +140,10 @@ async def lifespan(app: FastAPI):
     print("Shutting down Promotion Engine API...")
 
 
-# Need pandas import at module level for load_data_from_db
-import pandas as pd
-
 app = FastAPI(
     title="Personalized Promotion Engine API",
     description="ML-powered customer targeting for promotions",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
