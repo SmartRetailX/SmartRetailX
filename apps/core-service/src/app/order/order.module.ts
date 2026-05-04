@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { CatalogModule } from '../catalog/catalog.module';
+
 import { CartModule } from '../cart/cart.module';
+import { CatalogModule } from '../catalog/catalog.module';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 

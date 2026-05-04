@@ -1,8 +1,17 @@
 import { FormEvent, useState } from 'react';
+import { useCartQuery, useCatalogCategoriesQuery } from '@/hooks';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { LogOut, Menu, Mic, Search, ShoppingCart, ShieldCheck, UserIcon } from 'lucide-react';
+import {
+  Award,
+  LogOut,
+  Menu,
+  Mic,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  UserIcon,
+} from 'lucide-react';
 
-import { useCatalogCategoriesQuery, useCartQuery } from '@/hooks';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { USER_ROLE, User } from '@/types/auth';
+import { User, USER_ROLE } from '@/types/auth';
 
 export function Header({ user, signOut }: { user?: User | null; signOut: () => void }) {
   const [search, setSearch] = useState('');
@@ -69,6 +78,20 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
                   <Mic className="h-5 w-5" />
                   <span className="hidden sm:ml-2 sm:inline font-medium text-gray-700">
                     Voice Assistant
+                  </span>
+                </Button>
+              </Link>
+            )}
+
+            {user?.role === USER_ROLE.USER && (
+              <Link to="/user-loyalty">
+                <Button
+                  variant="ghost"
+                  className="h-10 w-10 rounded-full p-0 hover:bg-green-50 hover:text-primary sm:h-12 sm:w-auto sm:px-4"
+                >
+                  <Award className="h-5 w-5" />
+                  <span className="hidden sm:ml-2 sm:inline font-medium text-gray-700">
+                    Loyalty
                   </span>
                 </Button>
               </Link>

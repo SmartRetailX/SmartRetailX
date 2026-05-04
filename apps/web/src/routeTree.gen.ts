@@ -16,14 +16,19 @@ import { Route as PublicAuthRouteImport } from './routes/_public/$auth'
 import { Route as AuthenticatedUserRouteImport } from './routes/_authenticated/_user'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/_admin'
 import { Route as AuthenticatedUserVoiceAssistantRouteImport } from './routes/_authenticated/_user/voice-assistant'
+import { Route as AuthenticatedUserUserLoyaltyRouteImport } from './routes/_authenticated/_user/user-loyalty'
 import { Route as AuthenticatedUserOrdersRouteImport } from './routes/_authenticated/_user/orders'
 import { Route as AuthenticatedUserCartRouteImport } from './routes/_authenticated/_user/cart'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedAdminAdminIndexRouteImport } from './routes/_authenticated/_admin/admin.index'
 import { Route as AuthenticatedUserProductsProductIdRouteImport } from './routes/_authenticated/_user/products.$productId'
+import { Route as AuthenticatedAdminAdminTiersRouteImport } from './routes/_authenticated/_admin/admin.tiers'
+import { Route as AuthenticatedAdminAdminTierDetailsRouteImport } from './routes/_authenticated/_admin/admin.tier-details'
 import { Route as AuthenticatedAdminAdminStockRouteImport } from './routes/_authenticated/_admin/admin.stock'
 import { Route as AuthenticatedAdminAdminProductsRouteImport } from './routes/_authenticated/_admin/admin.products'
 import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_authenticated/_admin/admin.orders'
+import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'
+import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
 import { Route as AuthenticatedAdminAdminBiDashboardRouteImport } from './routes/_authenticated/_admin/admin.bi-dashboard'
 
@@ -60,6 +65,12 @@ const AuthenticatedUserVoiceAssistantRoute =
     path: '/voice-assistant',
     getParentRoute: () => AuthenticatedUserRoute,
   } as any)
+const AuthenticatedUserUserLoyaltyRoute =
+  AuthenticatedUserUserLoyaltyRouteImport.update({
+    id: '/user-loyalty',
+    path: '/user-loyalty',
+    getParentRoute: () => AuthenticatedUserRoute,
+  } as any)
 const AuthenticatedUserOrdersRoute = AuthenticatedUserOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -87,6 +98,18 @@ const AuthenticatedUserProductsProductIdRoute =
     path: '/products/$productId',
     getParentRoute: () => AuthenticatedUserRoute,
   } as any)
+const AuthenticatedAdminAdminTiersRoute =
+  AuthenticatedAdminAdminTiersRouteImport.update({
+    id: '/tiers',
+    path: '/tiers',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
+const AuthenticatedAdminAdminTierDetailsRoute =
+  AuthenticatedAdminAdminTierDetailsRouteImport.update({
+    id: '/tier-details',
+    path: '/tier-details',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 const AuthenticatedAdminAdminStockRoute =
   AuthenticatedAdminAdminStockRouteImport.update({
     id: '/stock',
@@ -103,6 +126,18 @@ const AuthenticatedAdminAdminOrdersRoute =
   AuthenticatedAdminAdminOrdersRouteImport.update({
     id: '/orders',
     path: '/orders',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
+const AuthenticatedAdminAdminLoyaltyRoute =
+  AuthenticatedAdminAdminLoyaltyRouteImport.update({
+    id: '/loyalty',
+    path: '/loyalty',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
+const AuthenticatedAdminAdminCustomersRoute =
+  AuthenticatedAdminAdminCustomersRouteImport.update({
+    id: '/customers',
+    path: '/customers',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
 const AuthenticatedAdminAdminCategoriesRoute =
@@ -125,12 +160,17 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/cart': typeof AuthenticatedUserCartRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
+  '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
+  '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
   '/admin/stock': typeof AuthenticatedAdminAdminStockRoute
+  '/admin/tier-details': typeof AuthenticatedAdminAdminTierDetailsRoute
+  '/admin/tiers': typeof AuthenticatedAdminAdminTiersRoute
   '/products/$productId': typeof AuthenticatedUserProductsProductIdRoute
   '/admin/': typeof AuthenticatedAdminAdminIndexRoute
 }
@@ -140,12 +180,17 @@ export interface FileRoutesByTo {
   '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/cart': typeof AuthenticatedUserCartRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
+  '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
+  '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
   '/admin/stock': typeof AuthenticatedAdminAdminStockRoute
+  '/admin/tier-details': typeof AuthenticatedAdminAdminTierDetailsRoute
+  '/admin/tiers': typeof AuthenticatedAdminAdminTiersRoute
   '/products/$productId': typeof AuthenticatedUserProductsProductIdRoute
   '/admin': typeof AuthenticatedAdminAdminIndexRoute
 }
@@ -160,12 +205,17 @@ export interface FileRoutesById {
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/_user/cart': typeof AuthenticatedUserCartRoute
   '/_authenticated/_user/orders': typeof AuthenticatedUserOrdersRoute
+  '/_authenticated/_user/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/_authenticated/_user/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/_authenticated/_admin/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
+  '/_authenticated/_admin/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/_authenticated/_admin/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/_authenticated/_admin/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/_authenticated/_admin/admin/products': typeof AuthenticatedAdminAdminProductsRoute
   '/_authenticated/_admin/admin/stock': typeof AuthenticatedAdminAdminStockRoute
+  '/_authenticated/_admin/admin/tier-details': typeof AuthenticatedAdminAdminTierDetailsRoute
+  '/_authenticated/_admin/admin/tiers': typeof AuthenticatedAdminAdminTiersRoute
   '/_authenticated/_user/products/$productId': typeof AuthenticatedUserProductsProductIdRoute
   '/_authenticated/_admin/admin/': typeof AuthenticatedAdminAdminIndexRoute
 }
@@ -178,12 +228,17 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/orders'
+    | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/bi-dashboard'
     | '/admin/categories'
+    | '/admin/customers'
+    | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/stock'
+    | '/admin/tier-details'
+    | '/admin/tiers'
     | '/products/$productId'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
@@ -193,12 +248,17 @@ export interface FileRouteTypes {
     | '/bi-dashboard/ml-explain'
     | '/cart'
     | '/orders'
+    | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/bi-dashboard'
     | '/admin/categories'
+    | '/admin/customers'
+    | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/stock'
+    | '/admin/tier-details'
+    | '/admin/tiers'
     | '/products/$productId'
     | '/admin'
   id:
@@ -212,12 +272,17 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_user/cart'
     | '/_authenticated/_user/orders'
+    | '/_authenticated/_user/user-loyalty'
     | '/_authenticated/_user/voice-assistant'
     | '/_authenticated/_admin/admin/bi-dashboard'
     | '/_authenticated/_admin/admin/categories'
+    | '/_authenticated/_admin/admin/customers'
+    | '/_authenticated/_admin/admin/loyalty'
     | '/_authenticated/_admin/admin/orders'
     | '/_authenticated/_admin/admin/products'
     | '/_authenticated/_admin/admin/stock'
+    | '/_authenticated/_admin/admin/tier-details'
+    | '/_authenticated/_admin/admin/tiers'
     | '/_authenticated/_user/products/$productId'
     | '/_authenticated/_admin/admin/'
   fileRoutesById: FileRoutesById
@@ -280,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUserVoiceAssistantRouteImport
       parentRoute: typeof AuthenticatedUserRoute
     }
+    '/_authenticated/_user/user-loyalty': {
+      id: '/_authenticated/_user/user-loyalty'
+      path: '/user-loyalty'
+      fullPath: '/user-loyalty'
+      preLoaderRoute: typeof AuthenticatedUserUserLoyaltyRouteImport
+      parentRoute: typeof AuthenticatedUserRoute
+    }
     '/_authenticated/_user/orders': {
       id: '/_authenticated/_user/orders'
       path: '/orders'
@@ -315,6 +387,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUserProductsProductIdRouteImport
       parentRoute: typeof AuthenticatedUserRoute
     }
+    '/_authenticated/_admin/admin/tiers': {
+      id: '/_authenticated/_admin/admin/tiers'
+      path: '/tiers'
+      fullPath: '/admin/tiers'
+      preLoaderRoute: typeof AuthenticatedAdminAdminTiersRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
+    '/_authenticated/_admin/admin/tier-details': {
+      id: '/_authenticated/_admin/admin/tier-details'
+      path: '/tier-details'
+      fullPath: '/admin/tier-details'
+      preLoaderRoute: typeof AuthenticatedAdminAdminTierDetailsRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
     '/_authenticated/_admin/admin/stock': {
       id: '/_authenticated/_admin/admin/stock'
       path: '/stock'
@@ -334,6 +420,20 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/admin/orders'
       preLoaderRoute: typeof AuthenticatedAdminAdminOrdersRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
+    '/_authenticated/_admin/admin/loyalty': {
+      id: '/_authenticated/_admin/admin/loyalty'
+      path: '/loyalty'
+      fullPath: '/admin/loyalty'
+      preLoaderRoute: typeof AuthenticatedAdminAdminLoyaltyRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
+    '/_authenticated/_admin/admin/customers': {
+      id: '/_authenticated/_admin/admin/customers'
+      path: '/customers'
+      fullPath: '/admin/customers'
+      preLoaderRoute: typeof AuthenticatedAdminAdminCustomersRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
     '/_authenticated/_admin/admin/categories': {
@@ -356,9 +456,13 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminAdminRouteChildren {
   AuthenticatedAdminAdminBiDashboardRoute: typeof AuthenticatedAdminAdminBiDashboardRoute
   AuthenticatedAdminAdminCategoriesRoute: typeof AuthenticatedAdminAdminCategoriesRoute
+  AuthenticatedAdminAdminCustomersRoute: typeof AuthenticatedAdminAdminCustomersRoute
+  AuthenticatedAdminAdminLoyaltyRoute: typeof AuthenticatedAdminAdminLoyaltyRoute
   AuthenticatedAdminAdminOrdersRoute: typeof AuthenticatedAdminAdminOrdersRoute
   AuthenticatedAdminAdminProductsRoute: typeof AuthenticatedAdminAdminProductsRoute
   AuthenticatedAdminAdminStockRoute: typeof AuthenticatedAdminAdminStockRoute
+  AuthenticatedAdminAdminTierDetailsRoute: typeof AuthenticatedAdminAdminTierDetailsRoute
+  AuthenticatedAdminAdminTiersRoute: typeof AuthenticatedAdminAdminTiersRoute
   AuthenticatedAdminAdminIndexRoute: typeof AuthenticatedAdminAdminIndexRoute
 }
 
@@ -368,9 +472,15 @@ const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren
       AuthenticatedAdminAdminBiDashboardRoute,
     AuthenticatedAdminAdminCategoriesRoute:
       AuthenticatedAdminAdminCategoriesRoute,
+    AuthenticatedAdminAdminCustomersRoute:
+      AuthenticatedAdminAdminCustomersRoute,
+    AuthenticatedAdminAdminLoyaltyRoute: AuthenticatedAdminAdminLoyaltyRoute,
     AuthenticatedAdminAdminOrdersRoute: AuthenticatedAdminAdminOrdersRoute,
     AuthenticatedAdminAdminProductsRoute: AuthenticatedAdminAdminProductsRoute,
     AuthenticatedAdminAdminStockRoute: AuthenticatedAdminAdminStockRoute,
+    AuthenticatedAdminAdminTierDetailsRoute:
+      AuthenticatedAdminAdminTierDetailsRoute,
+    AuthenticatedAdminAdminTiersRoute: AuthenticatedAdminAdminTiersRoute,
     AuthenticatedAdminAdminIndexRoute: AuthenticatedAdminAdminIndexRoute,
   }
 
@@ -393,6 +503,7 @@ const AuthenticatedAdminRouteWithChildren =
 interface AuthenticatedUserRouteChildren {
   AuthenticatedUserCartRoute: typeof AuthenticatedUserCartRoute
   AuthenticatedUserOrdersRoute: typeof AuthenticatedUserOrdersRoute
+  AuthenticatedUserUserLoyaltyRoute: typeof AuthenticatedUserUserLoyaltyRoute
   AuthenticatedUserVoiceAssistantRoute: typeof AuthenticatedUserVoiceAssistantRoute
   AuthenticatedUserProductsProductIdRoute: typeof AuthenticatedUserProductsProductIdRoute
 }
@@ -400,6 +511,7 @@ interface AuthenticatedUserRouteChildren {
 const AuthenticatedUserRouteChildren: AuthenticatedUserRouteChildren = {
   AuthenticatedUserCartRoute: AuthenticatedUserCartRoute,
   AuthenticatedUserOrdersRoute: AuthenticatedUserOrdersRoute,
+  AuthenticatedUserUserLoyaltyRoute: AuthenticatedUserUserLoyaltyRoute,
   AuthenticatedUserVoiceAssistantRoute: AuthenticatedUserVoiceAssistantRoute,
   AuthenticatedUserProductsProductIdRoute:
     AuthenticatedUserProductsProductIdRoute,

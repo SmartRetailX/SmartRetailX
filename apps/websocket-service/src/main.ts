@@ -4,14 +4,11 @@ import { createHybridAppWithConfig } from '@smart-retail-x/messaging';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
-  const app = await createHybridAppWithConfig(
-    AppModule,
-    (config) => config.websocketServiceQueue
-  );
+  const app = await createHybridAppWithConfig(AppModule, (config) => config.websocketServiceQueue);
 
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
-  
+
   // Need port for the HTTP server to attach websockets to
   const port = process.env.WEBSOCKET_SERVICE_PORT || 3004;
 

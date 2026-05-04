@@ -475,10 +475,7 @@ function RouteComponent() {
   const statusLabel = getStatusLabel(processingStatus, sending);
   const remoteProcessing = Boolean(processingStatus?.active);
   const lockedByOtherSession = Boolean(
-    voiceAccessState?.hasMultipleAccess &&
-      voiceAccessState.isInputLocked &&
-      !sending &&
-      !recording,
+    voiceAccessState?.hasMultipleAccess && voiceAccessState.isInputLocked && !sending && !recording,
   );
   const inputDisabled = sending || recording || remoteProcessing || lockedByOtherSession;
 
@@ -972,10 +969,14 @@ function RouteComponent() {
                       }
                     >
                       {!hideMainContent ? <MarkdownMessage content={message.content} /> : null}
-                      {message.channel === 'voice' && (message.audioUrl || message.transcription) ? (
+                      {message.channel === 'voice' &&
+                      (message.audioUrl || message.transcription) ? (
                         <div className={!hideMainContent ? 'mt-2 space-y-1.5' : 'space-y-1.5'}>
                           {message.audioUrl ? (
-                            <VoiceBubblePlayer src={message.audioUrl} isUser={message.role === 'user'} />
+                            <VoiceBubblePlayer
+                              src={message.audioUrl}
+                              isUser={message.role === 'user'}
+                            />
                           ) : null}
                           {message.transcription ? (
                             <p
@@ -1026,10 +1027,7 @@ function RouteComponent() {
               Another session is active. Input is disabled until it finishes.
             </div>
           ) : null}
-          <form
-            onSubmit={handleSendText}
-            className="mx-auto flex max-w-4xl items-center gap-2"
-          >
+          <form onSubmit={handleSendText} className="mx-auto flex max-w-4xl items-center gap-2">
             <Input
               value={text}
               onChange={(event) => {
@@ -1040,7 +1038,9 @@ function RouteComponent() {
               onBlur={() => {
                 if (!text.trim()) emitVoiceTyping(false);
               }}
-              placeholder={lockedByOtherSession ? 'Another session is active...' : 'Type message in Sinhala...'}
+              placeholder={
+                lockedByOtherSession ? 'Another session is active...' : 'Type message in Sinhala...'
+              }
               disabled={inputDisabled}
               className="h-11 flex-1 rounded-full bg-card px-4 text-sm shadow-sm"
             />

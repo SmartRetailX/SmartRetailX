@@ -1,15 +1,15 @@
 import { useState } from 'react';
+import { useOrdersQuery, useStoreMutations } from '@/hooks';
 import { createFileRoute } from '@tanstack/react-router';
 import { AlertCircle, PackageCheck } from 'lucide-react';
 
-import { useOrdersQuery, useStoreMutations } from '@/hooks';
-import type { OrderStatus } from '@/types/store';
 import { PageContainer } from '@/components/partials/container/page-container';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
+import type { OrderStatus } from '@/types/store';
 
 export const Route = createFileRoute('/_authenticated/_user/orders')({
   component: RouteComponent,
@@ -35,8 +35,21 @@ function RouteComponent() {
             <Button variant={status === '' ? 'default' : 'outline'} onClick={() => setStatus('')}>
               All
             </Button>
-            {(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((item) => (
-              <Button key={item} variant={status === item ? 'default' : 'outline'} onClick={() => setStatus(item)}>
+            {(
+              [
+                'pending',
+                'confirmed',
+                'processing',
+                'shipped',
+                'delivered',
+                'cancelled',
+              ] as OrderStatus[]
+            ).map((item) => (
+              <Button
+                key={item}
+                variant={status === item ? 'default' : 'outline'}
+                onClick={() => setStatus(item)}
+              >
                 {item}
               </Button>
             ))}
@@ -87,20 +100,30 @@ function RouteComponent() {
                 </CardHeader>
                 <CardContent className="grid gap-3 md:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Items</div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      Items
+                    </div>
                     <div className="mt-1 font-semibold">{order.itemCount}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Subtotal</div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      Subtotal
+                    </div>
                     <div className="mt-1 font-semibold">${order.subtotal.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Total</div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      Total
+                    </div>
                     <div className="mt-1 font-semibold">${order.total.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Last update</div>
-                    <div className="mt-1 font-semibold">{new Date(order.updatedAt).toLocaleDateString()}</div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      Last update
+                    </div>
+                    <div className="mt-1 font-semibold">
+                      {new Date(order.updatedAt).toLocaleDateString()}
+                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="justify-between gap-3">

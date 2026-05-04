@@ -8,12 +8,12 @@ const commands = [
   {
     label: 'Generate main Prisma client',
     command: 'pnpm',
-    args: ['exec', 'prisma', 'generate'],
+    args: ['run', 'prisma:generate'],
   },
   {
     label: 'Create or update main application schema',
     command: 'pnpm',
-    args: ['exec', 'prisma', 'db', 'push'],
+    args: ['run', 'prisma:push'],
   },
 ];
 
@@ -47,6 +47,7 @@ for (const step of commands) {
     cwd: process.cwd(),
     stdio: 'inherit',
     env: process.env,
+    shell: true,
   });
 
   if (result.status !== 0) {

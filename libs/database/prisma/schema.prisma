@@ -13,6 +13,11 @@ model user {
   email             String             @unique
   emailVerified     Boolean            @default(false)
   image             String?
+  age               Int?
+  gender            String?
+  City              String?
+  mobileNumber      String?
+  customerSegment   String?
   role              String             @default("user")
   banned            Boolean            @default(false)
   banReason         String?
@@ -23,6 +28,7 @@ model user {
   accounts          account[]
   agentChatSession  AgentChatSession?
   agentChatMessages AgentChatMessage[]
+  transactions      Transaction[]
 
   @@schema("auth")
 }
@@ -99,11 +105,36 @@ model Product {
   stockEntries StockEntry[]
   cartItems    CartItem[]
   orderItems   OrderItem[]
+  promotions   Promotion[]
+  transactions Transaction[]
 
   @@index([categoryId])
   @@index([isActive])
   @@index([sku])
   @@map("products")
+  @@schema("core")
+}
+
+model Promotion {
+  promotionId          String   @id @default(dbgenerated("gen_random_uuid()")) @map("promotion_id") @db.Uuid
+  productId            String   @map("product_id") @db.Uuid
+  discountPercentage   Decimal  @map("discount_percentage") @db.Decimal(5, 2)
+  startDate            DateTime @map("start_date") @db.Timestamptz(6)
+  endDate              DateTime @map("end_date") @db.Timestamptz(6)
+  promotionType        String   @map("promotion_type") @db.VarChar(100)
+  isTargettedPromotion Boolean  @default(false) @map("is_targetted_promotion")
+  productScope         String?  @map("product_scope") @db.VarChar(100)
+  status               String?   @default("active") @db.VarChar(50)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([productId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("promotions")
   @@schema("core")
 }
 
@@ -245,6 +276,7 @@ model Order {
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   items OrderItem[]
+  transactions Transaction[]
 
   @@index([userId])
   @@index([status])
@@ -271,6 +303,32 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
+  @@schema("core")
+}
+
+model Transaction {
+  transactionId   String   @id @default(dbgenerated("gen_random_uuid()")) @map("transaction_id") @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  invoiceNo       String   @unique @map("invoice_no") @db.VarChar(50)
+  customerId      String   @map("customer_id")
+  productId       String   @map("product_id") @db.Uuid
+  quantity        Int
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(12, 2)
+  totalAmount     Decimal  @map("total_amount") @db.Decimal(12, 2)
+  transactionDate DateTime @map("transaction_date") @db.Timestamptz(6)
+  discountAmount  Decimal  @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  promotionId     String?  @map("promotion_id") @db.Uuid
+
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer  user       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product   Product    @relation(fields: [productId], references: [productId], onDelete: Restrict)
+  promotion Promotion? @relation(fields: [promotionId], references: [promotionId], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([productId])
+  @@index([transactionDate])
+  @@map("transactions")
   @@schema("core")
 }
 

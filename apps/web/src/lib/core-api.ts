@@ -10,6 +10,7 @@ import type {
   ProductResponse,
   ProductTranslationResponse,
 } from '@/types/store';
+
 import { getPublicBaseUrl } from './base-url';
 
 const rootBaseUrl = getPublicBaseUrl();

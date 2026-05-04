@@ -24,7 +24,9 @@ import { VoiceService } from './voice.service';
 export class VoiceController {
   constructor(private readonly voiceService: VoiceService) {}
 
-  private getUser(req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } }) {
+  private getUser(
+    req: Request & { user?: { id?: string; email?: string; name?: string; role?: string } },
+  ) {
     if (!req.user?.id) {
       throw new UnauthorizedException('Authenticated user is required');
     }

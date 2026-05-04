@@ -23,8 +23,11 @@ export class CatalogTranslationService {
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.model = this.configService.get<string>('OPENAI_TRANSLATION_MODEL', 'gpt-4o-mini') ?? 'gpt-4o-mini';
-    this.baseUrl = this.configService.get<string>('OPENAI_API_BASE_URL', 'https://api.openai.com/v1') ?? 'https://api.openai.com/v1';
+    this.model =
+      this.configService.get<string>('OPENAI_TRANSLATION_MODEL', 'gpt-4o-mini') ?? 'gpt-4o-mini';
+    this.baseUrl =
+      this.configService.get<string>('OPENAI_API_BASE_URL', 'https://api.openai.com/v1') ??
+      'https://api.openai.com/v1';
   }
 
   async translateProductFields(input: {
@@ -82,7 +85,10 @@ export class CatalogTranslationService {
         return { nameSi: null, descriptionSi: null };
       }
 
-      const parsed = JSON.parse(content) as { nameSi?: string | null; descriptionSi?: string | null };
+      const parsed = JSON.parse(content) as {
+        nameSi?: string | null;
+        descriptionSi?: string | null;
+      };
       return {
         nameSi: parsed.nameSi?.trim() || null,
         descriptionSi: parsed.descriptionSi?.trim() || null,

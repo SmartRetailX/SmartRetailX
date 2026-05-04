@@ -4,11 +4,14 @@ import {
   Boxes,
   BarChart3,
   FolderTree,
+  Gift,
+  Layers,
   LayoutDashboard,
   LogOut,
   Package,
   ShoppingBag,
   Store,
+  Users,
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -59,10 +62,22 @@ const adminNavItems = [
     icon: ShoppingBag,
   },
   {
-    label: 'BI Dashboard',
-    path: '/admin/bi-dashboard',
-    href: '/admin/bi-dashboard',
-    icon: BarChart3,
+    label: 'Static Segmentation',
+    path: '/admin/customers',
+    href: '/admin/customers',
+    icon: Users,
+  },
+  {
+    label: 'Dynamic Segmentation',
+    path: '/admin/tiers',
+    href: '/admin/tiers',
+    icon: Layers,
+  },
+  {
+    label: 'Loyalty Tiers',
+    path: '/admin/loyalty',
+    href: '/admin/loyalty',
+    icon: Gift,
   },
 ];
 
@@ -79,19 +94,21 @@ function getInitials(name?: string | null, email?: string | null) {
 export function AdminShell({ children, user, signOut }: AdminShellProps) {
   const location = useRouterState({ select: (state) => state.location });
   const pathname = location.pathname;
+  const currentNavItem = adminNavItems.find((item) => item.path === pathname);
+  const pageLabel = currentNavItem?.label ?? 'Admin';
 
   return (
     <TooltipProvider>
       <SidebarProvider>
         <Sidebar>
-          <SidebarHeader className="border-b border-sidebar-border p-3">
-            <div className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1.5">
+          <SidebarHeader className="h-16 justify-center border-b border-sidebar-border px-3 py-0">
+            <div className="flex h-full min-w-0 items-center gap-2 rounded-lg px-1">
               <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <Store />
               </div>
               <div className="min-w-0 leading-tight group-data-[state=collapsed]/sidebar:sr-only">
                 <div className="truncate text-sm font-semibold">SmartRetailX</div>
-                <div className="truncate text-xs text-sidebar-foreground/65">Admin Console</div>
+                <div className="truncate text-xs text-sidebar-foreground/65">Admin Portal</div>
               </div>
             </div>
           </SidebarHeader>
@@ -131,16 +148,15 @@ export function AdminShell({ children, user, signOut }: AdminShellProps) {
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="min-h-svh bg-background">
-          <header className="sticky top-0 z-30 border-b border-border/60 bg-background/95 backdrop-blur">
-            <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-6 lg:px-8">
+        <SidebarInset className="flex h-dvh min-h-0 flex-col bg-background">
+          <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-border/60 bg-background/95 backdrop-blur">
+            <div className="flex h-full items-center justify-between gap-3 px-3 md:px-4 lg:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <SidebarTrigger />
                 <div className="min-w-0">
-                  <div className="text-xs font-medium uppercase text-muted-foreground">
-                    Admin Workspace
+                  <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <span className="truncate">{pageLabel}</span>
                   </div>
-                  <div className="truncate text-lg font-semibold">Operations Dashboard</div>
                 </div>
               </div>
 
@@ -157,8 +173,8 @@ export function AdminShell({ children, user, signOut }: AdminShellProps) {
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 md:px-6 lg:px-8">
-            <div className="h-[calc(100svh-6rem)] min-h-0">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4 lg:px-6">
+            <div className="min-h-0">{children}</div>
           </div>
         </SidebarInset>
       </SidebarProvider>

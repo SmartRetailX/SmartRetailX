@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 
@@ -19,6 +20,28 @@ export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isAdminRoute = pathname.startsWith('/admin');
   const isVoiceAssistantRoute = pathname === '/voice-assistant';
+  const shouldLockDocumentScroll = isAdminRoute && user?.role === USER_ROLE.ADMIN;
+
+  useEffect(() => {
+    if (!shouldLockDocumentScroll) {
+      return;
+    }
+
+    const { documentElement, body } = document;
+    const prevHtmlOverflow = documentElement.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyHeight = body.style.height;
+
+    documentElement.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    body.style.height = '100dvh';
+
+    return () => {
+      documentElement.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.height = prevBodyHeight;
+    };
+  }, [shouldLockDocumentScroll]);
 
   if (isAdminRoute && user?.role === USER_ROLE.ADMIN) {
     return (

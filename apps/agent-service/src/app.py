@@ -1,23 +1,37 @@
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import (
-    HTTP_PORT,
-    OPENAI_WHISPER_MODEL,
-    TCP_HOST,
-    TCP_PORT,
-    WHISPER_PROVIDER,
-)
+from .config import settings
+from .db.connection import close_pool, init_pool
 from .service import process_voice_chat
-from .tcp_transport import tcp_client_loop
+from .transport.tcp import tcp_client_loop
+
+_tcp_server: asyncio.base_events.Server | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _tcp_server
+    await init_pool()
+    _tcp_server = await asyncio.start_server(tcp_client_loop, settings.agent_tcp_host, settings.agent_tcp_port)
+
+    yield
+
+    if _tcp_server:
+        _tcp_server.close()
+        await _tcp_server.wait_closed()
+    await close_pool()
+
 
 app = FastAPI(
     title="Smart RetailX Agent Service",
     description="Sinhala voice-to-chat service (Transcript-first + OpenAI intent/response pipeline)",
     version="2.0.0",
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -27,31 +41,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-tcp_server: asyncio.base_events.Server | None = None
-
-
-@app.on_event("startup")
-async def start_tcp_server() -> None:
-    global tcp_server
-    tcp_server = await asyncio.start_server(tcp_client_loop, TCP_HOST, TCP_PORT)
-
-
-@app.on_event("shutdown")
-async def stop_tcp_server() -> None:
-    global tcp_server
-    if tcp_server:
-        tcp_server.close()
-        await tcp_server.wait_closed()
-
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "httpPort": HTTP_PORT,
-        "tcpPort": TCP_PORT,
-        "whisperProvider": WHISPER_PROVIDER,
-        "openaiModel": OPENAI_WHISPER_MODEL,
+        "httpPort": settings.agent_http_port,
+        "tcpPort": settings.agent_tcp_port,
+        "whisperProvider": settings.stt_provider,
+        "openaiModel": settings.openai_whisper_model,
     }
 
 
@@ -63,20 +61,13 @@ async def voice_chat(
     userId: str | None = Form(None),
     userRole: str = Form("guest"),
     transcriptText: str | None = Form(None),
-    intents: str = Form(
-        "offers,order_history,buying_suggestions,prices,product_search,general"
-    ),
+    intents: str = Form("offers,order_history,buying_suggestions,prices,product_search,general"),
 ) -> dict[str, Any]:
     audio_bytes = await audio.read() if audio is not None else b""
     if not audio_bytes and not (transcriptText or "").strip():
-        raise HTTPException(
-            status_code=400, detail="Audio payload or transcriptText is required"
-        )
+        raise HTTPException(status_code=400, detail="Audio payload or transcriptText is required")
 
-    parsed_intents = [part.strip() for part in intents.split(",") if part.strip()]
-
-    # Ensure "general" is always an allowed intent so the model can gracefully
-    # handle queries that don't map to a specific retail intent.
+    parsed_intents = [p.strip() for p in intents.split(",") if p.strip()]
     if "general" not in parsed_intents:
         parsed_intents.append("general")
 
@@ -90,4 +81,4 @@ async def voice_chat(
         intents=parsed_intents,
         transcript_text=transcriptText,
     )
-    return result.__dict__
+    return result.model_dump()

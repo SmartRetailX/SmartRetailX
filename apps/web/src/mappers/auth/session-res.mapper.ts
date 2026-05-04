@@ -1,6 +1,6 @@
 import { SessionResponse } from '@/schemas/auth/session.response';
 
-import { Session, UserMeta, UserSession, USER_ROLE, type UserRole } from '@/types/auth';
+import { Session, USER_ROLE, UserMeta, UserSession, type UserRole } from '@/types/auth';
 
 export function mapUser(user: SessionResponse['user']): UserMeta {
   const role = user.role;
