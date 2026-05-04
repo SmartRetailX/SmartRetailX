@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from ..logging import logger
+from ..log import logger
 from ..models import IntentResult
 
 # Sinhala/English question words that are never product names

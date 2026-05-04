@@ -15,7 +15,7 @@ from typing import Any
 import asyncpg
 from rapidfuzz import fuzz, process as fuzz_process
 
-from ..logging import logger
+from ..log import logger
 from .connection import acquire
 
 _FUZZY_THRESHOLD = 55  # minimum score (0-100) to include a fuzzy match
@@ -642,7 +642,112 @@ async def get_order_history(user_id: str, limit: int = 5) -> list[dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
-# 5. Buying suggestions  (intent: buying_suggestions)
+# 5. User profile  (intent: user_profile)
+# ---------------------------------------------------------------------------
+
+async def get_user_profile(user_id: str) -> dict[str, Any] | None:
+    """Return profile + order summary for the authenticated user."""
+    if not user_id:
+        return None
+    try:
+        async with acquire() as conn:
+            profile = await conn.fetchrow(
+                """
+                SELECT
+                    u.id,
+                    u.name,
+                    u.email,
+                    u.age,
+                    u.gender,
+                    u."City"        AS city,
+                    u."mobileNumber" AS mobile_number,
+                    u."customerSegment" AS customer_segment,
+                    u.role,
+                    u."createdAt"   AS joined_at
+                FROM auth."user" u
+                WHERE u.id = $1
+                LIMIT 1
+                """,
+                user_id,
+            )
+            if not profile:
+                return None
+
+            order_stats = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(*)                    AS total_orders,
+                    COALESCE(SUM(o.total), 0)   AS total_spent,
+                    MAX(o.created_at)           AS last_order_at
+                FROM core.orders o
+                WHERE o.user_id = $1
+                """,
+                user_id,
+            )
+
+            result = _row(profile)
+            if order_stats:
+                result["total_orders"] = int(order_stats["total_orders"] or 0)
+                result["total_spent"] = float(order_stats["total_spent"] or 0)
+                result["last_order_at"] = order_stats["last_order_at"]
+            else:
+                result["total_orders"] = 0
+                result["total_spent"] = 0.0
+                result["last_order_at"] = None
+            return result
+    except Exception as exc:
+        logger.warning("get_user_profile failed user=%r error=%s", user_id, exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 6. Active promotions  (intent: promotions)
+# ---------------------------------------------------------------------------
+
+async def get_active_promotions(limit: int = 10) -> list[dict[str, Any]]:
+    """Return currently active promotions with linked product details."""
+    try:
+        async with acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    pr.promotion_id::text   AS promotion_id,
+                    pr.promotion_type,
+                    pr.discount_percentage::float AS discount_percentage,
+                    pr.start_date,
+                    pr.end_date,
+                    pr.is_targetted_promotion,
+                    pr.product_scope,
+                    pr.status,
+                    p.id::text              AS product_id,
+                    p.sku,
+                    p.name                  AS product_name,
+                    p.name_si               AS product_name_si,
+                    p.price::float          AS original_price,
+                    p.brand,
+                    p.image_url,
+                    c.name                  AS category,
+                    c.name_si               AS category_si
+                FROM core.promotions pr
+                JOIN core.products p ON p.id = pr.product_id
+                JOIN core.categories c ON c.id = p.category_id
+                WHERE pr.status = 'active'
+                  AND pr.start_date <= NOW()
+                  AND pr.end_date   >= NOW()
+                  AND p.is_active = true
+                ORDER BY pr.discount_percentage DESC, pr.end_date ASC
+                LIMIT $1
+                """,
+                limit,
+            )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("get_active_promotions failed error=%s", exc)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# 7. Buying suggestions  (intent: buying_suggestions)
 # ---------------------------------------------------------------------------
 
 async def get_buying_suggestions(

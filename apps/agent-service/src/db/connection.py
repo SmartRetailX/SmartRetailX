@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 import asyncpg
 
 from ..config import settings
-from ..logging import logger
+from ..log import logger
 
 _pool: asyncpg.Pool | None = None
 
