@@ -3,7 +3,7 @@ import base64
 import json
 from typing import Any
 
-from ..logging import logger
+from ..log import logger
 from ..service import process_voice_chat
 
 

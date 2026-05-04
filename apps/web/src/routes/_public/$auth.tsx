@@ -100,12 +100,19 @@ function RouteComponent() {
     setIsSubmitting(true);
 
     try {
-      const result = await signUp.email({
+      const ageValue = values.age?.trim();
+      const signupPayload = {
         email: values.email.trim(),
         password: values.password,
         name: values.name.trim(),
+        age: ageValue ? Number(ageValue) : undefined,
+        gender: values.gender || undefined,
+        City: values.City?.trim() || undefined,
+        mobileNumber: values.mobileNumber?.trim() || undefined,
         callbackURL: '/',
-      });
+      };
+
+      const result = await signUp.email(signupPayload as never);
 
       const authError = getAuthErrorMessage(result);
       if (authError) {

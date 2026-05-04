@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - dev
-      - chore/**
   workflow_dispatch:
     inputs:
       image_tag:

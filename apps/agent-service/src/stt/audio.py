@@ -1,6 +1,6 @@
 import subprocess
 
-from ..logging import logger
+from ..log import logger
 
 
 def normalize_audio_to_wav(audio_bytes: bytes, amplify: float = 1.0) -> bytes | None:

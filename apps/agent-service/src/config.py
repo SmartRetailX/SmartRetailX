@@ -45,6 +45,8 @@ class Settings(BaseSettings):
         "buying_suggestions",
         "prices",
         "product_search",
+        "user_profile",
+        "promotions",
         "general",
     ]
 
