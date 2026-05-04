@@ -27,13 +27,3 @@ spec:
                 name: api-gateway
                 port:
                   number: 3000
-    - host: bi.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: bi-dashboard-services-gateway
-                port:
-                  number: 3001

@@ -8,3 +8,4 @@ resources:
   - infra.yaml
   - apps.yaml
   - ingress.yaml
+  - networkpolicy.yaml
