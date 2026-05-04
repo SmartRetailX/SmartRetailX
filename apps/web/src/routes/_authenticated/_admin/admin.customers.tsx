@@ -96,7 +96,7 @@ function RouteComponent() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">{t('customers.title')}</h1>
+        <h1 className="text-3xl font-bold">Static Segmentation</h1>
         <p className="text-gray-500 mt-1">Customer segmentation and analytics</p>
       </div>
 
