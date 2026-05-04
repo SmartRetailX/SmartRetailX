@@ -197,7 +197,7 @@ def _render_order_history(ctx: ResolvedContext) -> str:
         }.get(raw_status, "📋")
 
         sections.append(
-            f"#### {status_emoji} ඇණවුම් #{order_num}\n"
+            f"#### {status_emoji} ඇණවුම් [#{order_num}](/orders)\n"
             f"**තත්ත්වය:** {status_si} &nbsp;|&nbsp; **දිනය:** {created}\n\n"
         )
 
