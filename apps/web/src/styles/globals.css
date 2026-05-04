@@ -7,6 +7,12 @@
 /* Variable css */
 @import './variables.css';
 
+html,
+body,
+#root {
+  margin: 0;
+}
+
 /* Fix  1password */
 .dark input[data-com-onepassword-filled='light'] {
   color: #000000;

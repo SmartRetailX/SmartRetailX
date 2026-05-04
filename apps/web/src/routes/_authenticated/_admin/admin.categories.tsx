@@ -244,7 +244,7 @@ function RouteComponent() {
     (deleteCategory.error as Error)?.message;
 
   return (
-    <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
+    <PageContainer className="flex min-h-0 flex-col" noMaxHeight>
       <Dialog
         open={categoryDialogOpen}
         onOpenChange={(open) => {

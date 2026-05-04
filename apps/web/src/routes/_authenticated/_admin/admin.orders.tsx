@@ -204,7 +204,7 @@ function RouteComponent() {
     (ordersQuery.error as Error)?.message || (updateOrderStatus.error as Error)?.message;
 
   return (
-    <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
+    <PageContainer className="flex min-h-0 flex-col" noMaxHeight>
       <div className="h-full min-h-0">
         {mutationError && (
           <Alert variant="destructive" className="mb-4">

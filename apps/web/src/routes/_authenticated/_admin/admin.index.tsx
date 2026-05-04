@@ -58,8 +58,8 @@ function RouteComponent() {
   ];
 
   return (
-    <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
-      <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+    <PageContainer className="flex min-h-0 flex-col" noMaxHeight>
+      <div className="flex min-h-0 flex-col gap-6">
         <section className="rounded-3xl bg-[linear-gradient(135deg,#0f172a_0%,#134e4a_42%,#0b6b55_100%)] px-6 py-8 text-white shadow-lg">
           <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
             <div className="space-y-3">
