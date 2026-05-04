@@ -24,12 +24,12 @@ import { Route as AuthenticatedUserProductsProductIdRouteImport } from './routes
 import { Route as AuthenticatedAdminAdminTiersRouteImport } from './routes/_authenticated/_admin/admin.tiers'
 import { Route as AuthenticatedAdminAdminTierDetailsRouteImport } from './routes/_authenticated/_admin/admin.tier-details'
 import { Route as AuthenticatedAdminAdminStockRouteImport } from './routes/_authenticated/_admin/admin.stock'
+import { Route as AuthenticatedAdminAdminPromotionsRouteImport } from './routes/_authenticated/_admin/admin.promotions'
 import { Route as AuthenticatedAdminAdminProductsRouteImport } from './routes/_authenticated/_admin/admin.products'
 import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_authenticated/_admin/admin.orders'
 import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'
 import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
-import { Route as AuthenticatedAdminAdminPromotionsRouteImport } from './routes/_authenticated/_admin/admin.promotions'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -110,6 +110,12 @@ const AuthenticatedAdminAdminStockRoute =
     path: '/stock',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminPromotionsRoute =
+  AuthenticatedAdminAdminPromotionsRouteImport.update({
+    id: '/promotions',
+    path: '/promotions',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 const AuthenticatedAdminAdminProductsRoute =
   AuthenticatedAdminAdminProductsRouteImport.update({
     id: '/products',
@@ -138,12 +144,6 @@ const AuthenticatedAdminAdminCategoriesRoute =
   AuthenticatedAdminAdminCategoriesRouteImport.update({
     id: '/categories',
     path: '/categories',
-    getParentRoute: () => AuthenticatedAdminAdminRoute,
-  } as any)
-const AuthenticatedAdminAdminPromotionsRoute =
-  AuthenticatedAdminAdminPromotionsRouteImport.update({
-    id: '/promotions',
-    path: '/promotions',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
 
@@ -388,6 +388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminStockRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/promotions': {
+      id: '/_authenticated/_admin/admin/promotions'
+      path: '/promotions'
+      fullPath: '/admin/promotions'
+      preLoaderRoute: typeof AuthenticatedAdminAdminPromotionsRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
     '/_authenticated/_admin/admin/products': {
       id: '/_authenticated/_admin/admin/products'
       path: '/products'
@@ -421,13 +428,6 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/admin/categories'
       preLoaderRoute: typeof AuthenticatedAdminAdminCategoriesRouteImport
-      parentRoute: typeof AuthenticatedAdminAdminRoute
-    }
-    '/_authenticated/_admin/admin/promotions': {
-      id: '/_authenticated/_admin/admin/promotions'
-      path: '/promotions'
-      fullPath: '/admin/promotions'
-      preLoaderRoute: typeof AuthenticatedAdminAdminPromotionsRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
   }
