@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
@@ -9,7 +10,6 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { randomUUID } from 'crypto';
 import { Server, Socket } from 'socket.io';
 
 type ConnectionStats = {
@@ -176,7 +176,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('chat:join')
   handleJoinRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: ChatRoomPayload
+    @MessageBody() payload: ChatRoomPayload,
   ): GatewayAck {
     const userId = this.getUserId(client);
     if (!userId) {
@@ -202,7 +202,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('chat:leave')
   handleLeaveRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: ChatRoomPayload
+    @MessageBody() payload: ChatRoomPayload,
   ): GatewayAck {
     const userId = this.getUserId(client);
     if (!userId) {
@@ -228,7 +228,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('chat:typing')
   handleTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: ChatTypingPayload
+    @MessageBody() payload: ChatTypingPayload,
   ): GatewayAck {
     const userId = this.getUserId(client);
     if (!userId) {
@@ -257,7 +257,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('chat:send')
   handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: ChatSendPayload
+    @MessageBody() payload: ChatSendPayload,
   ): GatewayAck {
     const userId = this.getUserId(client);
     if (!userId) {
@@ -276,7 +276,7 @@ export class AppWebSocketGateway
     if (text.length > AppWebSocketGateway.MAX_MESSAGE_LENGTH) {
       return this.errorAck(
         'VALIDATION_ERROR',
-        `text exceeds max length of ${AppWebSocketGateway.MAX_MESSAGE_LENGTH}.`
+        `text exceeds max length of ${AppWebSocketGateway.MAX_MESSAGE_LENGTH}.`,
       );
     }
 
@@ -312,7 +312,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('voice:send')
   async handleVoiceSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: VoiceSendPayload
+    @MessageBody() payload: VoiceSendPayload,
   ): Promise<GatewayAck> {
     const userId = this.getUserId(client);
     if (!userId) {
@@ -320,12 +320,14 @@ export class AppWebSocketGateway
     }
 
     const channel = payload?.channel === 'voice' ? 'voice' : 'text';
-    const language = typeof payload?.language === 'string' && payload.language.trim()
-      ? payload.language.trim()
-      : 'si-LK';
-    const userRole = typeof payload?.userRole === 'string' && payload.userRole.trim()
-      ? payload.userRole.trim()
-      : 'user';
+    const language =
+      typeof payload?.language === 'string' && payload.language.trim()
+        ? payload.language.trim()
+        : 'si-LK';
+    const userRole =
+      typeof payload?.userRole === 'string' && payload.userRole.trim()
+        ? payload.userRole.trim()
+        : 'user';
 
     // Reject concurrent requests from the same user
     const existingRequestId = this.activeRequestsByUser.get(userId);
@@ -355,9 +357,10 @@ export class AppWebSocketGateway
       });
 
       // Build FormData for agent service
-      const { formData, transcriptText } = channel === 'voice'
-        ? this.buildAudioFormData(payload, language, userRole, userId)
-        : this.buildTextFormData(payload, language, userRole, userId);
+      const { formData, transcriptText } =
+        channel === 'voice'
+          ? this.buildAudioFormData(payload, language, userRole, userId)
+          : this.buildTextFormData(payload, language, userRole, userId);
 
       this.sendVoiceStatus(userId, {
         requestId,
@@ -369,7 +372,8 @@ export class AppWebSocketGateway
       });
 
       const agentResult = await this.callAgentService(formData);
-      const agentTranscription = typeof agentResult.transcription === 'string' ? agentResult.transcription : undefined;
+      const agentTranscription =
+        typeof agentResult.transcription === 'string' ? agentResult.transcription : undefined;
       const agentIntent = typeof agentResult.intent === 'string' ? agentResult.intent : undefined;
       const agentResponse = typeof agentResult.response === 'string' ? agentResult.response : '';
 
@@ -453,7 +457,7 @@ export class AppWebSocketGateway
   @SubscribeMessage('chat:identify')
   handleIdentify(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: IdentifyPayload
+    @MessageBody() payload: IdentifyPayload,
   ): GatewayAck {
     const roomUserId = this.getUserId(client);
     const bodyUserId = this.normalizeRoomId(payload?.userId);
@@ -502,7 +506,11 @@ export class AppWebSocketGateway
     ) as ArrayBuffer;
 
     const formData = new FormData();
-    formData.append('audio', new Blob([arrayBuffer], { type: mimeType }), `voice-${Date.now()}.${ext}`);
+    formData.append(
+      'audio',
+      new Blob([arrayBuffer], { type: mimeType }),
+      `voice-${Date.now()}.${ext}`,
+    );
     formData.append('language', language);
     formData.append('userRole', userRole);
     formData.append('userId', userId);
@@ -540,12 +548,15 @@ export class AppWebSocketGateway
 
     const response = await fetch(agentUrl, { method: 'POST', body: formData });
     const contentType = response.headers.get('content-type') || '';
-    const body = contentType.includes('application/json') ? await response.json() : await response.text();
+    const body = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
 
     if (!response.ok) {
-      const message = typeof body === 'object' && body && 'message' in body
-        ? String((body as { message?: unknown }).message)
-        : `Agent service failed with status ${response.status}`;
+      const message =
+        typeof body === 'object' && body && 'message' in body
+          ? String((body as { message?: unknown }).message)
+          : `Agent service failed with status ${response.status}`;
       throw new Error(message);
     }
 
@@ -580,7 +591,9 @@ export class AppWebSocketGateway
         this.logger.warn(`Failed to save voice exchange to DB: status=${response.status}`);
       }
     } catch (error) {
-      this.logger.warn(`Could not save voice exchange to DB: ${error instanceof Error ? error.message : error}`);
+      this.logger.warn(
+        `Could not save voice exchange to DB: ${error instanceof Error ? error.message : error}`,
+      );
     }
   }
 
@@ -760,7 +773,8 @@ export class AppWebSocketGateway
     }
 
     const status = payload as Partial<VoiceStatusPayload>;
-    const updatedAt = typeof status.updatedAt === 'string' ? status.updatedAt : new Date().toISOString();
+    const updatedAt =
+      typeof status.updatedAt === 'string' ? status.updatedAt : new Date().toISOString();
     const resolvedStatus: VoiceStatusPayload = {
       userId,
       requestId: status.requestId ?? '',

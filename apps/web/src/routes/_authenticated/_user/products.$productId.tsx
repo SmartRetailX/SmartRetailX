@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useStoreMutations } from '@/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, ImageOff, Package, ShoppingCart } from 'lucide-react';
@@ -8,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { useStoreMutations } from '@/hooks';
 import { coreApi } from '@/lib/core-api';
 
 export const Route = createFileRoute('/_authenticated/_user/products/$productId')({
@@ -94,11 +94,17 @@ function ProductDetailPage() {
                   <Badge variant="outline">{product.category}</Badge>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold tracking-tight">{product.nameSi || product.name}</h1>
-                  {product.nameSi ? <p className="mt-1 text-sm text-muted-foreground">{product.name}</p> : null}
+                  <h1 className="text-3xl font-bold tracking-tight">
+                    {product.nameSi || product.name}
+                  </h1>
+                  {product.nameSi ? (
+                    <p className="mt-1 text-sm text-muted-foreground">{product.name}</p>
+                  ) : null}
                 </div>
                 <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {product.descriptionSi || product.description || 'Fresh catalog item ready to sell.'}
+                  {product.descriptionSi ||
+                    product.description ||
+                    'Fresh catalog item ready to sell.'}
                 </p>
               </div>
 

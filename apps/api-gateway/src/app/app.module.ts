@@ -8,8 +8,8 @@ import { AppService } from './app.service';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
 import { CoreModule } from './core/app.module';
 import { HealthModule } from './health/health.module';
-import { VoiceModule } from './voice/voice.module';
 import { PromotionEngineModule } from './promotion-engine/promotion-engine.module';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
   imports: [
@@ -26,4 +26,3 @@ import { PromotionEngineModule } from './promotion-engine/promotion-engine.modul
   providers: [AppService],
 })
 export class AppModule {}
-

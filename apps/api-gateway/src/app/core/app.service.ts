@@ -92,11 +92,11 @@ export class CoreService implements OnModuleInit {
       categoryId?: string;
       categoryName?: string;
       categoryNameSi?: string;
-    price?: number;
-    stockQuantity?: number;
-    brand?: string;
+      price?: number;
+      stockQuantity?: number;
+      brand?: string;
       purchaseFrequency?: 'high' | 'medium' | 'low';
-    imageUrl?: string;
+      imageUrl?: string;
       isActive?: boolean;
       createdBy?: string;
     },

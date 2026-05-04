@@ -1,8 +1,8 @@
 import { ChangeEvent, useState } from 'react';
+import { useCartQuery, useStoreMutations } from '@/hooks';
 import { createFileRoute } from '@tanstack/react-router';
 import { AlertCircle, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 
-import { useCartQuery, useStoreMutations } from '@/hooks';
 import { PageContainer } from '@/components/partials/container/page-container';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,8 @@ function RouteComponent() {
   const cart = cartQuery.data?.data;
 
   const handleAddressChange =
-    (field: keyof typeof shipping) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (field: keyof typeof shipping) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setShipping((current) => ({ ...current, [field]: event.target.value }));
     };
 
@@ -105,7 +106,12 @@ function RouteComponent() {
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
-                        onClick={() => updateCartItem.mutate({ productId: item.productId, quantity: item.quantity - 1 })}
+                        onClick={() =>
+                          updateCartItem.mutate({
+                            productId: item.productId,
+                            quantity: item.quantity - 1,
+                          })
+                        }
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -124,7 +130,12 @@ function RouteComponent() {
                       />
                       <Button
                         variant="outline"
-                        onClick={() => updateCartItem.mutate({ productId: item.productId, quantity: item.quantity + 1 })}
+                        onClick={() =>
+                          updateCartItem.mutate({
+                            productId: item.productId,
+                            quantity: item.quantity + 1,
+                          })
+                        }
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -144,11 +155,31 @@ function RouteComponent() {
                   <CardTitle>Checkout</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Input placeholder="Street" value={shipping.street} onChange={handleAddressChange('street')} />
-                  <Input placeholder="City" value={shipping.city} onChange={handleAddressChange('city')} />
-                  <Input placeholder="State" value={shipping.state} onChange={handleAddressChange('state')} />
-                  <Input placeholder="ZIP Code" value={shipping.zipCode} onChange={handleAddressChange('zipCode')} />
-                  <Input placeholder="Country" value={shipping.country} onChange={handleAddressChange('country')} />
+                  <Input
+                    placeholder="Street"
+                    value={shipping.street}
+                    onChange={handleAddressChange('street')}
+                  />
+                  <Input
+                    placeholder="City"
+                    value={shipping.city}
+                    onChange={handleAddressChange('city')}
+                  />
+                  <Input
+                    placeholder="State"
+                    value={shipping.state}
+                    onChange={handleAddressChange('state')}
+                  />
+                  <Input
+                    placeholder="ZIP Code"
+                    value={shipping.zipCode}
+                    onChange={handleAddressChange('zipCode')}
+                  />
+                  <Input
+                    placeholder="Country"
+                    value={shipping.country}
+                    onChange={handleAddressChange('country')}
+                  />
                   <textarea
                     value={shipping.notes}
                     onChange={handleAddressChange('notes')}
@@ -195,7 +226,10 @@ function RouteComponent() {
                 </CardFooter>
               </Card>
 
-              {(updateCartItem.error || removeFromCart.error || clearCart.error || checkout.error) && (
+              {(updateCartItem.error ||
+                removeFromCart.error ||
+                clearCart.error ||
+                checkout.error) && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Action failed</AlertTitle>

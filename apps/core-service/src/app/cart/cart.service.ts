@@ -78,7 +78,8 @@ export class CartService {
       });
 
       const requestedQuantity = (existing?.quantity ?? 0) + safeQuantity;
-      if (product.stockQuantity < requestedQuantity) return { success: false, message: 'Insufficient stock' };
+      if (product.stockQuantity < requestedQuantity)
+        return { success: false, message: 'Insufficient stock' };
 
       if (existing) {
         await this.prisma.cartItem.update({
@@ -115,7 +116,8 @@ export class CartService {
         });
 
         if (!product) return { success: false, message: 'Product not found' };
-        if (product.stockQuantity < safeQuantity) return { success: false, message: 'Insufficient stock' };
+        if (product.stockQuantity < safeQuantity)
+          return { success: false, message: 'Insufficient stock' };
 
         const existing = await this.prisma.cartItem.findUnique({
           where: { cartId_productId: { cartId, productId } },

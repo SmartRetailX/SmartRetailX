@@ -1,12 +1,9 @@
 import { Controller, Get, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
-import { 
-  WEBSOCKET_PATTERNS, 
-  BroadcastPayload, 
-  SendToUserPayload 
-} from '@smart-retail-x/messaging';
-import { AppWebSocketGateway } from './websocket.gateway';
+import { BroadcastPayload, SendToUserPayload, WEBSOCKET_PATTERNS } from '@smart-retail-x/messaging';
+
 import { AppService } from './app.service';
+import { AppWebSocketGateway } from './websocket.gateway';
 
 @Controller()
 export class AppController {
@@ -14,7 +11,7 @@ export class AppController {
 
   constructor(
     private readonly gateway: AppWebSocketGateway,
-    private readonly appService: AppService
+    private readonly appService: AppService,
   ) {}
 
   @Get('health')
