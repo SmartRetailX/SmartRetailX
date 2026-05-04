@@ -10,6 +10,7 @@ import {
   Package,
   ShoppingBag,
   Store,
+  Target,
   Users,
 } from 'lucide-react';
 
@@ -77,6 +78,12 @@ const adminNavItems = [
     path: '/admin/loyalty',
     href: '/admin/loyalty',
     icon: Gift,
+  },
+  {
+    label: 'Promotions Engine',
+    path: '/admin/promotions',
+    href: '/admin/promotions',
+    icon: Target,
   },
 ];
 
