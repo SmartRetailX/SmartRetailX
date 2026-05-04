@@ -90,8 +90,8 @@
     "mobile:export": "nx run mobile-app:export",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "catalog:aliases:build": "pnpm exec tsx scripts/data-insert-scripts/build-product-aliases.ts"
-    ,"sync:bi:products": "DATABASE_URL_TARGET=$DATABASE_URL pnpm -w --filter @smart-retail-x/source tsx apps/bi-dashboard-services-gateway/scripts/sync-products.ts"
+    "catalog:aliases:build": "pnpm exec tsx scripts/data-insert-scripts/build-product-aliases.ts",
+    "sync:bi:products": "DATABASE_URL_TARGET=$DATABASE_URL pnpm -w --filter @smart-retail-x/source tsx apps/bi-dashboard-services-gateway/scripts/sync-products.ts"
   },
   "private": true,
   "devDependencies": {
