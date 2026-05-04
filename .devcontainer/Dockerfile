@@ -9,14 +9,13 @@ ENV PNPM_HOME=/pnpm \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        curl \
-        ffmpeg \
-        libpq-dev \
-        postgresql-client \
-        python3 \
-        python3-pip \
-        python3-venv \
+    build-essential \
+    curl \
+    ffmpeg \
+    libpq-dev \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable \

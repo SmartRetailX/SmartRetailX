@@ -25,6 +25,7 @@ type VoiceChatMessageRow = {
   channel: VoiceChatInputMode;
   content: string;
   transcription: string | null;
+  audio_url: string | null;
   language: VoiceLanguageCode;
   created_at: Date;
 };
@@ -33,9 +34,10 @@ type VoiceChatMessageRow = {
 export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VoiceChatRepository.name);
   private readonly pool: Pool;
+  private readonly coreSchemaName = 'core';
   private userTableRef = '"user"';
-  private sessionTableRef = '"agent_chat_session"';
-  private messageTableRef = '"agent_chat_message"';
+  private sessionTableRef = '"core"."agent_chat_session"';
+  private messageTableRef = '"core"."agent_chat_message"';
   private persistenceEnabled = true;
 
   constructor(private readonly configService: ConfigService) {
@@ -100,11 +102,15 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
     const query = await this.pool.query<VoiceChatMessageRow>(
       `
-      SELECT "id", "role", "channel", "content", "transcription", "language", "created_at"
-      FROM ${this.messageTableRef}
-      WHERE "chat_session_id" = $1
-      ORDER BY "created_at" ASC
-      LIMIT $2
+      SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+      FROM (
+        SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+        FROM ${this.messageTableRef}
+        WHERE "chat_session_id" = $1
+        ORDER BY "created_at" DESC, CASE WHEN "role" = 'assistant' THEN 0 ELSE 1 END DESC, "id" DESC
+        LIMIT $2
+      ) recent_messages
+      ORDER BY "created_at" ASC, CASE WHEN "role" = 'user' THEN 0 ELSE 1 END ASC, "id" ASC
       `,
       [session.id, max],
     );
@@ -120,6 +126,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     userText: string;
     assistantText: string;
     transcription?: string;
+    userAudioUrl?: string | null;
   }): Promise<void> {
     if (!this.persistenceEnabled) {
       return;
@@ -139,6 +146,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           channel: params.channel,
           content: params.userText.trim(),
           transcription: params.channel === 'voice' ? (params.transcription ?? params.userText).trim() : null,
+          audioUrl: params.channel === 'voice' ? (params.userAudioUrl ?? null) : null,
           language: params.language,
         });
       }
@@ -151,6 +159,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           channel: params.channel,
           content: params.assistantText.trim(),
           transcription: null,
+          audioUrl: null,
           language: params.language,
         });
       }
@@ -182,6 +191,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       channel: VoiceChatInputMode;
       content: string;
       transcription: string | null;
+      audioUrl: string | null;
       language: VoiceLanguageCode;
     },
   ): Promise<void> {
@@ -195,9 +205,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "channel",
         "content",
         "transcription",
+        "audio_url",
         "language"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         randomUUID(),
@@ -207,6 +218,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         params.channel,
         params.content,
         params.transcription,
+        params.audioUrl,
         params.language,
       ],
     );
@@ -219,6 +231,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       channel: row.channel,
       content: row.content,
       transcription: row.transcription,
+      audioUrl: row.audio_url,
       language: row.language,
       createdAt: row.created_at.toISOString(),
     };
@@ -237,37 +250,41 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveTableRefs(): Promise<void> {
-    const userTableSchema = await this.detectExistingSchema('user');
-    const sessionSchema = await this.detectExistingSchema('agent_chat_session');
-    const messageSchema = await this.detectExistingSchema('agent_chat_message');
+    const userTableSchema = await this.detectExistingSchema('user', ['auth']);
+    const sessionTableSchema = await this.detectExistingSchema('agent_chat_session', [this.coreSchemaName]);
+    const messageTableSchema = await this.detectExistingSchema('agent_chat_message', [this.coreSchemaName]);
+    const chatTableSchema = sessionTableSchema ?? messageTableSchema ?? this.coreSchemaName;
 
     this.userTableRef = this.qualifyTable(userTableSchema, 'user');
-    this.sessionTableRef = this.qualifyTable(sessionSchema, 'agent_chat_session');
-    this.messageTableRef = this.qualifyTable(messageSchema, 'agent_chat_message');
+    this.sessionTableRef = this.qualifyTable(chatTableSchema, 'agent_chat_session');
+    this.messageTableRef = this.qualifyTable(chatTableSchema, 'agent_chat_message');
 
     this.logger.log(
       `Voice chat tables resolved: user=${this.userTableRef}, session=${this.sessionTableRef}, message=${this.messageTableRef}`,
     );
   }
 
-  private async detectExistingSchema(tableName: string): Promise<string | null> {
+  private async detectExistingSchema(tableName: string, schemaPreference: string[]): Promise<string | null> {
+    const schemaListSql = schemaPreference.map((_, index) => `$${index + 2}`).join(', ');
+    const orderingSql = schemaPreference
+      .map((schema, index) => `WHEN '${schema}' THEN ${index}`)
+      .join(' ');
     const result = await this.pool.query<{ schema_name: string }>(
       `
       SELECT table_schema AS schema_name
       FROM information_schema.tables
-      WHERE table_name = $1
-        AND table_schema IN ('public', 'auth')
-      ORDER BY CASE table_schema WHEN 'public' THEN 0 ELSE 1 END
+      WHERE table_name = $1 AND table_schema IN (${schemaListSql})
+      ORDER BY CASE table_schema ${orderingSql} ELSE 999 END
       LIMIT 1
       `,
-      [tableName],
+      [tableName, ...schemaPreference],
     );
 
     return result.rows[0]?.schema_name ?? null;
   }
 
   private qualifyTable(schemaName: string | null, tableName: string): string {
-    return schemaName && schemaName !== 'public' ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+    return schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
   }
 
   private async ensureSchemaIfPossible(): Promise<void> {
@@ -290,7 +307,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         SELECT 1
         FROM information_schema.tables
         WHERE table_name = 'user'
-          AND table_schema IN ('public', 'auth')
+          AND table_schema IN ('auth')
       ) AS exists
       `,
     );
@@ -299,6 +316,8 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureSchema(): Promise<void> {
+    await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.coreSchemaName}";`);
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS ${this.sessionTableRef} (
         "id" TEXT PRIMARY KEY,
@@ -319,9 +338,14 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "channel" TEXT NOT NULL CHECK ("channel" IN ('text', 'voice')),
         "content" TEXT NOT NULL,
         "transcription" TEXT,
+        "audio_url" TEXT,
         "language" TEXT NOT NULL DEFAULT 'auto',
         "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+    await this.pool.query(`
+      ALTER TABLE ${this.messageTableRef}
+      ADD COLUMN IF NOT EXISTS "audio_url" TEXT;
     `);
 
     await this.pool.query(`

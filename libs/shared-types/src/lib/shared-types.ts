@@ -30,13 +30,30 @@ export interface VoiceChatMessage {
   timestamp: string;
 }
 
+export interface VoiceExplainabilityFeature {
+  name: string;
+  weight?: number;
+  evidence?: string;
+}
+
+export interface VoiceExplainability {
+  source: 'sinllama' | 'fallback-keyword' | 'db-catalog' | 'db-order' | 'db-offers' | 'db-recommendation';
+  confidence?: number;
+  rationale?: string;
+  features?: VoiceExplainabilityFeature[];
+}
+
 export interface VoiceChatResponseDto {
   success: boolean;
   transcription: string;
   response: string;
+  audioUrl?: string;
   language: VoiceLanguageCode;
   sessionId: string;
   messages: VoiceChatMessage[];
+  intent?: VoiceAssistantIntent;
+  entities?: Record<string, unknown>;
+  explainability?: VoiceExplainability;
   model?: string;
   latencyMs?: number;
   error?: string;
@@ -50,6 +67,7 @@ export interface VoiceChatStoredMessage {
   channel: VoiceChatInputMode;
   content: string;
   transcription?: string | null;
+  audioUrl?: string | null;
   language: VoiceLanguageCode;
   createdAt: string;
 }
@@ -64,15 +82,28 @@ export interface VoiceChatSessionDto {
   messages: VoiceChatStoredMessage[];
 }
 
-export interface VoiceChatTcpPayload {
-  audioBase64: string;
-  mimeType: string;
-  language: VoiceLanguageCode;
-  sessionId: string;
-  userId?: string;
-  userContext?: VoiceUserContext;
-  intents?: VoiceAssistantIntent[];
-  transcriptText?: string;
-}
+export type VoiceProcessingStatusPhase =
+  | 'idle'
+  | 'received'
+  | 'gateway_to_agent'
+  | 'transcribing'
+  | 'intent_detection'
+  | 'resolving'
+  | 'responding'
+  | 'completed'
+  | 'failed'
+  | 'busy';
 
-export const VOICE_CHAT_PATTERN = { cmd: 'voice_chat' } as const;
+export interface VoiceProcessingStatusDto {
+  userId: string;
+  sessionId?: string;
+  requestId: string;
+  channel: VoiceChatInputMode;
+  phase: VoiceProcessingStatusPhase;
+  message: string;
+  active: boolean;
+  transcription?: string;
+  intent?: VoiceAssistantIntent;
+  error?: string;
+  updatedAt: string;
+}

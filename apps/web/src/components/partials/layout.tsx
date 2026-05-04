@@ -1,5 +1,7 @@
 import { useRouterState } from '@tanstack/react-router';
+import { Toaster } from 'sonner';
 
+import { cn } from '@/lib/utils';
 import { User, USER_ROLE } from '@/types/auth';
 
 import { AdminShell } from './admin-shell';
@@ -16,6 +18,7 @@ interface LayoutProps {
 export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isAdminRoute = pathname.startsWith('/admin');
+  const isVoiceAssistantRoute = pathname === '/voice-assistant';
 
   if (isAdminRoute && user?.role === USER_ROLE.ADMIN) {
     return (
@@ -25,14 +28,28 @@ export function Layout({ children, user, isAuthenticated, signOut }: LayoutProps
     );
   }
 
-  const showFooter = !user || (user && user.role !== USER_ROLE.ADMIN);
+  const showFooter = !isVoiceAssistantRoute && (!user || (user && user.role !== USER_ROLE.ADMIN));
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div
+      className={cn(
+        'flex flex-col bg-background',
+        isVoiceAssistantRoute ? 'h-screen overflow-hidden' : 'min-h-screen',
+      )}
+    >
+      <Toaster richColors position="bottom-right" />
       {/* Header */}
       <Header user={user} signOut={signOut} />
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-8">{children}</main>
+      <main
+        className={cn(
+          isVoiceAssistantRoute
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+            : 'flex-1 container mx-auto px-4 py-8',
+        )}
+      >
+        {children}
+      </main>
 
       {/* Footer */}
       {showFooter && <Footer />}

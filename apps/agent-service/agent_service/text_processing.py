@@ -41,6 +41,8 @@ _ENTITY_LEADING_FILLERS = {
     "show",
     "find",
     "search",
+    "available",
+    "availability",
 }
 
 
@@ -186,6 +188,8 @@ def _extract_product_hint(text: str) -> str | None:
     patterns = [
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන)\s+([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})",
+        r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
+        r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+වල\s+මිල",
         r"([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+මිල\s+කීයද",
         r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9\u0D80-\u0DFF\s\-]{2,40})\s+නිෂ්පාදන",
@@ -217,6 +221,10 @@ def detect_intent_and_entities(
             "වට්ටම්",
             "offer එක",
             "promotions",
+            "ඔෆර්",
+            "ඔෆර්ස්",
+            "ඔපර්",
+            "ඔපර්ස්",
         ],
         "order_history": [
             "order history",
@@ -266,15 +274,21 @@ def detect_intent_and_entities(
             "සැජෙස්ට්",
             "අදහස",
         ],
-        "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද"],
+        "prices": ["price", "cost", "how much", "මිල", "ගණන", "කීයද", "කීය"],
         "product_search": [
             "search",
             "find",
             "show product",
             "product",
+            "available",
+            "availability",
+            "stock",
             "භාණ්ඩ",
             "නිෂ්පාදන",
             "හොයන්න",
+            "තියෙනවද",
+            "තියෙනවාද",
+            "තියෙනවා",
         ],
         "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්"],
     }

@@ -66,7 +66,18 @@ def normalize_audio_to_wav(audio_bytes: bytes, amplify: float = 1.0) -> bytes | 
         return None
 
 
-async def transcribe_audio(audio_bytes: bytes, language: str) -> str:
+def _resolve_audio_upload_metadata(mime_type: str | None) -> tuple[str, str]:
+    normalized = (mime_type or "").strip().lower()
+    if "ogg" in normalized:
+        return ("voice.ogg", "audio/ogg")
+    if "wav" in normalized:
+        return ("voice.wav", "audio/wav")
+    if "mpeg" in normalized or "mp3" in normalized:
+        return ("voice.mp3", "audio/mpeg")
+    return ("voice.webm", "audio/webm")
+
+
+async def transcribe_audio(audio_bytes: bytes, language: str, mime_type: str | None = None) -> str:
     logger.info(
         "Transcribing audio: provider=%s size=%s language=%s",
         STT_PROVIDER,
@@ -97,7 +108,8 @@ async def transcribe_audio(audio_bytes: bytes, language: str) -> str:
             pool=10.0,
         )
 
-        files = {"audio": ("voice.webm", audio_bytes, "audio/webm")}
+        audio_name, audio_content_type = _resolve_audio_upload_metadata(mime_type)
+        files = {"audio": (audio_name, audio_bytes, audio_content_type)}
         data = {"language": language or "si-LK"}
         async with httpx.AsyncClient(timeout=timeout_config, follow_redirects=True) as client:
             response = await client.post(STT_AGENT_HTTP_URL, files=files, data=data)

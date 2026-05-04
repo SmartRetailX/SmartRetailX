@@ -51,6 +51,10 @@ const envSchema = z.object({
   BASE_URL: z.string().url().optional(),
   BETTER_AUTH_URL: z.string().url().optional(),
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_UPLOAD_PRESET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

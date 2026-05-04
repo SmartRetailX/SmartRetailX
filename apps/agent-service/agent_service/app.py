@@ -64,7 +64,7 @@ async def voice_chat(
     userRole: str = Form("guest"),
     transcriptText: str | None = Form(None),
     intents: str = Form(
-        "offers,order_history,buying_suggestions,prices,product_search"
+        "offers,order_history,buying_suggestions,prices,product_search,general"
     ),
 ) -> dict[str, Any]:
     audio_bytes = await audio.read() if audio is not None else b""
@@ -74,9 +74,16 @@ async def voice_chat(
         )
 
     parsed_intents = [part.strip() for part in intents.split(",") if part.strip()]
+
+    # Ensure "general" is always an allowed intent so the model can gracefully
+    # handle queries that don't map to a specific retail intent.
+    if "general" not in parsed_intents:
+        parsed_intents.append("general")
+
     result = await process_voice_chat(
         audio_bytes,
         language=language,
+        mime_type=audio.content_type if audio is not None else None,
         session_id=sessionId,
         user_id=userId,
         user_context={"id": userId, "role": userRole},

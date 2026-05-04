@@ -1,7 +1,8 @@
 import { twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
+import { getPublicBaseUrl } from './base-url';
 
-const baseURL = `${import.meta.env.PUBLIC_BASE_URL}/api/auth`;
+const baseURL = `${getPublicBaseUrl()}/api/auth`;
 
 export const authClient = createAuthClient({
   baseURL,

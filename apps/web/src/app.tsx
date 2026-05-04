@@ -14,7 +14,7 @@ import { USER_ROLE } from './types/auth';
 export function App() {
   const auth = useAuth();
 
-  if (auth.isPending || auth.isRefetching) {
+  if (auth.isPending) {
     return <FullScreenLoader />;
   }
 
@@ -26,8 +26,8 @@ export function App() {
       enableSystem
     >
       <RouterProvider router={router} context={{ auth }} />
-      <TanStackRouterDevtools router={router} />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* <TanStackRouterDevtools router={router} /> */}
+      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </ThemeProvider>
   );
 }

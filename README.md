@@ -285,6 +285,25 @@ pnpm biml:serve
 pnpm dev:ml
 ```
 
+### Access From Windows + Mobile (Same Network)
+
+When the dev container runs on a cloud/remote host, `localhost:5173` works only
+on the machine where the port is forwarded. For cross-device access:
+
+1. Open the app from both devices using the same reachable host:
+`http://<SERVER_IP_OR_DNS>:5173`
+2. Open the API from that same host:
+`http://<SERVER_IP_OR_DNS>:3000`
+3. Keep `API_GATEWAY_HOST=0.0.0.0` in backend env.
+4. Keep `CORS_ORIGIN` broad enough for your real frontend origin(s), for example:
+`CORS_ORIGIN=http://localhost:5173,http://<SERVER_IP_OR_DNS>:5173,*`
+5. Leave `PUBLIC_BASE_URL` empty to auto-resolve API base URL from the active
+browser host.
+
+If you must keep using a local forwarded URL on Windows (`http://localhost:5173`)
+and want mobile access through your Windows LAN IP, create local port forwarding
+on Windows from `0.0.0.0:5173 -> 127.0.0.1:5173` and `0.0.0.0:3000 -> 127.0.0.1:3000`.
+
 ---
 
 ## 🔧 Environment Configuration

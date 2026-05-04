@@ -5,6 +5,7 @@
   "scripts": {
     "db:init": "node scripts/bootstrap-databases.mjs",
     "db:init:dry-run": "node scripts/bootstrap-databases.mjs --dry-run",
+    "catalog:fuzzy:train": "node scripts/data-insert-scripts/train-product-fuzzy-model.mjs",
     "prisma:generate": "pnpm exec prisma generate --schema libs/database/prisma/schema.prisma",
     "prisma:push": "pnpm exec prisma db push --schema libs/database/prisma/schema.prisma --skip-generate",
     "prisma:studio": "pnpm exec prisma studio --schema libs/database/prisma/schema.prisma",
@@ -27,7 +28,7 @@
     "dev:frontend": "nx run web:dev",
     "dev:backend": "pnpm db:init && nx run-many --target=serve --projects=bi-dashboard-services-gateway,api-gateway,core-service,websocket-service,agent-service,stt-agent --parallel=6",
     "dev:all": "sh -c 'pnpm dev:backend & pnpm dev:frontend & wait'",
-    "dev:ml": "cd apps/personalized-promotion-engine-ml-service && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:ml": "cd apps/personalized-promotion-engine-ml-service && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload",
     "docker:prod:config": "docker compose --env-file .env.production -f docker-compose.prod.yml config",
     "docker:prod:build": "docker compose --env-file .env.production -f docker-compose.prod.yml build",
     "docker:prod:up": "docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build",
@@ -40,7 +41,8 @@
     "mobile:lint": "nx run mobile-app:lint",
     "mobile:export": "nx run mobile-app:export",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "catalog:aliases:build": "pnpm exec tsx scripts/data-insert-scripts/build-product-aliases.ts"
   },
   "private": true,
   "devDependencies": {
