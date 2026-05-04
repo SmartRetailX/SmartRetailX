@@ -25,6 +25,12 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   },
   output: {
     copy: [{ from: './src/favicon.ico' }, { from: './src/assets' }],
@@ -35,3 +41,4 @@ export default defineConfig({
     },
   },
 });
+
