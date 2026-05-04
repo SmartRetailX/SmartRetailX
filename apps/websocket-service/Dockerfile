@@ -30,13 +30,16 @@ RUN pnpm exec prisma generate --schema libs/database/prisma/schema.prisma \
     && pnpm prune --prod
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+ARG PNPM_VERSION
 ENV NODE_ENV=production
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl openssl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/dist/apps/websocket-service/ ./
-RUN npm install --omit=dev --no-save tslib@2
+RUN pnpm add --prod --ignore-scripts tslib@2
 USER node
 CMD ["node", "main.js"]

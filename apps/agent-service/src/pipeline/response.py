@@ -16,7 +16,7 @@ from typing import Any
 from .resolver import ResolvedContext
 
 _ORDER_STATUS_SI: dict[str, str] = {
-    "pending":    "බලාපොරොත්තුවෙන්",
+    "pending":    "පිළියෙළ කිරීමට නියමිතයි",
     "confirmed":  "තහවුරු කළා",
     "processing": "සකස් කරමින්",
     "shipped":    "යවා ඇත",
