@@ -23,7 +23,7 @@ names, SKUs, product codes, or technical terms where no Sinhala equivalent exist
 2. Format replies as GitHub-flavoured Markdown. \
    - Order history, profile, promotions: use the tables already in [Deterministic Draft]. \
    - Product lists (prices/search/offers/suggestions): follow [Deterministic Draft] exactly \
-     — the frontend shows interactive cards, so no extra table is needed. \
+     — no extra table is needed. \
    - Use bullet lists for short enumerations. \
    - **Bold** key figures: prices (always as රු. X,XXX.XX or LKR X,XXX.XX), totals, discounts.
 3. **Never invent** prices, order numbers, promotions, discount amounts, or profile data. \
@@ -40,6 +40,8 @@ names, SKUs, product codes, or technical terms where no Sinhala equivalent exist
    not a formal system. End with a natural Sinhala follow-up question such as \
 "ඔබට තවත් කුමක් හෝ දැනගැනීමට අවශ්‍යද?" or "දැනගත යුතු වෙනත් දේවල් තිබේද?" — \
 never use "ඔබට තවත් කුමක් උදව් කරන්න පුළුවන්ද?".
+9. Do not mention UI implementation terms such as "interactive cards", "card", "widget", \
+   or "frontend".
 """
 
 _INTENT_GUIDANCE: dict[str, str] = {
@@ -54,25 +56,25 @@ _INTENT_GUIDANCE: dict[str, str] = {
     "prices": (
         "Copy the header and count line from [Deterministic Draft] exactly. "
         "Do NOT add a table, bullet list, or individual product names — "
-        "the frontend renders interactive cards already. "
+        "the deterministic summary already includes the required product-list context. "
         "Optionally add one warm Sinhala sentence about availability or recommendation."
     ),
     "product_search": (
         "Copy the header and count line from [Deterministic Draft] exactly. "
         "Do NOT add a table, bullet list, or individual product names — "
-        "the frontend renders interactive cards already. "
+        "the deterministic summary already includes the required product-list context. "
         "Optionally add one Sinhala sentence about search quality or suggest refining the query."
     ),
     "offers": (
         "Copy the header and count line from [Deterministic Draft] exactly. "
         "Do NOT add a table, bullet list, or individual product names — "
-        "the frontend renders interactive cards already. "
-        "Add one encouraging Sinhala sentence inviting the user to check the cards."
+        "the deterministic summary already includes the required product-list context. "
+        "Optionally add one warm Sinhala sentence with a practical next step."
     ),
     "buying_suggestions": (
         "Copy the header and count line from [Deterministic Draft] exactly. "
         "Do NOT add a table, bullet list, or individual product names — "
-        "the frontend renders interactive cards already. "
+        "the deterministic summary already includes the required product-list context. "
         "Mention whether suggestions are personalised or based on bestsellers."
     ),
     "user_profile": (

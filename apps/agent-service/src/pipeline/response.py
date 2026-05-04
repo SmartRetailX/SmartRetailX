@@ -160,8 +160,7 @@ def _render_prices(ctx: ResolvedContext) -> str:
         if product_name
         else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
     )
-    # Product cards are rendered by the frontend UI — just emit the header + count summary
-    return header + f"භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    return header + f"භාණ්ඩ {count}ක් හමු විය."
 
 
 def _render_product_search(ctx: ResolvedContext) -> str:
@@ -175,7 +174,7 @@ def _render_product_search(ctx: ResolvedContext) -> str:
         if query
         else "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
     )
-    return header + f"ගැලපෙන භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    return header + f"ගැලපෙන භාණ්ඩ {count}ක් හමු විය."
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
@@ -187,17 +186,17 @@ def _render_offers(ctx: ResolvedContext) -> str:
         if product_name:
             if offer_label:
                 return (
-                    f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
-                    "ළඟදීම නව offers එකතු වෙනවා!"
-                )
-            return (
-                f"දැනට **{product_name}** වලට offers නැත. "
+                f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
+                "ළඟදීම නව offers එකතු වෙනවා!"
+            )
+        return (
+            f"දැනට **{product_name}** වලට offers නැත. "
                 "ළඟදීම නව offers එකතු වෙනවා!"
             )
         if offer_label:
             return (
                 f"දැනට **{offer_label}** ආකාරයේ offers හමු නොවුණා. "
-                "ළඟදීම නව offers එකතු වෙනවා — නැවත check කරන්න!"
+                "ළඟදීම නව offers එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
             )
         return (
             "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
@@ -209,7 +208,7 @@ def _render_offers(ctx: ResolvedContext) -> str:
         if offer_label
         else "### 🎉 දැනට ඇති Offers & Featured Products"
     )
-    return f"{heading}\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    return f"{heading}\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය."
 
 
 def _render_order_history(ctx: ResolvedContext) -> str:
@@ -290,7 +289,7 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
     count = len(ctx.db_results)
     return (
         f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
-        f"යෝජිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+        f"යෝජිත භාණ්ඩ {count}ක් හමු විය."
     )
 
 
@@ -361,11 +360,11 @@ def _render_promotions(ctx: ResolvedContext) -> str:
         if offer_label:
             return (
                 f"දැනට **{offer_label}** ආකාරයේ promotions හමු නොවුණා. "
-                "ළඟදීම නව promotions එකතු වෙනවා — නැවත check කරන්න!"
+                "ළඟදීම නව promotions එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
             )
         return (
             "දැනට සක්‍රිය promotions හමු නොවුණා. "
-            "ළඟදීම නව offers හා promotions එකතු වෙනවා — නැවත check කරන්න!"
+            "ළඟදීම නව offers හා promotions එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
         )
 
     count = len(ctx.db_results)

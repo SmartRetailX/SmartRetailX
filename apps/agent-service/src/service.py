@@ -223,7 +223,7 @@ async def process_voice_chat(
             in {"prices", "product_search", "offers", "promotions", "buying_suggestions"}
             and not str(intent_result.entities.get("product") or "").strip()
         ):
-            product_hint = _extract_product_hint(transcription)
+            product_hint = _extract_product_hint(transcription, intent_result.intent)
             if product_hint:
                 intent_result.entities["product"] = product_hint
                 logger.info(

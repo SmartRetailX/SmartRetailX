@@ -20,16 +20,32 @@ _NOISE_WORDS = {
     "ද",
     "අඩු",
     "කරලා",
-    "තියෙනවා",
-    "තියෙනවාද",
     "දෙන්න",
     "ගන්න",
+    "තියෙනවද",
+    "තියෙනවාද",
+    "තියෙනවා",
+    "තියනවද",
+    "තියෙන",
+    "තිබෙන",
+    "තිබෙනවද",
+    "නැද්ද",
+    "නැද්ද?",
+    "නෑද",
+    "නේද",
+    "nadda",
+    "nada",
+    "any",
 }
 _TRIM_WORDS = {
     "වල",
     "වර්ග",
     "වර්ගයේ",
     "මිල",
+    "මිලක්",
+    "price",
+    "cost",
+    "ගණන",
     "නිෂ්පාදන",
     "භාණ්ඩ",
     "product",
@@ -71,6 +87,15 @@ _LEADING_FILLERS = {
     "search",
     "available",
     "availability",
+    "අද",
+    "දැනට",
+    "දැන්",
+    "මේ",
+    "තියෙන",
+    "තිබෙන",
+    "today",
+    "current",
+    "now",
 }
 _DEMONSTRATIVES = {
     "මේකවල",
@@ -81,6 +106,38 @@ _DEMONSTRATIVES = {
     "මෙකවල",
     "this",
     "that",
+}
+
+_YES_NO_QUERY_WORDS = {
+    "ද",
+    "ද?",
+    "තියෙනවද",
+    "තියෙනවාද",
+    "තියෙනවා",
+    "තියනවද",
+    "තිබෙනවද",
+    "නැද්ද",
+    "නෑද",
+    "නේද",
+    "nadda",
+    "nada",
+    "any",
+    "available",
+}
+
+_OFFER_ENTITY_KEYWORDS = {
+    "offer",
+    "offers",
+    "promotion",
+    "promotions",
+    "discount",
+    "discounts",
+    "deal",
+    "deals",
+    "special",
+    "වට්ටම්",
+    "ඔෆර්",
+    "ඔෆර්ස්",
 }
 
 _KEYWORDS: dict[str, list[str]] = {
@@ -387,7 +444,7 @@ def detect_intent_and_entities(
     confidence = min(0.95, 0.4 + best_score * 0.18) if best_score > 0 else 0.35
 
     entities: dict[str, Any] = {}
-    product_hint = _extract_product_hint(text)
+    product_hint = _extract_product_hint(text, best_intent)
     if product_hint:
         entities["product"] = product_hint
 
@@ -439,12 +496,23 @@ def _sanitize_entity_candidate(candidate: str) -> str | None:
     if not tokens:
         return None
 
-    while tokens and tokens[0].lower() in _LEADING_FILLERS:
-        tokens.pop(0)
-    while tokens and tokens[-1].lower() in _TRIM_WORDS:
-        tokens.pop()
-    while tokens and tokens[-1].lower() in _NOISE_WORDS:
-        tokens.pop()
+    # Iterative cleanup: removing one suffix token can expose another removable suffix.
+    changed = True
+    while tokens and changed:
+        changed = False
+        while tokens and tokens[0].lower() in _LEADING_FILLERS:
+            tokens.pop(0)
+            changed = True
+        while (
+            tokens
+            and (
+                tokens[-1].lower() in _TRIM_WORDS
+                or tokens[-1].lower() in _NOISE_WORDS
+                or tokens[-1].lower() in _YES_NO_QUERY_WORDS
+            )
+        ):
+            tokens.pop()
+            changed = True
 
     # Drop demonstratives (this/that/මේකවල) — they refer to context, not a product name
     tokens = [t for t in tokens if t.lower() not in _DEMONSTRATIVES]
@@ -490,12 +558,36 @@ def detect_offer_type(text: str) -> str | None:
     return None
 
 
-def _extract_product_hint(text: str) -> str | None:
+def _is_generic_offer_query(lowered_text: str) -> bool:
+    tokens = re.findall(r"[A-Za-z0-9඀-෿]+", lowered_text or "")
+    if not tokens:
+        return False
+    if not any(token in _OFFER_ENTITY_KEYWORDS for token in tokens):
+        return False
+
+    non_offer_tokens = [token for token in tokens if token not in _OFFER_ENTITY_KEYWORDS]
+    if not non_offer_tokens:
+        return True
+
+    return all(
+        token in _NOISE_WORDS
+        or token in _TRIM_WORDS
+        or token in _YES_NO_QUERY_WORDS
+        or token in _LEADING_FILLERS
+        for token in non_offer_tokens
+    )
+
+
+def _extract_product_hint(text: str, intent: str | None = None) -> str | None:
     normalized = text.strip()
     lowered = normalized.lower()
+    intent_name = (intent or "").strip().lower()
 
     # Don't extract a product name when the query describes an offer type
     if any(sig in lowered for sig in _OFFER_TYPE_SIGNALS):
+        return None
+
+    if intent_name in {"offers", "promotions"} and _is_generic_offer_query(lowered):
         return None
 
     for pair in re.findall(r'"([^"]+)"|\'([^\']+)\'', normalized):
@@ -503,9 +595,13 @@ def _extract_product_hint(text: str) -> str | None:
         if value:
             return value
 
-    patterns = [
+    offer_patterns = [
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:වලට|වල|සඳහා)\s+(?:offer|offers|promotion|promotions|discount|deal|special|වට්ටම්|ඔෆර්|ඔෆර්ස්)",
         r"(?:offer|offers|promotion|promotions|discount|deal|special|වට්ටම්|ඔෆර්|ඔෆර්ස්)\s+(?:on|for|about)?\s*([A-Za-z0-9඀-෿\s\-]{2,60})",
+        r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:offer|offers|promotion|promotions|discount|deal|special|වට්ටම්|ඔෆර්|ඔෆර්ස්)\b",
+        r"(?:offers?|promotions?|discounts?|deals?)\s+(?:තියෙන|තිබෙන)\s*([A-Za-z0-9඀-෿\s\-]{2,60})",
+    ]
+    general_patterns = [
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:කිලෝ|kg|කිලෝව|gram|g)\s+(?:එකේ|එකට|1|එකක)?\s*(?:මිල|price|ගණන)",
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?(?!අඩු|reduced|cut)([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන|හොයන්න)\s+([A-Za-z0-9඀-෿\s\-]{2,60})",
@@ -517,6 +613,11 @@ def _extract_product_hint(text: str) -> str | None:
         r"(?:මට|මමට)?\s*([A-Za-z0-9඀-෿\s\-]{2,60})\s+හොයන්න",
         r"(?:මට|මමට)\s+([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:මිල|price|ගණන)",
     ]
+    patterns = (
+        offer_patterns
+        if intent_name in {"offers", "promotions"}
+        else (offer_patterns + general_patterns)
+    )
     for pattern in patterns:
         match = re.search(pattern, normalized, re.IGNORECASE)
         if match:
