@@ -23,6 +23,7 @@ export class VoiceService {
     assistantText: string;
     transcription?: string;
     userAudioUrl?: string | null;
+    products?: Record<string, unknown>[] | null;
   }): Promise<void> {
     await this.voiceChatRepository.appendExchange(params);
   }

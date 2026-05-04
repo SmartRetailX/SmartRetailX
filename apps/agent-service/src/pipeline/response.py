@@ -92,30 +92,10 @@ def _render_prices(ctx: ResolvedContext) -> str:
         return ctx.clarification_prompt_si or _generic_clarification()
 
     product_name = ctx.entities.get("product", "")
+    count = len(ctx.db_results)
     header = f"### 💰 {product_name} – මිල ගණන්\n\n" if product_name else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
-    rows = ctx.db_results
-
-    if len(rows) == 1:
-        p = rows[0]
-        stock_label = "✅ ඇත" if (p.get("stock_quantity") or 0) > 0 else "❌ නැත"
-        return (
-            header
-            + f"**{p['name']}**"
-            + (f" / {p['name_si']}" if p.get("name_si") else "")
-            + "\n\n"
-            + "| | |\n|---|---|\n"
-            + f"| මිල | **රු. {p['price']:.2f}** |\n"
-            + f"| ස්ටොක් | {stock_label} ({p.get('stock_quantity', 0)} units) |\n"
-            + f"| Brand | {p.get('brand', '-')} |\n"
-            + f"| Category | {p.get('category', '-')} |\n"
-        )
-
-    table = header + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් |\n|---|---|---|---|\n"
-    for p in rows:
-        stock = "✅" if (p.get("stock_quantity") or 0) > 0 else "❌"
-        name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
-        table += f"| {name} | {p.get('category', '-')} | {p['price']:.2f} | {stock} |\n"
-    return table
+    # Product cards are rendered by the frontend UI — just emit the header + count summary
+    return header + f"භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
 
 def _render_product_search(ctx: ResolvedContext) -> str:
@@ -123,30 +103,20 @@ def _render_product_search(ctx: ResolvedContext) -> str:
         return ctx.clarification_prompt_si or _generic_clarification()
 
     query = ctx.entities.get("product", "")
+    count = len(ctx.db_results)
     header = (
         f"### 🔍 \"{query}\" – සෙවීමේ ප්‍රතිඵල\n\n" if query
         else "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
     )
-    table = header + "| භාණ්ඩය | Category | මිල (රු.) | ස්ටොක් | Brand |\n|---|---|---|---|---|\n"
-    for p in ctx.db_results:
-        stock = "✅" if (p.get("stock_quantity") or 0) > 0 else "❌"
-        name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
-        table += f"| {name} | {p.get('category', '-')} | {p['price']:.2f} | {stock} | {p.get('brand', '-')} |\n"
-    return table
+    return header + f"ගැලපෙන භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
     if not ctx.has_data:
         return "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
 
-    header = "### 🎉 දැනට ඇති Offers & Featured Products\n\n"
-    table = header + "| භාණ්ඩය | Category | මිල (රු.) | Brand |\n|---|---|---|---|\n"
-    for p in ctx.db_results:
-        name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
-        discount = p.get("avg_discount")
-        discount_str = f" (රු. {discount:.2f} discount)" if discount and discount > 0 else ""
-        table += f"| {name}{discount_str} | {p.get('category', '-')} | {p['price']:.2f} | {p.get('brand', '-')} |\n"
-    return table
+    count = len(ctx.db_results)
+    return f"### 🎉 දැනට ඇති Offers & Featured Products\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
 
 
 def _render_order_history(ctx: ResolvedContext) -> str:
@@ -194,15 +164,11 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
         "bestsellers":    "ජනප්‍රිය භාණ්ඩ",
     }.get(source, "යෝජිත භාණ්ඩ")
 
-    table = (
+    count = len(ctx.db_results)
+    return (
         f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
-        "| භාණ්ඩය | Category | මිල (රු.) | ජනප්‍රියතාව |\n|---|---|---|---|\n"
+        f"යෝජිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
     )
-    for p in ctx.db_results:
-        name = p["name"] + (f" / {p['name_si']}" if p.get("name_si") else "")
-        freq = _PURCHASE_FREQ_SI.get(str(p.get("purchase_frequency", "")), "-")
-        table += f"| {name} | {p.get('category', '-')} | {p['price']:.2f} | {freq} |\n"
-    return table
 
 
 # ---------------------------------------------------------------------------
@@ -210,17 +176,13 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 
 def _with_xai(body: str, ctx: ResolvedContext) -> str:
-    if not ctx.xai_features:
+    if not ctx.xai_features and not ctx.entities and not ctx.db_source:
         return body
 
-    lines = ["\n\n---\n\n**🔍 මෙම පිළිතුර ලැබුණේ ඇයි?**\n"]
-    for feat in ctx.xai_features[:3]:
-        name = feat.get("name", "")
-        evidence = feat.get("evidence", "")
-        weight = feat.get("weight")
-        weight_str = f" ({weight:.2f})" if isinstance(weight, (int, float)) else ""
-        evidence_str = f" – _{evidence}_" if evidence else ""
-        lines.append(f"- **{name}**{weight_str}{evidence_str}")
+    lines = ["\n\n---\n\n**🔍 මෙම ප්‍රතිඵල පෙන්වූයේ ඇයි?**\n"]
+    reason_lines = _build_user_friendly_reasons(ctx)
+    for reason in reason_lines:
+        lines.append(f"- {reason}")
 
     return body + "\n".join(lines)
 
@@ -228,6 +190,94 @@ def _with_xai(body: str, ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
+    reasons: list[str] = []
+
+    product = str(ctx.entities.get("product") or "").strip() if ctx.entities else ""
+    category = str(ctx.entities.get("category") or "").strip() if ctx.entities else ""
+
+    if product:
+        reasons.append(f"ඔබ **{product}** ගැන අහපු නිසා ඒකට ගැලපෙන ප්‍රතිඵල සොයා පෙන්වුවා.")
+    elif category:
+        reasons.append(f"ඔබ ඉල්ලූ **{category}** category එකට ගැලපෙන දත්ත පාවිච්චි කළා.")
+    else:
+        reasons.append(_intent_reason(ctx.intent))
+
+    source = _db_source_reason(ctx.db_source)
+    if source:
+        reasons.append(source)
+
+    feature_reason = _feature_reason(ctx.xai_features)
+    if feature_reason:
+        reasons.append(feature_reason)
+
+    if ctx.has_data:
+        count = len(ctx.db_results)
+        if ctx.intent in {"prices", "product_search", "offers", "buying_suggestions"}:
+            reasons.append(f"මෙම පිළිතුර අදාළ භාණ්ඩ **{count}ක්** මත ගොඩනැගුණා.")
+        elif ctx.intent == "order_history":
+            reasons.append(f"මෙම පිළිතුර ඔබගේ ඇණවුම් **{count}ක්** පදනම් කරගෙන දීලා තියෙනවා.")
+    elif ctx.needs_clarification:
+        reasons.append("නිවැරදි ප්‍රතිඵල දෙන්න තව ටිකක් පැහැදිලි විස්තර අවශ්‍ය වුණා.")
+
+    # Keep the block concise and non-repetitive.
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in reasons:
+        cleaned = item.strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        deduped.append(cleaned)
+        if len(deduped) >= 3:
+            break
+
+    return deduped
+
+
+def _intent_reason(intent: str) -> str:
+    if intent == "prices":
+        return "ඔබ මිල ගැන අහපු නිසා catalog දත්තෙන් අදාළ මිල ප්‍රතිඵල තෝරාගත්තා."
+    if intent == "product_search":
+        return "ඔබ භාණ්ඩ සෙවුමක් කළ නිසා නම/brand/category ගැලපීම් අනුව ප්‍රතිඵල තෝරාගත්තා."
+    if intent == "offers":
+        return "ඔබ offers ගැන අහපු නිසා discount සහ ගනුදෙනු දත්ත බලලා ප්‍රතිඵල තෝරාගත්තා."
+    if intent == "order_history":
+        return "ඔබගේ ඉල්ලීම අනුව ඔබට අදාළ ඇණවුම් ඉතිහාස දත්ත භාවිත කළා."
+    if intent == "buying_suggestions":
+        return "ඔබට ගැලපෙන නිර්දේශ දෙන්න ගැනුම් රටාව සහ භාණ්ඩ තොරතුරු භාවිත කළා."
+    return "ඔබගේ ප්‍රශ්නයේ අර්ථය අනුව ගැලපෙන දත්ත තෝරාගෙන පිළිතුර සකස් කළා."
+
+
+def _db_source_reason(db_source: str) -> str:
+    if db_source == "db-catalog":
+        return "දත්ත මූලාශ්‍රය ලෙස **catalog** භාවිතා කළා."
+    if db_source == "db-offers":
+        return "දත්ත මූලාශ්‍රය ලෙස **offers** සහ discount දත්ත භාවිතා කළා."
+    if db_source == "db-order":
+        return "දත්ත මූලාශ්‍රය ලෙස ඔබගේ **order history** භාවිතා කළා."
+    if db_source == "db-recommendation":
+        return "දත්ත මූලාශ්‍රය ලෙස **recommendation** engine එකේ දත්ත භාවිතා කළා."
+    return ""
+
+
+def _feature_reason(features: list[dict[str, Any]]) -> str:
+    if not features:
+        return ""
+
+    top = features[0] if features else {}
+    name = str(top.get("name") or "").strip()
+    evidence = str(top.get("evidence") or "").strip()
+
+    if name and evidence:
+        return f"ඔබගේ ඉල්ලීමේ ප්‍රධාන සංඥාව ලෙස **{name}** ({evidence}) හඳුනාගත්තා."
+    if name:
+        return f"ඔබගේ ඉල්ලීමෙන් **{name}** ප්‍රධාන අදහසක් ලෙස හඳුනාගත්තා."
+    if evidence:
+        return f"ඔබ දුන් **{evidence}** වචන/තොරතුරු පදනම් කරගෙන ප්‍රතිඵල තෝරාගත්තා."
+    return ""
+
 
 def _generic_clarification() -> str:
     return "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් මම නිවැරදිව උත්තර දෙන්නම්."

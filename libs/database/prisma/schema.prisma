@@ -357,6 +357,7 @@ model AgentChatMessage {
   transcription String?
   audioUrl      String?  @map("audio_url")
   language      String   @default("auto")
+  products      Json?
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   chatSession AgentChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade, map: "agent_chat_message_chat_session_id_fkey")

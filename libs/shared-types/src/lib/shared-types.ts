@@ -76,6 +76,7 @@ export interface VoiceChatStoredMessage {
   audioUrl?: string | null;
   language: VoiceLanguageCode;
   createdAt: string;
+  products?: Record<string, unknown>[] | null;
 }
 
 export interface VoiceChatSessionDto {

@@ -27,6 +27,7 @@ type VoiceChatMessageRow = {
   audio_url: string | null;
   language: VoiceLanguageCode;
   created_at: Date;
+  products: Record<string, unknown>[] | null;
 };
 
 @Injectable()
@@ -101,9 +102,9 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
 
     const query = await this.pool.query<VoiceChatMessageRow>(
       `
-      SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+      SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at", "products"
       FROM (
-        SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at"
+        SELECT "id", "role", "channel", "content", "transcription", "audio_url", "language", "created_at", "products"
         FROM ${this.messageTableRef}
         WHERE "chat_session_id" = $1
         ORDER BY "created_at" DESC, CASE WHEN "role" = 'assistant' THEN 0 ELSE 1 END DESC, "id" DESC
@@ -126,6 +127,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
     assistantText: string;
     transcription?: string;
     userAudioUrl?: string | null;
+    products?: Record<string, unknown>[] | null;
   }): Promise<void> {
     if (!this.persistenceEnabled) {
       return;
@@ -161,6 +163,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
           transcription: null,
           audioUrl: null,
           language: params.language,
+          products: params.products ?? null,
         });
       }
 
@@ -193,8 +196,14 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       transcription: string | null;
       audioUrl: string | null;
       language: VoiceLanguageCode;
+      products?: Record<string, unknown>[] | null;
     },
   ): Promise<void> {
+    const productsJson =
+      params.products && params.products.length > 0
+        ? JSON.stringify(params.products)
+        : null;
+
     await client.query(
       `
       INSERT INTO ${this.messageTableRef} (
@@ -206,9 +215,10 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "content",
         "transcription",
         "audio_url",
-        "language"
+        "language",
+        "products"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
       `,
       [
         randomUUID(),
@@ -220,11 +230,13 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         params.transcription,
         params.audioUrl,
         params.language,
+        productsJson,
       ],
     );
   }
 
   private toMessageDto(row: VoiceChatMessageRow): VoiceChatStoredMessage {
+    const products = Array.isArray(row.products) ? row.products : null;
     return {
       id: row.id,
       role: row.role,
@@ -234,6 +246,7 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
       audioUrl: row.audio_url,
       language: row.language,
       createdAt: row.created_at.toISOString(),
+      products,
     };
   }
 
@@ -347,12 +360,17 @@ export class VoiceChatRepository implements OnModuleInit, OnModuleDestroy {
         "transcription" TEXT,
         "audio_url" TEXT,
         "language" TEXT NOT NULL DEFAULT 'auto',
+        "products" JSONB,
         "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
     await this.pool.query(`
       ALTER TABLE ${this.messageTableRef}
       ADD COLUMN IF NOT EXISTS "audio_url" TEXT;
+    `);
+    await this.pool.query(`
+      ALTER TABLE ${this.messageTableRef}
+      ADD COLUMN IF NOT EXISTS "products" JSONB;
     `);
 
     await this.pool.query(`
