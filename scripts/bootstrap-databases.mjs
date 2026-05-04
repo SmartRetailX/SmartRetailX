@@ -8,44 +8,12 @@ const commands = [
   {
     label: 'Generate main Prisma client',
     command: 'pnpm',
-    args: ['exec', 'prisma', 'generate', '--schema', 'libs/database/prisma/schema.prisma'],
+    args: ['exec', 'prisma', 'generate'],
   },
   {
     label: 'Create or update main application schema',
     command: 'pnpm',
-    args: [
-      'exec',
-      'prisma',
-      'db',
-      'push',
-      '--schema',
-      'libs/database/prisma/schema.prisma',
-      '--skip-generate',
-    ],
-  },
-  {
-    label: 'Generate BI dashboard Prisma client',
-    command: 'pnpm',
-    args: [
-      'exec',
-      'prisma',
-      'generate',
-      '--schema',
-      'apps/bi-dashboard-services-gateway/prisma/schema.prisma',
-    ],
-  },
-  {
-    label: 'Create or update BI dashboard schema',
-    command: 'pnpm',
-    args: [
-      'exec',
-      'prisma',
-      'db',
-      'push',
-      '--schema',
-      'apps/bi-dashboard-services-gateway/prisma/schema.prisma',
-      '--skip-generate',
-    ],
+    args: ['exec', 'prisma', 'db', 'push'],
   },
 ];
 
