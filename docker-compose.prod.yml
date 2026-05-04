@@ -136,6 +136,8 @@ services:
     depends_on:
       api-gateway:
         condition: service_healthy
+      websocket-service:
+        condition: service_started
     ports:
       - '${WEB_PORT:-8080}:80'
     logging: *default-logging
