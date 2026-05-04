@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks';
-import { createFileRoute } from '@tanstack/react-router';
-import { Mic, Pause, Play, Send, Square, Users } from 'lucide-react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { ImageOff, Mic, Pause, Play, Send, Square, Users } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { io, type Socket } from 'socket.io-client';
@@ -18,6 +18,31 @@ export const Route = createFileRoute('/_authenticated/_user/voice-assistant')({
   component: RouteComponent,
 });
 
+type VoiceProduct = {
+  product_id: string;
+  name: string;
+  name_si?: string | null;
+  price: number;
+  stock_quantity?: number | null;
+  brand?: string | null;
+  category?: string | null;
+  image_url?: string | null;
+  avg_discount?: number | null;
+  purchase_frequency?: string | null;
+  recommendation_source?: string | null;
+};
+
+type ProductPagination = {
+  intent?: 'prices' | 'product_search' | 'offers' | 'buying_suggestions' | string;
+  query?: string | null;
+  categoryHint?: string | null;
+  offset?: number;
+  limit?: number;
+  nextOffset?: number;
+  total?: number;
+  hasMore?: boolean;
+};
+
 type VoiceMessage = {
   id: string;
   role: 'user' | 'assistant';
@@ -26,6 +51,9 @@ type VoiceMessage = {
   transcription: string | null;
   audioUrl?: string | null;
   createdAt: string;
+  suggestions?: string[] | null;
+  products?: VoiceProduct[] | null;
+  productPagination?: ProductPagination | null;
 };
 
 type VoiceSessionResponse = {
@@ -42,10 +70,16 @@ type VoiceChatResponse = {
   audioUrl?: string;
   language?: string;
   sessionId?: string;
+  suggestions?: string[] | null;
+  products?: VoiceProduct[] | null;
+  productPagination?: ProductPagination | null;
   data?: {
     response?: string;
     transcription?: string;
     audioUrl?: string;
+    suggestions?: string[] | null;
+    products?: VoiceProduct[] | null;
+    productPagination?: ProductPagination | null;
   };
   message?: string;
 };
@@ -120,6 +154,8 @@ declare global {
 }
 
 const rootBaseUrl = getPublicBaseUrl();
+const PRODUCT_PAGE_COMMAND_PREFIX = '__srx_product_page__:';
+const PRODUCT_PAGE_SIZE = 5;
 
 const markdownComponents: Components = {
   a: ({ href, children, ...props }) => (
@@ -265,6 +301,32 @@ async function sendVoiceMessage(audioBlob: Blob, socket: Socket | null) {
   });
 }
 
+function resolveImageUrl(imageUrl?: string | null) {
+  if (!imageUrl) return null;
+  const raw = imageUrl.trim();
+  if (!raw) return null;
+
+  if (
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    raw.startsWith('http://')
+  ) {
+    return `https://${raw.slice('http://'.length)}`;
+  }
+  return raw;
+}
+
+function buildProductPageCommand(paging: ProductPagination) {
+  const payload = {
+    intent: paging.intent || 'product_search',
+    query: paging.query || null,
+    categoryHint: paging.categoryHint || null,
+    offset: paging.nextOffset ?? (paging.offset ?? 0) + (paging.limit ?? PRODUCT_PAGE_SIZE),
+    limit: paging.limit ?? PRODUCT_PAGE_SIZE,
+  };
+  return `${PRODUCT_PAGE_COMMAND_PREFIX}${JSON.stringify(payload)}`;
+}
+
 function toImmediateMessages(
   payload: VoiceChatResponse,
   channel: 'text' | 'voice',
@@ -272,6 +334,9 @@ function toImmediateMessages(
   const transcription = (payload.transcription ?? payload.data?.transcription ?? '').trim();
   const response = (payload.response ?? payload.data?.response ?? '').trim();
   const audioUrl = (payload.audioUrl ?? payload.data?.audioUrl ?? '').trim() || null;
+  const suggestions = payload.suggestions ?? payload.data?.suggestions ?? null;
+  const products = payload.products ?? payload.data?.products ?? null;
+  const productPagination = payload.productPagination ?? payload.data?.productPagination ?? null;
   const now = new Date().toISOString();
   const items: VoiceMessage[] = [];
 
@@ -296,6 +361,9 @@ function toImmediateMessages(
       transcription: null,
       audioUrl: null,
       createdAt: now,
+      suggestions: suggestions && suggestions.length > 0 ? suggestions : null,
+      products: products && products.length > 0 ? products : null,
+      productPagination,
     });
   }
 
@@ -308,6 +376,163 @@ function MarkdownMessage({ content }: { content: string }) {
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>
+    </div>
+  );
+}
+
+function SuggestionChips({
+  suggestions,
+  onSelect,
+  disabled,
+}: {
+  suggestions: string[];
+  onSelect: (suggestion: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-1.5">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion}
+          type="button"
+          disabled={disabled}
+          onClick={() => onSelect(suggestion)}
+          className="rounded-full border border-primary/30 bg-primary/8 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15 hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProductThumb({ imageUrl, name }: { imageUrl?: string | null; name: string }) {
+  const [hasError, setHasError] = useState(false);
+  const [retryWithHttps, setRetryWithHttps] = useState(false);
+  const resolvedUrl = resolveImageUrl(imageUrl);
+  const src =
+    retryWithHttps && resolvedUrl?.startsWith('http://')
+      ? resolvedUrl.replace(/^http:\/\//i, 'https://')
+      : resolvedUrl;
+
+  if (!src || hasError) {
+    return (
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted text-muted-foreground">
+        <ImageOff className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (!retryWithHttps && src.startsWith('http://')) {
+          setRetryWithHttps(true);
+          return;
+        }
+        if (src.startsWith('https://')) {
+          setHasError(true);
+          return;
+        }
+        setHasError(true);
+      }}
+      className="h-14 w-14 shrink-0 rounded-lg border border-border/50 bg-muted/20 object-cover"
+    />
+  );
+}
+
+function ProductCardTable({
+  products,
+  productPagination,
+  onRequestMore,
+  disabled,
+}: {
+  products: VoiceProduct[];
+  productPagination?: ProductPagination | null;
+  onRequestMore?: (paging: ProductPagination) => void;
+  disabled?: boolean;
+}) {
+  const visibleProducts = products.slice(0, PRODUCT_PAGE_SIZE);
+  const totalCount = productPagination?.total ?? products.length;
+  const hasMore = Boolean(productPagination?.hasMore) || products.length > PRODUCT_PAGE_SIZE;
+
+  return (
+    <div className="mt-2.5 flex flex-col gap-2">
+      {visibleProducts.map((p) => {
+        const inStock = (p.stock_quantity ?? 0) > 0;
+        const qty = p.stock_quantity ?? 0;
+        return (
+          <Link
+            key={p.product_id}
+            to="/products/$productId"
+            params={{ productId: p.product_id }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-border bg-background/80 p-2.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            <ProductThumb
+              key={`${p.product_id}:${p.image_url || 'na'}`}
+              imageUrl={p.image_url}
+              name={p.name}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold leading-tight text-foreground">
+                {p.name}
+              </p>
+              {p.name_si ? (
+                <p className="truncate text-xs text-muted-foreground">{p.name_si}</p>
+              ) : null}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                {p.brand ? (
+                  <span className="text-[11px] text-muted-foreground">{p.brand}</span>
+                ) : null}
+                {p.category ? (
+                  <span className="text-[11px] text-muted-foreground">· {p.category}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="text-sm font-bold text-foreground">
+                රු.&nbsp;{p.price.toFixed(2)}
+              </span>
+              {p.avg_discount && p.avg_discount > 0 ? (
+                <span className="text-[11px] font-medium text-emerald-600">
+                  -{p.avg_discount.toFixed(0)}% off
+                </span>
+              ) : null}
+              <span
+                className={
+                  inStock
+                    ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700'
+                    : 'rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600'
+                }
+              >
+                {inStock ? `ඇත · ${qty}` : 'නැත'}
+              </span>
+            </div>
+          </Link>
+        );
+      })}
+      {hasMore && productPagination ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onRequestMore?.(productPagination)}
+          className="mt-1 inline-flex items-center justify-center rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-50"
+        >
+          Show more products (
+          {Math.min(
+            totalCount,
+            (productPagination.nextOffset ?? PRODUCT_PAGE_SIZE) + PRODUCT_PAGE_SIZE,
+          )}{' '}
+          of {totalCount})
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -614,6 +839,49 @@ function RouteComponent() {
     }
   };
 
+  const sendAutomatedTextRequest = async (displayText: string, requestText: string) => {
+    if (!requestText.trim() || inputDisabled) return;
+
+    try {
+      setSending(true);
+      setError(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `optimistic-automated-${Date.now()}`,
+          role: 'user',
+          channel: 'text',
+          content: displayText,
+          transcription: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const result = await sendTextMessage(requestText, socketRef.current);
+      const immediate = toImmediateMessages(result, 'text');
+      const assistantMessages = immediate.filter((message) => message.role === 'assistant');
+      if (assistantMessages.length > 0) setMessages((prev) => [...prev, ...assistantMessages]);
+      await refreshMessages();
+    } catch (err) {
+      setError((err as Error).message || 'Failed to send request');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRequestMoreProducts = async (paging: ProductPagination) => {
+    const command = buildProductPageCommand(paging);
+    const displayText = paging.query
+      ? `Show more products for "${paging.query}"`
+      : 'Show more products';
+    await sendAutomatedTextRequest(displayText, command);
+  };
+
+  const handleSuggestionSelect = async (suggestion: string) => {
+    const value = suggestion.trim();
+    if (!value || inputDisabled) return;
+    await sendAutomatedTextRequest(value, value);
+  };
+
   const cleanupAudioRecording = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     processedStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -703,18 +971,19 @@ function RouteComponent() {
         recognition.onend = () => {
           speechRecognitionRef.current = null;
           setRecording(false);
+          emitVoiceTyping(false);
           const transcript = finalTranscript.trim() || latestTranscript.trim();
-          if (shouldSubmitRecognitionRef.current && transcript) {
-            void submitRecognizedVoiceText(transcript);
-          }
+          const shouldSubmit = shouldSubmitRecognitionRef.current;
           shouldSubmitRecognitionRef.current = true;
           setText('');
+          if (shouldSubmit && transcript) {
+            void submitRecognizedVoiceText(transcript);
+          }
         };
 
         speechRecognitionRef.current = recognition;
         recognition.start();
         setRecording(true);
-        emitVoiceTyping(true);
         return;
       } catch {
         speechRecognitionRef.current = null;
@@ -857,7 +1126,6 @@ function RouteComponent() {
     if (speechRecognitionRef.current) {
       shouldSubmitRecognitionRef.current = false;
       speechRecognitionRef.current.stop();
-      speechRecognitionRef.current = null;
       return;
     }
     mediaRecorderRef.current?.stop();
@@ -888,7 +1156,7 @@ function RouteComponent() {
                   <span className="hidden sm:inline">Recording</span>
                 </div>
               ) : null}
-              {voiceAccessState && voiceAccessState.connectionCount > 0 ? (
+              {voiceAccessState && voiceAccessState.connectionCount > 1 ? (
                 <div className="group relative flex items-center">
                   <button
                     type="button"
@@ -990,6 +1258,25 @@ function RouteComponent() {
                             </p>
                           ) : null}
                         </div>
+                      ) : null}
+                      {message.role === 'assistant' &&
+                      message.products &&
+                      message.products.length > 0 ? (
+                        <ProductCardTable
+                          products={message.products}
+                          productPagination={message.productPagination}
+                          onRequestMore={(paging) => void handleRequestMoreProducts(paging)}
+                          disabled={inputDisabled}
+                        />
+                      ) : null}
+                      {message.role === 'assistant' &&
+                      message.suggestions &&
+                      message.suggestions.length > 0 ? (
+                        <SuggestionChips
+                          suggestions={message.suggestions}
+                          onSelect={(s) => void handleSuggestionSelect(s)}
+                          disabled={inputDisabled}
+                        />
                       ) : null}
                       <div
                         className={

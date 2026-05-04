@@ -8,6 +8,12 @@ from ..config import settings
 from ..logging import logger
 from ..models import IntentResult
 
+# Sinhala/English question words that are never product names
+_ENTITY_NOISE: set[str] = {
+    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද",
+    "what", "which", "how", "much", "ද", "price", "මිල",
+}
+
 
 def _normalize_features(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
@@ -81,10 +87,15 @@ async def detect_intent_with_sinllama(
                 confidence,
             )
 
+            clean_entities = _sanitize_entities(
+                entities if isinstance(entities, dict) else {},
+                text,
+            )
+
             return IntentResult(
                 intent=intent,
                 confidence=confidence,
-                entities=entities if isinstance(entities, dict) else {},
+                entities=clean_entities,
                 explainability={
                     "source": "sinllama",
                     "confidence": confidence,
@@ -105,3 +116,21 @@ async def detect_intent_with_sinllama(
                 return None
 
     return None
+
+
+def _sanitize_entities(entities: dict[str, Any], original_text: str) -> dict[str, Any]:
+    """Drop or fix entity values that are obviously noise words (e.g. 'කීයද')."""
+    from .keyword import _extract_product_hint  # local import to avoid circularity
+
+    result = dict(entities)
+    product = str(result.get("product") or "").strip()
+    if product and product.lower() in _ENTITY_NOISE:
+        # SinLlama grabbed a question word instead of the product — re-extract
+        fallback = _extract_product_hint(original_text)
+        if fallback:
+            result["product"] = fallback
+            logger.info("sinllama entity sanitised: %r → %r", product, fallback)
+        else:
+            result.pop("product", None)
+            logger.info("sinllama entity dropped noise product: %r", product)
+    return result
