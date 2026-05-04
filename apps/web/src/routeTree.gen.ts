@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BiDashboardMlExplainRouteImport } from './routes/bi-dashboard/ml-explain'
 import { Route as PublicAuthRouteImport } from './routes/_public/$auth'
 import { Route as AuthenticatedUserRouteImport } from './routes/_authenticated/_user'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/_admin'
@@ -33,6 +34,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BiDashboardMlExplainRoute = BiDashboardMlExplainRouteImport.update({
+  id: '/bi-dashboard/ml-explain',
+  path: '/bi-dashboard/ml-explain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublicAuthRoute = PublicAuthRouteImport.update({
@@ -115,6 +121,7 @@ const AuthenticatedAdminAdminBiDashboardRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/cart': typeof AuthenticatedUserCartRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/cart': typeof AuthenticatedUserCartRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/_user': typeof AuthenticatedUserRouteWithChildren
   '/_public/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/_user/cart': typeof AuthenticatedUserCartRoute
   '/_authenticated/_user/orders': typeof AuthenticatedUserOrdersRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/admin'
     | '/cart'
     | '/orders'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/cart'
     | '/orders'
     | '/voice-assistant'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin'
     | '/_authenticated/_user'
     | '/_public/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_user/cart'
     | '/_authenticated/_user/orders'
@@ -214,6 +226,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   PublicAuthRoute: typeof PublicAuthRoute
+  BiDashboardMlExplainRoute: typeof BiDashboardMlExplainRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -230,6 +243,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bi-dashboard/ml-explain': {
+      id: '/bi-dashboard/ml-explain'
+      path: '/bi-dashboard/ml-explain'
+      fullPath: '/bi-dashboard/ml-explain'
+      preLoaderRoute: typeof BiDashboardMlExplainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_public/$auth': {
@@ -406,6 +426,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   PublicAuthRoute: PublicAuthRoute,
+  BiDashboardMlExplainRoute: BiDashboardMlExplainRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

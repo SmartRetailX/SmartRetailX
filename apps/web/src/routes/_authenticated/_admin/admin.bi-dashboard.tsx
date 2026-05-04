@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { XAIExplanationDialog } from '@/components/admin/xai-explanation-dialog';
 import { cn } from '@/lib/utils';
 import type { BiAlert, DashboardPeriod, TrendDirection } from '@/types/bi-dashboard';
 
@@ -111,6 +112,8 @@ export function RouteComponent() {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedAlertId, setSelectedAlertId] = useState('');
+  const [showForecastExplanation, setShowForecastExplanation] = useState(false);
+  const [showRestockExplanation, setShowRestockExplanation] = useState(false);
 
   const dashboardQuery = useBiDashboardQuery(period);
   const alertsQuery = useBiAlertsQuery({ status: 'PENDING' });
@@ -509,8 +512,17 @@ export function RouteComponent() {
                     {/* Explanation & Drivers */}
                     <div className="grid gap-6 lg:grid-cols-2">
                       <Card>
-                        <CardHeader className="border-b border-border/60 bg-muted/20">
+                        <CardHeader className="border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
                           <CardTitle className="text-base">Forecast explanation</CardTitle>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowForecastExplanation(true)}
+                            disabled={!forecastExplanation}
+                          >
+                            <BrainCircuit className="mr-1 h-3.5 w-3.5" />
+                            Full Analysis
+                          </Button>
                         </CardHeader>
                         <CardContent className="space-y-3 p-4">
                           {forecastExplanation ? (
@@ -628,7 +640,16 @@ export function RouteComponent() {
                             >
                               Approve
                             </Button>
-                            <Button variant="outline" size="sm" className="gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedAlertId(alert.id);
+                                setShowRestockExplanation(true);
+                              }}
+                            >
                               <BrainCircuit className="h-3.5 w-3.5" />
                               Explain
                             </Button>
@@ -807,6 +828,36 @@ export function RouteComponent() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Forecast Explanation Dialog */}
+        <XAIExplanationDialog
+          open={showForecastExplanation}
+          onOpenChange={setShowForecastExplanation}
+          title="Sales Forecast Explanation"
+          description="Understanding how the AI model predicts sales using explainable AI"
+          isLoading={forecastExplanationQuery.isLoading}
+          error={forecastExplanationQuery.error as Error | null}
+          explanation={forecastExplanation}
+        />
+
+        {/* Restock Explanation Dialog */}
+        <XAIExplanationDialog
+          open={showRestockExplanation}
+          onOpenChange={setShowRestockExplanation}
+          title="Restock Alert Explanation"
+          description="Understanding why the AI recommends this restock action"
+          isLoading={restockExplanationQuery.isLoading}
+          error={restockExplanationQuery.error as Error | null}
+          explanation={restockExplanation ? {
+            summary: restockExplanation.explanation?.en,
+            features: restockExplanation.features?.map((f) => ({
+              name: f.name,
+              description: f.description,
+              direction: (f.direction === 'increase' || f.direction === 'decrease') ? f.direction : undefined,
+            })),
+            metrics: restockExplanation.metrics,
+          } : null}
+        />
       </div>
     </PageContainer>
   );
