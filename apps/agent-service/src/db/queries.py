@@ -38,6 +38,34 @@ def _norm(text: str | None) -> str:
 def _row(record: asyncpg.Record) -> dict[str, Any]:
     return dict(record)
 
+def _tokens(text: str | None) -> list[str]:
+    return [tok for tok in _norm(text).split() if tok]
+
+
+def _required_token_matches(query_tokens: list[str]) -> int:
+    if not query_tokens:
+        return 0
+    if len(query_tokens) == 1:
+        return 1
+    # For multi-token queries, require most tokens to match.
+    return max(2, int(len(query_tokens) * 0.6 + 0.5))
+
+
+def _token_coverage_scores(query_tokens: list[str], candidate_tokens: list[str]) -> tuple[int, float]:
+    if not query_tokens:
+        return 0, 0.0
+    if not candidate_tokens:
+        return 0, 0.0
+
+    per_token_best: list[float] = []
+    for q in query_tokens:
+        best = max(fuzz.ratio(q, c) for c in candidate_tokens)
+        per_token_best.append(float(best))
+
+    strong_matches = sum(1 for score in per_token_best if score >= 78.0)
+    avg_score = sum(per_token_best) / len(per_token_best)
+    return strong_matches, avg_score
+
 
 def _fuzzy_rank(
     query: str,
@@ -46,19 +74,43 @@ def _fuzzy_rank(
     limit: int = _FUZZY_LIMIT,
     threshold: int = _FUZZY_THRESHOLD,
 ) -> list[dict[str, Any]]:
-    """Return rows from `candidates` whose `key` field fuzzy-matches `query`."""
+    """
+    Return rows from `candidates` whose `key` field fuzzy-matches `query`.
+
+    Uses token-coverage constraints to avoid irrelevant fuzzy drift
+    (e.g. "ice crem" -> rice items).
+    """
     if not candidates or not query:
         return []
+
     norm_q = _norm(query)
-    choices = {i: _norm(row.get(key) or "") for i, row in enumerate(candidates)}
-    results = fuzz_process.extract(
-        norm_q,
-        choices,
-        scorer=fuzz.WRatio,
-        limit=limit,
-        score_cutoff=threshold,
-    )
-    return [candidates[idx] for _, _, idx in results]
+    query_tokens = _tokens(norm_q)
+    required_matches = _required_token_matches(query_tokens)
+
+    ranked: list[tuple[float, dict[str, Any]]] = []
+    for row in candidates:
+        text = _norm(str(row.get(key) or ""))
+        if not text:
+            continue
+
+        candidate_tokens = _tokens(text)
+        strong_matches, coverage_avg = _token_coverage_scores(query_tokens, candidate_tokens)
+
+        # Hard guard: for multi-token queries, require enough token alignment.
+        if query_tokens and strong_matches < required_matches and coverage_avg < 86.0:
+            continue
+
+        wratio = float(fuzz.WRatio(norm_q, text))
+        token_set = float(fuzz.token_set_ratio(norm_q, text))
+        combined = (0.45 * wratio) + (0.35 * token_set) + (0.20 * coverage_avg)
+
+        if combined < threshold:
+            continue
+
+        ranked.append((combined, row))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [row for _, row in ranked[:limit]]
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +275,45 @@ async def fuzzy_suggest_products(query: str, limit: int = _FUZZY_LIMIT) -> list[
     except Exception as exc:
         logger.warning("fuzzy_suggest_products failed query=%r error=%s", query, exc)
         return []
+
+
+async def get_product_details_by_id(product_id: str) -> dict[str, Any] | None:
+    """Return a single active product by id with rich metadata for chat drill-down."""
+    if not product_id:
+        return None
+
+    try:
+        async with acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    p.id::text            AS product_id,
+                    p.sku,
+                    p.name,
+                    p.name_si,
+                    p.description,
+                    p.description_si,
+                    p.price::float        AS price,
+                    p.stock_quantity,
+                    p.brand,
+                    p.purchase_frequency,
+                    p.image_url,
+                    p.is_active,
+                    c.name                AS category,
+                    c.name_si             AS category_si
+                FROM core.products p
+                JOIN core.categories c ON c.id = p.category_id
+                WHERE p.id = $1::uuid
+                LIMIT 1
+                """,
+                product_id,
+            )
+            if not row:
+                return None
+            return _row(row)
+    except Exception as exc:
+        logger.warning("get_product_details_by_id failed product_id=%r error=%s", product_id, exc)
+        return None
 
 
 async def get_stt_vocabulary() -> list[str]:

@@ -46,6 +46,35 @@ _KEYWORDS: dict[str, list[str]] = {
     "general": ["help", "assist", "question", "ප්‍රශ්න", "උදව්"],
 }
 
+_ORDER_HISTORY_STRONG_SIGNALS = [
+    "order history",
+    "order status",
+    "order details",
+    "past order",
+    "previous order",
+    "latest order",
+    "recent order",
+    "orders",
+    "purchase history",
+    "latest purchase",
+    "recent purchase",
+    "ඇණවුම් ඉතිහාස",
+    "පෙර ඇණවුම්",
+    "මගේ ඇණවුම්",
+    "ඇණවුම",
+    "ඇණවුම්",
+    "ඇනවුම",
+    "ඇනවුම්",
+    "ඔර්ඩර්",
+    "ඔර්ඩර්ස්",
+    "ඕඩර්",
+    "ඕඩර්ස්",
+    "ඔඩර්",
+    "ඔඩර්ස්",
+    "ඕඩර",
+    "ඕඩරස්",
+]
+
 
 def detect_intent_and_entities(
     text: str,
@@ -88,6 +117,11 @@ def detect_intent_and_entities(
         clarification = "ඔබට අවශ්‍ය භාණ්ඩයේ නම කියන්න. එතකොට මට නිවැරදිව උත්තර දෙන්න පුළුවන්."
 
     return best_intent, confidence, entities, clarification
+
+
+def has_order_history_signal(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(signal in lowered for signal in _ORDER_HISTORY_STRONG_SIGNALS)
 
 
 def _sanitize_entity_candidate(candidate: str) -> str | None:

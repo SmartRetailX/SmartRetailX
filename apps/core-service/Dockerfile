@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 COPY . .
 RUN pnpm exec prisma generate --schema libs/database/prisma/schema.prisma \
-    && if [ -f "apps/core-service/prisma/schema.prisma" ]; then pnpm --dir "apps/core-service" exec prisma generate; fi \
+    && if [ -f "apps/core-service/prisma/schema.prisma" ]; then pnpm exec prisma generate --schema apps/core-service/prisma/schema.prisma; fi \
     && pnpm nx build core-service \
     && pnpm prune --prod
 
