@@ -71,6 +71,7 @@ export class VoiceController {
       assistantText?: string;
       transcription?: string;
       userAudioUrl?: string | null;
+      products?: Record<string, unknown>[] | null;
     },
   ): Promise<{ ok: boolean }> {
     const user = this.getUser(req);
@@ -92,6 +93,7 @@ export class VoiceController {
       assistantText,
       transcription: body.transcription?.trim(),
       userAudioUrl: body.userAudioUrl ?? null,
+      products: Array.isArray(body.products) ? body.products : null,
     });
 
     return { ok: true };

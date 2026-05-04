@@ -408,12 +408,16 @@ export class AppWebSocketGateway
       });
 
       // Persist to DB via API Gateway
+      const agentProducts = Array.isArray(agentResult.products)
+        ? (agentResult.products as Record<string, unknown>[])
+        : null;
       await this.saveExchangeToDb(client, {
         channel,
         language,
         userText: agentTranscription || transcriptText || '',
         assistantText: agentResponse,
         transcription: agentTranscription,
+        products: agentProducts,
       });
 
       this.sendVoiceStatus(userId, {
@@ -571,6 +575,7 @@ export class AppWebSocketGateway
       userText: string;
       assistantText: string;
       transcription?: string;
+      products?: Record<string, unknown>[] | null;
     },
   ): Promise<void> {
     const saveUrl = (process.env.API_GATEWAY_VOICE_URL || 'http://127.0.0.1:3000/api/v1/voice')

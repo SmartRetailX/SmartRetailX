@@ -15,6 +15,9 @@ class VoiceChatResult(BaseModel):
     intent: str | None = None
     entities: dict[str, Any] | None = None
     explainability: dict[str, Any] | None = None
+    suggestions: list[str] | None = None
+    products: list[dict[str, Any]] | None = None
+    productPagination: dict[str, Any] | None = None
     error: str | None = None
 
 
