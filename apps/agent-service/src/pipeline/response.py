@@ -11,6 +11,7 @@ Responsibilities:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .resolver import ResolvedContext
@@ -178,7 +179,7 @@ def _render_product_search(ctx: ResolvedContext) -> str:
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
-    product_name = str(ctx.entities.get("product") or "").strip()
+    product_name = _normalize_entity_text(ctx.entities.get("product"))
     offer_type = str(ctx.entities.get("offer_type") or "")
     offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
 
@@ -186,11 +187,11 @@ def _render_offers(ctx: ResolvedContext) -> str:
         if product_name:
             if offer_label:
                 return (
-                f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
-                "ළඟදීම නව offers එකතු වෙනවා!"
-            )
-        return (
-            f"දැනට **{product_name}** වලට offers නැත. "
+                    f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
+                    "ළඟදීම නව offers එකතු වෙනවා!"
+                )
+            return (
+                f"දැනට **{product_name}** වලට offers නැත. "
                 "ළඟදීම නව offers එකතු වෙනවා!"
             )
         if offer_label:
@@ -437,7 +438,7 @@ def _with_xai(body: str, ctx: ResolvedContext) -> str:
 def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
     reasons: list[str] = []
 
-    product = str(ctx.entities.get("product") or "").strip() if ctx.entities else ""
+    product = _normalize_entity_text(ctx.entities.get("product")) if ctx.entities else ""
     category = str(ctx.entities.get("category") or "").strip() if ctx.entities else ""
 
     if product:
@@ -546,6 +547,17 @@ def _feature_reason(features: list[dict[str, Any]]) -> str:
 
 def _generic_clarification() -> str:
     return "ප්‍රශ්නය පැහැදිලියි, හැබැයි ඒ ගැන තව විස්තර ටිකක් දෙනවා නම් මට වඩාත් නිවැරදිව උදව් කරන්න පුළුවන්."
+
+
+def _normalize_entity_text(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    # Trim common markdown/control wrappers to avoid placeholder-like output.
+    text = text.strip("*`_~|[](){}<>")
+    if not re.search(r"[A-Za-z0-9඀-෿]", text):
+        return ""
+    return text
 
 
 def _compact_row(row: dict[str, Any]) -> str:

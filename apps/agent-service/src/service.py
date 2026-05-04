@@ -289,20 +289,32 @@ async def process_voice_chat(
         db_context_summary = build_llm_context_summary(ctx)
 
         # 7. LLM enrichment (grounded in DB data)
-        response_text = await generate_sinhala_response(
-            text=transcription,
-            language=language,
-            session_id=session_id,
-            user_id=user_id,
-            user_context=user_context,
-            intents=intents or [intent_result.intent],
-            intent_name=intent_result.intent,
-            intent_confidence=intent_result.confidence,
-            entities=intent_result.entities,
-            explainability=explainability,
-            db_context_summary=db_context_summary,
-            deterministic_draft=deterministic_draft,
+        # For product-list intents with zero DB rows, keep response deterministic
+        # to avoid speculative/placeholder wording (e.g., fake product mentions).
+        use_deterministic_only = (
+            intent_result.intent in _PRODUCT_LIST_INTENTS and not ctx.has_data
         )
+        if use_deterministic_only:
+            logger.info(
+                "Skipping LLM enrichment for empty product-list result: intent=%s",
+                intent_result.intent,
+            )
+            response_text = deterministic_draft
+        else:
+            response_text = await generate_sinhala_response(
+                text=transcription,
+                language=language,
+                session_id=session_id,
+                user_id=user_id,
+                user_context=user_context,
+                intents=intents or [intent_result.intent],
+                intent_name=intent_result.intent,
+                intent_confidence=intent_result.confidence,
+                entities=intent_result.entities,
+                explainability=explainability,
+                db_context_summary=db_context_summary,
+                deterministic_draft=deterministic_draft,
+            )
 
         if not (response_text or "").strip():
             logger.warning("LLM returned empty – using deterministic draft")
