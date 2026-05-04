@@ -26,7 +26,7 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+        "command": "python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
         "cwd": "apps/bi-dashboard-ml-service",
         "env": {
           "VIRTUAL_ENV": "apps/bi-dashboard-ml-service/venv",
@@ -38,8 +38,8 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "python -m pip install -r requirements.txt",
-          "python train_models.py"
+          "python3 -m pip install -r requirements.txt",
+          "python3 train_models.py"
         ],
         "cwd": "apps/bi-dashboard-ml-service"
       }

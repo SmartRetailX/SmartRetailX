@@ -19,19 +19,18 @@ import {
   Loader2,
   RefreshCw,
   Sparkles,
-  TrendingUp,
   Eye,
   Bell,
   Settings,
 } from 'lucide-react';
 
-import { useAdminProductsQuery } from '@/hooks';
 import {
   useBiAlertsQuery,
   useBiDashboardMutations,
   useBiDashboardQuery,
   useBiForecastExplanationQuery,
   useBiForecastQuery,
+  useBiProductsQuery,
   useBiRestockExplanationQuery,
 } from '@/hooks/bi-dashboard';
 import { PageContainer } from '@/components/partials/container/page-container';
@@ -117,7 +116,7 @@ export function RouteComponent() {
 
   const dashboardQuery = useBiDashboardQuery(period);
   const alertsQuery = useBiAlertsQuery({ status: 'PENDING' });
-  const productsQuery = useAdminProductsQuery({ page: 1, limit: 12 });
+  const productsQuery = useBiProductsQuery({ page: 1, limit: 12 });
   const { generateAlerts, acceptAlert, autoDismissAlerts } = useBiDashboardMutations();
 
   const analytics = dashboardQuery.data?.data;
@@ -138,9 +137,14 @@ export function RouteComponent() {
     }
   }, [alerts, selectedAlertId]);
 
-  const forecastQuery = useBiForecastQuery({ productId: selectedProductId, horizon: 30, lang: 'en' });
+  const selectedProduct: BiProduct | undefined =
+    products.find((product) => product.id === selectedProductId) ?? products[0];
+
+  const selectedForecastProductId =
+    selectedProduct?.sku || topProducts.find((product) => product.id === selectedProductId)?.sku || selectedProductId;
+  const forecastQuery = useBiForecastQuery({ productId: selectedForecastProductId, horizon: 30, lang: 'en' });
   const forecastExplanationQuery = useBiForecastExplanationQuery({
-    productId: selectedProductId,
+    productId: selectedForecastProductId,
     lang: 'en',
   });
   const restockExplanationQuery = useBiRestockExplanationQuery({
@@ -270,10 +274,6 @@ export function RouteComponent() {
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="forecasts" className="gap-2">
-              <TrendingUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Forecasts</span>
             </TabsTrigger>
             <TabsTrigger value="alerts" className="gap-2">
               <Bell className="h-4 w-4" />
@@ -411,164 +411,7 @@ export function RouteComponent() {
             </Card>
           </TabsContent>
 
-          {/* Forecasts Tab */}
-          <TabsContent value="forecasts" className="space-y-6">
-            <Card className="flex min-h-0 flex-col overflow-hidden">
-              <CardHeader className="border-b border-border/60 bg-muted/20">
-                <CardTitle>Forecast explorer</CardTitle>
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-                <div>
-                  <p className="mb-3 text-sm font-medium text-muted-foreground">Select product</p>
-                  <div className="flex flex-wrap gap-2">
-                    {topProducts.map((product) => (
-                      <Button
-                        key={product.id}
-                        size="sm"
-                        variant={selectedProductId === product.id ? 'default' : 'outline'}
-                        onClick={() => setSelectedProductId(product.id)}
-                      >
-                        {product.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {!selectedProductId ? (
-                  <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
-                    Pick a product to load the forecast.
-                  </div>
-                ) : forecastQuery.isLoading ? (
-                  <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading forecast data...
-                  </div>
-                ) : forecastQuery.error ? (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Forecast unavailable</AlertTitle>
-                    <AlertDescription>{(forecastQuery.error as Error).message}</AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Forecast Metrics */}
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <div className="rounded-2xl border p-4">
-                        <div className="text-sm text-muted-foreground">Model</div>
-                        <div className="mt-1 font-semibold">{forecastQuery.data?.data.modelType ?? '—'}</div>
-                      </div>
-                      <div className="rounded-2xl border p-4">
-                        <div className="text-sm text-muted-foreground">Confidence</div>
-                        <div className="mt-1 font-semibold">
-                          {typeof forecastQuery.data?.data.confidence === 'number'
-                            ? `${Math.round(forecastQuery.data.data.confidence * 100)}%`
-                            : '—'}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border p-4">
-                        <div className="text-sm text-muted-foreground">Generated</div>
-                        <div className="mt-1 font-semibold">
-                          {formatDate(forecastQuery.data?.data.generatedAt)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Forecast Chart */}
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="h-[280px] rounded-2xl border bg-background p-3">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={forecastSeries}>
-                              <defs>
-                                <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
-                                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.04} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                              <XAxis dataKey="date" tickFormatter={formatShortDate} />
-                              <YAxis />
-                              <Tooltip
-                                formatter={(value: number, name: string) => [
-                                  name === 'predictedSales' ? formatNumber(value) : formatCurrency(value),
-                                  name === 'predictedSales' ? 'Units' : 'Revenue',
-                                ]}
-                                labelFormatter={(label) => formatShortDate(String(label))}
-                              />
-                              <Area
-                                type="monotone"
-                                dataKey="predictedSales"
-                                stroke="#f59e0b"
-                                fillOpacity={1}
-                                fill="url(#forecastFill)"
-                                strokeWidth={2}
-                              />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Explanation & Drivers */}
-                    <div className="grid gap-6 lg:grid-cols-2">
-                      <Card>
-                        <CardHeader className="border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
-                          <CardTitle className="text-base">Forecast explanation</CardTitle>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowForecastExplanation(true)}
-                            disabled={!forecastExplanation}
-                          >
-                            <BrainCircuit className="mr-1 h-3.5 w-3.5" />
-                            Full Analysis
-                          </Button>
-                        </CardHeader>
-                        <CardContent className="space-y-3 p-4">
-                          {forecastExplanation ? (
-                            <>
-                              {forecastExplanation.summary && (
-                                <div className="rounded-xl bg-muted/40 p-3 text-sm">
-                                  {forecastExplanation.summary}
-                                </div>
-                              )}
-                              {forecastExplanation.features.slice(0, 4).map((feature) => (
-                                <div key={feature.name} className="rounded-xl border p-3">
-                                  <div className="font-semibold text-sm">{feature.name}</div>
-                                  <div className="text-sm text-muted-foreground">{feature.description}</div>
-                                </div>
-                              ))}
-                            </>
-                          ) : (
-                            <div className="text-sm text-muted-foreground">
-                              No explanation payload returned yet.
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="border-b border-border/60 bg-muted/20">
-                          <CardTitle className="text-base">Feature drivers</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3 p-4">
-                          {forecastDrivers.map((driver) => (
-                            <div key={driver.name} className="rounded-xl border p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="font-semibold text-sm">{driver.name}</div>
-                                <Badge variant="outline">{driver.impact.toFixed(2)}</Badge>
-                              </div>
-                              <p className="mt-2 text-sm text-muted-foreground">{driver.description}</p>
-                            </div>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {/* Forecasts tab removed - use the dedicated forecasting page */}
 
           {/* Alerts Tab */}
           <TabsContent value="alerts" className="space-y-6">
@@ -852,8 +695,15 @@ export function RouteComponent() {
             summary: restockExplanation.explanation?.en,
             features: restockExplanation.features?.map((f) => ({
               name: f.name,
+              nameSi: f.nameSi,
               description: f.description,
+              descriptionSi: f.descriptionSi,
               direction: (f.direction === 'increase' || f.direction === 'decrease') ? f.direction : undefined,
+              value: f.value,
+              contribution: typeof f.contribution === 'number' ? f.contribution : undefined,
+              contributionLabel: f.contributionLabel,
+              impact: typeof f.impact === 'number' ? f.impact : undefined,
+              importance: typeof f.importance === 'number' ? f.importance : undefined,
             })),
             metrics: restockExplanation.metrics,
           } : null}

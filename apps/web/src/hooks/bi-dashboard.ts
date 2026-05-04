@@ -7,6 +7,7 @@ import type {
   BiDashboardSummary,
   BiForecastExplanationPayload,
   BiForecastResponse,
+  BiProductsPayload,
   BiRestockExplanationPayload,
   DashboardPeriod,
 } from '@/types/bi-dashboard';
@@ -59,6 +60,22 @@ export function useBiAlertsQuery(params?: {
   });
 }
 
+export function useBiProductsQuery(params?: {
+  search?: string;
+  category?: string;
+  page?: number;
+  limit?: number;
+  offset?: number;
+  status?: string;
+  sortBy?: string;
+  order?: string;
+}) {
+  return useQuery({
+    queryKey: ['bi-products', params],
+    queryFn: () => fetchJson<BiApiSuccessResponse<BiProductsPayload>>(buildUrl('/products', params ?? {})),
+  });
+}
+
 export function useBiForecastQuery(params: { productId?: string; horizon?: number; lang?: string }) {
   return useQuery({
     queryKey: ['bi-forecast', params],
@@ -97,6 +114,7 @@ export function useBiDashboardMutations() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['bi-dashboard'] }),
       queryClient.invalidateQueries({ queryKey: ['bi-alerts'] }),
+      queryClient.invalidateQueries({ queryKey: ['bi-products'] }),
       queryClient.invalidateQueries({ queryKey: ['bi-forecast'] }),
       queryClient.invalidateQueries({ queryKey: ['bi-forecast-explain'] }),
       queryClient.invalidateQueries({ queryKey: ['bi-restock-explain'] }),

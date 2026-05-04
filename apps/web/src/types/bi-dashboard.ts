@@ -39,6 +39,7 @@ export type BiSalesTrendPoint = {
 
 export type BiTopProduct = {
   id: string;
+  sku: string;
   name: string;
   revenue: number;
   quantity: number;
@@ -48,6 +49,32 @@ export type BiDashboardSummary = {
   kpis: BiDashboardKpis;
   topProducts: BiTopProduct[];
   salesTrend: BiSalesTrendPoint[];
+};
+
+export type BiProduct = {
+  id: string;
+  sku: string;
+  barcode?: string | null;
+  name: string;
+  nameSi?: string | null;
+  category?: string;
+  categorySi?: string | null;
+  price?: number;
+  currentStock?: number;
+  reorderLevel?: number;
+  maxStock?: number;
+  status?: string;
+  supplier?: string | null;
+  lastRestocked?: string | null;
+  expiryDate?: string | null;
+  imageUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BiProductsPayload = {
+  products: BiProduct[];
+  pagination: Pagination;
 };
 
 export type BiAlertUrgency = 'HIGH' | 'MEDIUM' | 'LOW' | 'high' | 'medium' | 'low';
@@ -127,8 +154,15 @@ export type BiRestockMetrics = {
 
 export type BiRestockFeature = {
   name: string;
+  nameSi?: string;
   direction?: string;
+  value?: string | number;
+  contribution?: number;
+  contributionLabel?: string;
+  impact?: number;
+  importance?: number;
   description: string;
+  descriptionSi?: string;
 };
 
 export type BiRestockExplanationPayload = {

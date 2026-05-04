@@ -28,6 +28,7 @@ import { Route as AuthenticatedAdminAdminStockRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminAdminProductsRouteImport } from './routes/_authenticated/_admin/admin.products'
 import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_authenticated/_admin/admin.orders'
 import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'
+import { Route as AuthenticatedAdminAdminForecastingRouteImport } from './routes/_authenticated/_admin/admin.forecasting'
 import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
 import { Route as AuthenticatedAdminAdminBiDashboardRouteImport } from './routes/_authenticated/_admin/admin.bi-dashboard'
@@ -134,6 +135,12 @@ const AuthenticatedAdminAdminLoyaltyRoute =
     path: '/loyalty',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminForecastingRoute =
+  AuthenticatedAdminAdminForecastingRouteImport.update({
+    id: '/forecasting',
+    path: '/forecasting',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 const AuthenticatedAdminAdminCustomersRoute =
   AuthenticatedAdminAdminCustomersRouteImport.update({
     id: '/customers',
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -185,6 +193,7 @@ export interface FileRoutesByTo {
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -210,6 +219,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/_authenticated/_admin/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/_authenticated/_admin/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/_authenticated/_admin/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/_authenticated/_admin/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/_authenticated/_admin/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/admin/bi-dashboard'
     | '/admin/categories'
     | '/admin/customers'
+    | '/admin/forecasting'
     | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/admin/bi-dashboard'
     | '/admin/categories'
     | '/admin/customers'
+    | '/admin/forecasting'
     | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
@@ -277,6 +289,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/admin/bi-dashboard'
     | '/_authenticated/_admin/admin/categories'
     | '/_authenticated/_admin/admin/customers'
+    | '/_authenticated/_admin/admin/forecasting'
     | '/_authenticated/_admin/admin/loyalty'
     | '/_authenticated/_admin/admin/orders'
     | '/_authenticated/_admin/admin/products'
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminLoyaltyRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/forecasting': {
+      id: '/_authenticated/_admin/admin/forecasting'
+      path: '/forecasting'
+      fullPath: '/admin/forecasting'
+      preLoaderRoute: typeof AuthenticatedAdminAdminForecastingRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
     '/_authenticated/_admin/admin/customers': {
       id: '/_authenticated/_admin/admin/customers'
       path: '/customers'
@@ -457,6 +477,7 @@ interface AuthenticatedAdminAdminRouteChildren {
   AuthenticatedAdminAdminBiDashboardRoute: typeof AuthenticatedAdminAdminBiDashboardRoute
   AuthenticatedAdminAdminCategoriesRoute: typeof AuthenticatedAdminAdminCategoriesRoute
   AuthenticatedAdminAdminCustomersRoute: typeof AuthenticatedAdminAdminCustomersRoute
+  AuthenticatedAdminAdminForecastingRoute: typeof AuthenticatedAdminAdminForecastingRoute
   AuthenticatedAdminAdminLoyaltyRoute: typeof AuthenticatedAdminAdminLoyaltyRoute
   AuthenticatedAdminAdminOrdersRoute: typeof AuthenticatedAdminAdminOrdersRoute
   AuthenticatedAdminAdminProductsRoute: typeof AuthenticatedAdminAdminProductsRoute
@@ -474,6 +495,8 @@ const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren
       AuthenticatedAdminAdminCategoriesRoute,
     AuthenticatedAdminAdminCustomersRoute:
       AuthenticatedAdminAdminCustomersRoute,
+    AuthenticatedAdminAdminForecastingRoute:
+      AuthenticatedAdminAdminForecastingRoute,
     AuthenticatedAdminAdminLoyaltyRoute: AuthenticatedAdminAdminLoyaltyRoute,
     AuthenticatedAdminAdminOrdersRoute: AuthenticatedAdminAdminOrdersRoute,
     AuthenticatedAdminAdminProductsRoute: AuthenticatedAdminAdminProductsRoute,

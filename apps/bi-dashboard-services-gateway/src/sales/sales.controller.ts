@@ -30,17 +30,17 @@ export class SalesController {
           {
             id: 'SAL0001',
             transactionId: 'TXN-2025-12-04-000001',
-            totalAmount: 218.2,
-            finalAmount: 196.38,
-            discount: 21.82,
+            totalAmount: 560,
+            finalAmount: 560,
+            discount: 0,
             paymentMethod: 'CARD',
             timestamp: '2025-12-04T10:30:00Z',
             items: [
               {
-                productId: 'PROD001',
-                productName: 'Basmati Rice 5kg',
-                quantity: 4,
-                price: 54.55,
+                productId: '550e8400-e29b-41d4-a716-446655440000',
+                productName: 'Ambarella',
+                quantity: 1,
+                price: 560,
               },
             ],
           },
@@ -87,8 +87,8 @@ export class SalesController {
           averageOrderValue: 51.88,
           topProducts: [
             {
-              productId: 'PROD001',
-              productName: 'Basmati Rice 5kg',
+              productId: '550e8400-e29b-41d4-a716-446655440000',
+              productName: 'Ambarella',
               totalQuantity: 150,
               totalRevenue: 8182.5,
             },

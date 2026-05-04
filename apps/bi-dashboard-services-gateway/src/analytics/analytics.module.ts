@@ -132,9 +132,10 @@ class AnalyticsService {
     );
 
     // Top products: by revenue in the period
-    const topProductsRaw = await this.prisma.$queryRaw<{ id: string; name: string; revenue: number; quantity: number }[]>`
+    const topProductsRaw = await this.prisma.$queryRaw<{ id: string; sku: string; name: string; revenue: number; quantity: number }[]>`
       SELECT
         p.id,
+        p.sku,
         p.name,
         ROUND(SUM(si.revenue)::numeric, 2) AS revenue,
         SUM(si.quantity)::int AS quantity
@@ -148,6 +149,7 @@ class AnalyticsService {
     `;
     const topProducts = topProductsRaw.map((r) => ({
       id: r.id,
+      sku: r.sku,
       name: r.name,
       revenue: Number(r.revenue),
       quantity: Number(r.quantity),
@@ -216,8 +218,8 @@ class AnalyticsController {
           },
           topProducts: [
             {
-              id: 'PROD001',
-              name: 'Basmati Rice 5kg',
+              id: '550e8400-e29b-41d4-a716-446655440000',
+              name: 'Ambarella',
               revenue: 125000.0,
               quantity: 850,
             },

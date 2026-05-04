@@ -144,3 +144,8 @@ scripts/data-insert-scripts/all_products.json
 scripts/data-insert-scripts/prompt.txt
 !scripts/README.md
 .claude
+
+# Prisma generated files
+**/src/generated/
+**/prisma/generated/
+apps/bi-dashboard-services-gateway/src/generated/
