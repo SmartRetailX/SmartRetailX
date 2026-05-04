@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks';
-import { createFileRoute } from '@tanstack/react-router';
-import { Mic, Pause, Play, Send, Square, Users } from 'lucide-react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { HelpCircle, ImageOff, Mic, Pause, Play, Send, Square, Users } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { io, type Socket } from 'socket.io-client';
@@ -18,6 +18,31 @@ export const Route = createFileRoute('/_authenticated/_user/voice-assistant')({
   component: RouteComponent,
 });
 
+type VoiceProduct = {
+  product_id: string;
+  name: string;
+  name_si?: string | null;
+  price: number;
+  stock_quantity?: number | null;
+  brand?: string | null;
+  category?: string | null;
+  image_url?: string | null;
+  avg_discount?: number | null;
+  purchase_frequency?: string | null;
+  recommendation_source?: string | null;
+};
+
+type ProductPagination = {
+  intent?: 'prices' | 'product_search' | 'offers' | 'buying_suggestions' | string;
+  query?: string | null;
+  categoryHint?: string | null;
+  offset?: number;
+  limit?: number;
+  nextOffset?: number;
+  total?: number;
+  hasMore?: boolean;
+};
+
 type VoiceMessage = {
   id: string;
   role: 'user' | 'assistant';
@@ -26,6 +51,9 @@ type VoiceMessage = {
   transcription: string | null;
   audioUrl?: string | null;
   createdAt: string;
+  suggestions?: string[] | null;
+  products?: VoiceProduct[] | null;
+  productPagination?: ProductPagination | null;
 };
 
 type VoiceSessionResponse = {
@@ -42,10 +70,16 @@ type VoiceChatResponse = {
   audioUrl?: string;
   language?: string;
   sessionId?: string;
+  suggestions?: string[] | null;
+  products?: VoiceProduct[] | null;
+  productPagination?: ProductPagination | null;
   data?: {
     response?: string;
     transcription?: string;
     audioUrl?: string;
+    suggestions?: string[] | null;
+    products?: VoiceProduct[] | null;
+    productPagination?: ProductPagination | null;
   };
   message?: string;
 };
@@ -120,6 +154,9 @@ declare global {
 }
 
 const rootBaseUrl = getPublicBaseUrl();
+const PRODUCT_PAGE_COMMAND_PREFIX = '__srx_product_page__:';
+const PRODUCT_DETAIL_COMMAND_PREFIX = '__srx_product_detail__:';
+const PRODUCT_PAGE_SIZE = 5;
 
 const markdownComponents: Components = {
   a: ({ href, children, ...props }) => (
@@ -265,6 +302,138 @@ async function sendVoiceMessage(audioBlob: Blob, socket: Socket | null) {
   });
 }
 
+function resolveImageUrl(imageUrl?: string | null) {
+  if (!imageUrl) return null;
+  const raw = imageUrl.trim();
+  if (!raw) return null;
+
+  if (
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    raw.startsWith('http://')
+  ) {
+    return `https://${raw.slice('http://'.length)}`;
+  }
+  return raw;
+}
+
+function buildProductPageCommand(paging: ProductPagination) {
+  const payload = {
+    intent: paging.intent || 'product_search',
+    query: paging.query || null,
+    categoryHint: paging.categoryHint || null,
+    offset: paging.nextOffset ?? (paging.offset ?? 0) + (paging.limit ?? PRODUCT_PAGE_SIZE),
+    limit: paging.limit ?? PRODUCT_PAGE_SIZE,
+  };
+  return `${PRODUCT_PAGE_COMMAND_PREFIX}${JSON.stringify(payload)}`;
+}
+
+function buildProductDetailCommand(product: VoiceProduct) {
+  const payload = {
+    productId: product.product_id,
+    productName: product.name,
+  };
+  return `${PRODUCT_DETAIL_COMMAND_PREFIX}${JSON.stringify(payload)}`;
+}
+
+function splitMessageExplanation(content: string) {
+  const marker = '\n\n---\n\n**🔍';
+  const index = content.indexOf(marker);
+  if (index < 0) {
+    return { body: content, explanation: '' };
+  }
+  return {
+    body: content.slice(0, index).trim(),
+    explanation: content.slice(index).trim(),
+  };
+}
+
+function inferIntentFromContent(content: string): ProductPagination['intent'] {
+  const lowered = content.toLowerCase();
+  if (lowered.includes('මිල ගණන්')) return 'prices';
+  if (lowered.includes('සෙවීමේ ප්‍රතිඵල') || lowered.includes('භාණ්ඩ ලැයිස්තුව'))
+    return 'product_search';
+  if (lowered.includes('offers')) return 'offers';
+  if (lowered.includes('නිර්දේශ')) return 'buying_suggestions';
+  return 'product_search';
+}
+
+function inferQueryFromContent(content: string) {
+  const quoted = content.match(/["“](.+?)["”]\s*[-–—]/);
+  if (quoted?.[1]) return quoted[1].trim();
+
+  const priceHeader = content.match(/###\s*💰\s*(.+?)\s*[-–—]\s*මිල\s*ගණන්/i);
+  if (priceHeader?.[1]) return priceHeader[1].trim();
+
+  const sinhalaForMatch = content.match(/^(.+?)\s+සඳහා\s+/);
+  if (sinhalaForMatch?.[1]) return sinhalaForMatch[1].trim().replace(/^"+|"+$/g, '');
+
+  return '';
+}
+
+function isControlShowMoreText(text: string) {
+  const normalized = text.trim().toLowerCase();
+  return (
+    normalized.startsWith('show more products for') ||
+    normalized.startsWith('තවත් භාණ්ඩ පෙන්වන්න') ||
+    normalized.includes('සඳහා තවත් භාණ්ඩ පෙන්වන්න')
+  );
+}
+
+function resolvePaginationForMessage(
+  message: VoiceMessage,
+  sortedMessages: VoiceMessage[],
+  messageIndex: number,
+): ProductPagination | null {
+  if (message.productPagination) return message.productPagination;
+  if (!message.products || message.products.length === 0) return null;
+
+  let inferredQuery = inferQueryFromContent(message.content || '');
+  if (!inferredQuery) {
+    for (let i = messageIndex - 1; i >= 0; i -= 1) {
+      const prev = sortedMessages[i];
+      if (prev.role === 'user' && prev.content.trim() && !isControlShowMoreText(prev.content)) {
+        inferredQuery = prev.content.trim();
+        break;
+      }
+    }
+  }
+
+  const content = message.content || '';
+  const ofTotalMatch = content.match(/\bof\s+(\d+)\b/i);
+  const rangeMatch = content.match(/(\d+)\s*-\s*(\d+)\s*of\s*(\d+)/i);
+  const inferredTotal = rangeMatch?.[3]
+    ? Number(rangeMatch[3])
+    : ofTotalMatch?.[1]
+      ? Number(ofTotalMatch[1])
+      : message.products.length;
+  const inferredStart = rangeMatch?.[1] ? Number(rangeMatch[1]) : 1;
+  const inferredLimit =
+    rangeMatch?.[1] && rangeMatch?.[2]
+      ? Math.max(1, Number(rangeMatch[2]) - Number(rangeMatch[1]) + 1)
+      : PRODUCT_PAGE_SIZE;
+  const nextOffset = Math.max(0, inferredStart - 1) + inferredLimit;
+  const hasMore = Number.isFinite(inferredTotal) && nextOffset < inferredTotal;
+
+  return {
+    intent: inferIntentFromContent(message.content || ''),
+    query: inferredQuery || null,
+    offset: Math.max(0, inferredStart - 1),
+    limit: inferredLimit,
+    nextOffset,
+    total: Number.isFinite(inferredTotal) ? inferredTotal : message.products.length,
+    hasMore,
+  };
+}
+
+function buildMoreProductsPrompt(message: VoiceMessage, paging: ProductPagination) {
+  const total = paging.total ?? message.products?.length ?? 0;
+  const shownCount = Math.min(PRODUCT_PAGE_SIZE, message.products?.length ?? 0);
+  const query = (paging.query || '').trim();
+  const queryPrefix = query ? `${query} ` : '';
+  return `ඔබට ${queryPrefix}මිල ගණන් පිළිබඳ විවිධ විකල්ප ${shownCount}ක් පෙන්වා ඇත (${total}න්). තවත් අවශ්‍යද?`;
+}
+
 function toImmediateMessages(
   payload: VoiceChatResponse,
   channel: 'text' | 'voice',
@@ -272,6 +441,9 @@ function toImmediateMessages(
   const transcription = (payload.transcription ?? payload.data?.transcription ?? '').trim();
   const response = (payload.response ?? payload.data?.response ?? '').trim();
   const audioUrl = (payload.audioUrl ?? payload.data?.audioUrl ?? '').trim() || null;
+  const suggestions = payload.suggestions ?? payload.data?.suggestions ?? null;
+  const products = payload.products ?? payload.data?.products ?? null;
+  const productPagination = payload.productPagination ?? payload.data?.productPagination ?? null;
   const now = new Date().toISOString();
   const items: VoiceMessage[] = [];
 
@@ -296,6 +468,9 @@ function toImmediateMessages(
       transcription: null,
       audioUrl: null,
       createdAt: now,
+      suggestions: suggestions && suggestions.length > 0 ? suggestions : null,
+      products: products && products.length > 0 ? products : null,
+      productPagination,
     });
   }
 
@@ -308,6 +483,206 @@ function MarkdownMessage({ content }: { content: string }) {
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>
+    </div>
+  );
+}
+
+function SuggestionChips({
+  suggestions,
+  onSelect,
+  disabled,
+}: {
+  suggestions: string[];
+  onSelect: (suggestion: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-1.5">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion}
+          type="button"
+          disabled={disabled}
+          onClick={() => onSelect(suggestion)}
+          className="rounded-full border border-primary/30 bg-primary/8 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15 hover:border-primary/50 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProductThumb({ imageUrl, name }: { imageUrl?: string | null; name: string }) {
+  const [hasError, setHasError] = useState(false);
+  const [retryWithHttps, setRetryWithHttps] = useState(false);
+  const resolvedUrl = resolveImageUrl(imageUrl);
+  const src =
+    retryWithHttps && resolvedUrl?.startsWith('http://')
+      ? resolvedUrl.replace(/^http:\/\//i, 'https://')
+      : resolvedUrl;
+
+  if (!src || hasError) {
+    return (
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted text-muted-foreground">
+        <ImageOff className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (!retryWithHttps && src.startsWith('http://')) {
+          setRetryWithHttps(true);
+          return;
+        }
+        if (src.startsWith('https://')) {
+          setHasError(true);
+          return;
+        }
+        setHasError(true);
+      }}
+      className="h-14 w-14 shrink-0 rounded-lg border border-border/50 bg-muted/20 object-cover"
+    />
+  );
+}
+
+function ProductCardTable({
+  products,
+  onRequestDetails,
+  disabled,
+}: {
+  products: VoiceProduct[];
+  onRequestDetails?: (product: VoiceProduct) => void;
+  disabled?: boolean;
+}) {
+  const visibleProducts = products.slice(0, PRODUCT_PAGE_SIZE);
+  const comparableProducts = visibleProducts.filter(
+    (p) => Number.isFinite(p.price) && (p.stock_quantity ?? 0) >= 0,
+  );
+  const hasComparison = comparableProducts.length > 1;
+  const minPriceProduct = hasComparison
+    ? comparableProducts.reduce((min, p) => (p.price < min.price ? p : min), comparableProducts[0])
+    : null;
+  const maxPriceProduct = hasComparison
+    ? comparableProducts.reduce((max, p) => (p.price > max.price ? p : max), comparableProducts[0])
+    : null;
+  const lowestStockProduct = hasComparison
+    ? comparableProducts.reduce(
+        (min, p) => ((p.stock_quantity ?? 0) < (min.stock_quantity ?? 0) ? p : min),
+        comparableProducts[0],
+      )
+    : null;
+  const highestStockProduct = hasComparison
+    ? comparableProducts.reduce(
+        (max, p) => ((p.stock_quantity ?? 0) > (max.stock_quantity ?? 0) ? p : max),
+        comparableProducts[0],
+      )
+    : null;
+  const averagePrice = hasComparison
+    ? comparableProducts.reduce((sum, p) => sum + p.price, 0) / comparableProducts.length
+    : null;
+
+  return (
+    <div className="mt-2.5 flex flex-col gap-2">
+      {hasComparison &&
+      minPriceProduct &&
+      maxPriceProduct &&
+      lowestStockProduct &&
+      highestStockProduct ? (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5 text-xs text-foreground">
+          <p className="font-semibold text-primary">ඉක්මන් සැසඳීම</p>
+          <p className="mt-1">
+            අඩුම මිල: <strong>{minPriceProduct.name}</strong> (රු.{' '}
+            {minPriceProduct.price.toFixed(2)}){' · '}
+            වැඩිම මිල: <strong>{maxPriceProduct.name}</strong> (රු.{' '}
+            {maxPriceProduct.price.toFixed(2)})
+          </p>
+          <p className="mt-1">
+            සාමාන්‍ය මිල: <strong>රු. {(averagePrice ?? 0).toFixed(2)}</strong>
+            {' · '}
+            අඩුම stock: <strong>{lowestStockProduct.name}</strong> (
+            {lowestStockProduct.stock_quantity ?? 0}){' · '}
+            වැඩිම stock: <strong>{highestStockProduct.name}</strong> (
+            {highestStockProduct.stock_quantity ?? 0})
+          </p>
+        </div>
+      ) : null}
+      {visibleProducts.map((p) => {
+        const inStock = (p.stock_quantity ?? 0) > 0;
+        const qty = p.stock_quantity ?? 0;
+        return (
+          <Link
+            key={p.product_id}
+            to="/products/$productId"
+            params={{ productId: p.product_id }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-border bg-background/80 p-2.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            <ProductThumb
+              key={`${p.product_id}:${p.image_url || 'na'}`}
+              imageUrl={p.image_url}
+              name={p.name}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold leading-tight text-foreground">
+                {p.name}
+              </p>
+              {p.name_si ? (
+                <p className="truncate text-xs text-muted-foreground">{p.name_si}</p>
+              ) : null}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                {p.brand ? (
+                  <span className="text-[11px] text-muted-foreground">{p.brand}</span>
+                ) : null}
+                {p.category ? (
+                  <span className="text-[11px] text-muted-foreground">· {p.category}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onRequestDetails?.(p);
+                }}
+                disabled={disabled}
+                className="mb-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary transition-colors hover:bg-primary/20 disabled:pointer-events-none disabled:opacity-50"
+                title="Get product details"
+                aria-label={`Get details for ${p.name}`}
+              >
+                <HelpCircle className="h-full w-full" />
+              </button>
+              <span className="text-sm font-bold text-foreground">
+                රු.&nbsp;{p.price.toFixed(2)}
+              </span>
+              {p.avg_discount && p.avg_discount > 0 ? (
+                <span className="text-[11px] font-medium text-emerald-600">
+                  -{p.avg_discount.toFixed(0)}% off
+                </span>
+              ) : null}
+              <span
+                className={
+                  inStock
+                    ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700'
+                    : 'rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600'
+                }
+              >
+                {inStock ? `ඇත · ${qty}` : 'නැත'}
+              </span>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -439,6 +814,9 @@ function RouteComponent() {
   const [error, setError] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<VoiceProcessingStatus | null>(null);
   const [voiceAccessState, setVoiceAccessState] = useState<VoiceAccessState | null>(null);
+  const [moreProductsChoiceByMessage, setMoreProductsChoiceByMessage] = useState<
+    Record<string, 'yes' | 'no'>
+  >({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -614,6 +992,60 @@ function RouteComponent() {
     }
   };
 
+  const sendAutomatedTextRequest = async (displayText: string, requestText: string) => {
+    if (!requestText.trim() || inputDisabled) return;
+
+    try {
+      setSending(true);
+      setError(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `optimistic-automated-${Date.now()}`,
+          role: 'user',
+          channel: 'text',
+          content: displayText,
+          transcription: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const result = await sendTextMessage(requestText, socketRef.current);
+      const immediate = toImmediateMessages(result, 'text');
+      const assistantMessages = immediate.filter((message) => message.role === 'assistant');
+      if (assistantMessages.length > 0) setMessages((prev) => [...prev, ...assistantMessages]);
+      await refreshMessages();
+    } catch (err) {
+      setError((err as Error).message || 'Failed to send request');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRequestMoreProducts = async (paging: ProductPagination, messageId: string) => {
+    const command = buildProductPageCommand(paging);
+    const displayText = paging.query
+      ? `"${paging.query}" සඳහා තවත් භාණ්ඩ පෙන්වන්න`
+      : 'තවත් භාණ්ඩ පෙන්වන්න';
+    setMoreProductsChoiceByMessage((prev) => ({ ...prev, [messageId]: 'yes' }));
+    await sendAutomatedTextRequest(displayText, command);
+  };
+
+  const handleDeclineMoreProducts = (messageId: string) => {
+    setMoreProductsChoiceByMessage((prev) => ({ ...prev, [messageId]: 'no' }));
+  };
+
+  const handleRequestProductDetails = async (product: VoiceProduct) => {
+    const command = buildProductDetailCommand(product);
+    const displayText = `${product.name} ගැන වැඩි විස්තර`;
+    await sendAutomatedTextRequest(displayText, command);
+  };
+
+  const handleSuggestionSelect = async (suggestion: string) => {
+    const value = suggestion.trim();
+    if (!value || inputDisabled) return;
+    await sendAutomatedTextRequest(value, value);
+  };
+
   const cleanupAudioRecording = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     processedStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -703,18 +1135,19 @@ function RouteComponent() {
         recognition.onend = () => {
           speechRecognitionRef.current = null;
           setRecording(false);
+          emitVoiceTyping(false);
           const transcript = finalTranscript.trim() || latestTranscript.trim();
-          if (shouldSubmitRecognitionRef.current && transcript) {
-            void submitRecognizedVoiceText(transcript);
-          }
+          const shouldSubmit = shouldSubmitRecognitionRef.current;
           shouldSubmitRecognitionRef.current = true;
           setText('');
+          if (shouldSubmit && transcript) {
+            void submitRecognizedVoiceText(transcript);
+          }
         };
 
         speechRecognitionRef.current = recognition;
         recognition.start();
         setRecording(true);
-        emitVoiceTyping(true);
         return;
       } catch {
         speechRecognitionRef.current = null;
@@ -857,7 +1290,6 @@ function RouteComponent() {
     if (speechRecognitionRef.current) {
       shouldSubmitRecognitionRef.current = false;
       speechRecognitionRef.current.stop();
-      speechRecognitionRef.current = null;
       return;
     }
     mediaRecorderRef.current?.stop();
@@ -888,7 +1320,7 @@ function RouteComponent() {
                   <span className="hidden sm:inline">Recording</span>
                 </div>
               ) : null}
-              {voiceAccessState && voiceAccessState.connectionCount > 0 ? (
+              {voiceAccessState && voiceAccessState.connectionCount > 1 ? (
                 <div className="group relative flex items-center">
                   <button
                     type="button"
@@ -946,13 +1378,29 @@ function RouteComponent() {
                 </p>
               </div>
             ) : (
-              sortedMessages.map((message) => {
+              sortedMessages.map((message, messageIndex) => {
                 const normalizedContent = message.content.trim();
                 const normalizedTranscript = (message.transcription || '').trim();
+                const { body: contentBody, explanation } =
+                  splitMessageExplanation(normalizedContent);
+                const isLatestMessage = messageIndex === sortedMessages.length - 1;
+                const messagePaging = resolvePaginationForMessage(
+                  message,
+                  sortedMessages,
+                  messageIndex,
+                );
+                const hasMoreForMessage =
+                  message.role === 'assistant' &&
+                  Boolean(message.products?.length) &&
+                  Boolean(messagePaging) &&
+                  Boolean(messagePaging?.hasMore);
+                const moreChoice = moreProductsChoiceByMessage[message.id];
+                const moreButtonsDisabled =
+                  !isLatestMessage || Boolean(moreChoice) || inputDisabled;
                 const hideMainContent =
                   message.channel === 'voice' &&
                   normalizedTranscript.length > 0 &&
-                  normalizedContent.localeCompare(normalizedTranscript, undefined, {
+                  contentBody.localeCompare(normalizedTranscript, undefined, {
                     sensitivity: 'base',
                   }) === 0;
 
@@ -968,7 +1416,9 @@ function RouteComponent() {
                           : 'max-w-[90%] rounded-2xl rounded-bl-md bg-muted px-3 py-2.5 shadow-sm sm:max-w-[78%] sm:px-4 sm:py-3'
                       }
                     >
-                      {!hideMainContent ? <MarkdownMessage content={message.content} /> : null}
+                      {!hideMainContent && contentBody ? (
+                        <MarkdownMessage content={contentBody} />
+                      ) : null}
                       {message.channel === 'voice' &&
                       (message.audioUrl || message.transcription) ? (
                         <div className={!hideMainContent ? 'mt-2 space-y-1.5' : 'space-y-1.5'}>
@@ -989,6 +1439,58 @@ function RouteComponent() {
                               {message.transcription}
                             </p>
                           ) : null}
+                        </div>
+                      ) : null}
+                      {message.role === 'assistant' &&
+                      message.products &&
+                      message.products.length > 0 ? (
+                        <ProductCardTable
+                          products={message.products}
+                          onRequestDetails={(product) => void handleRequestProductDetails(product)}
+                          disabled={inputDisabled}
+                        />
+                      ) : null}
+                      {message.role === 'assistant' &&
+                      message.suggestions &&
+                      message.suggestions.length > 0 ? (
+                        <SuggestionChips
+                          suggestions={message.suggestions}
+                          onSelect={(s) => void handleSuggestionSelect(s)}
+                          disabled={inputDisabled}
+                        />
+                      ) : null}
+                      {message.role === 'assistant' && explanation ? (
+                        <div className="mt-2 border-t border-border/60 pt-2">
+                          <MarkdownMessage content={explanation} />
+                        </div>
+                      ) : null}
+                      {hasMoreForMessage ? (
+                        <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+                          <p className="text-xs text-foreground">
+                            {buildMoreProductsPrompt(message, messagePaging as ProductPagination)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={moreButtonsDisabled}
+                              onClick={() =>
+                                messagePaging
+                                  ? void handleRequestMoreProducts(messagePaging, message.id)
+                                  : undefined
+                              }
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
+                            >
+                              ඔව්
+                            </button>
+                            <button
+                              type="button"
+                              disabled={moreButtonsDisabled}
+                              onClick={() => handleDeclineMoreProducts(message.id)}
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-muted-foreground/25 bg-background px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                            >
+                              නැත
+                            </button>
+                          </div>
                         </div>
                       ) : null}
                       <div

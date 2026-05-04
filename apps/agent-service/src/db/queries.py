@@ -9,12 +9,23 @@ never touch SQL or asyncpg records directly.
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 import asyncpg
+from rapidfuzz import fuzz, process as fuzz_process
 
 from ..logging import logger
 from .connection import acquire
+
+_FUZZY_THRESHOLD = 55  # minimum score (0-100) to include a fuzzy match
+_FUZZY_LIMIT = 5       # max fuzzy candidates to return as suggestions
+
+# ---------------------------------------------------------------------------
+# Vocabulary cache for STT prompt injection
+# ---------------------------------------------------------------------------
+_vocab_cache: dict[str, Any] = {"terms": [], "ts": 0.0}
+_VOCAB_TTL_SEC = 300  # refresh every 5 minutes
 
 
 def _norm(text: str | None) -> str:
@@ -27,159 +38,466 @@ def _norm(text: str | None) -> str:
 def _row(record: asyncpg.Record) -> dict[str, Any]:
     return dict(record)
 
+def _tokens(text: str | None) -> list[str]:
+    return [tok for tok in _norm(text).split() if tok]
+
+
+def _required_token_matches(query_tokens: list[str]) -> int:
+    if not query_tokens:
+        return 0
+    if len(query_tokens) == 1:
+        return 1
+    # For multi-token queries, require most tokens to match.
+    return max(2, int(len(query_tokens) * 0.6 + 0.5))
+
+
+def _token_coverage_scores(query_tokens: list[str], candidate_tokens: list[str]) -> tuple[int, float]:
+    if not query_tokens:
+        return 0, 0.0
+    if not candidate_tokens:
+        return 0, 0.0
+
+    per_token_best: list[float] = []
+    for q in query_tokens:
+        best = max(fuzz.ratio(q, c) for c in candidate_tokens)
+        per_token_best.append(float(best))
+
+    strong_matches = sum(1 for score in per_token_best if score >= 78.0)
+    avg_score = sum(per_token_best) / len(per_token_best)
+    return strong_matches, avg_score
+
+
+def _fuzzy_rank(
+    query: str,
+    candidates: list[dict[str, Any]],
+    key: str = "name",
+    limit: int = _FUZZY_LIMIT,
+    threshold: int = _FUZZY_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """
+    Return rows from `candidates` whose `key` field fuzzy-matches `query`.
+
+    Uses token-coverage constraints to avoid irrelevant fuzzy drift
+    (e.g. "ice crem" -> rice items).
+    """
+    if not candidates or not query:
+        return []
+
+    norm_q = _norm(query)
+    query_tokens = _tokens(norm_q)
+    required_matches = _required_token_matches(query_tokens)
+
+    ranked: list[tuple[float, dict[str, Any]]] = []
+    for row in candidates:
+        text = _norm(str(row.get(key) or ""))
+        if not text:
+            continue
+
+        candidate_tokens = _tokens(text)
+        strong_matches, coverage_avg = _token_coverage_scores(query_tokens, candidate_tokens)
+
+        # Hard guard: for multi-token queries, require enough token alignment.
+        if query_tokens and strong_matches < required_matches and coverage_avg < 86.0:
+            continue
+
+        wratio = float(fuzz.WRatio(norm_q, text))
+        token_set = float(fuzz.token_set_ratio(norm_q, text))
+        combined = (0.45 * wratio) + (0.35 * token_set) + (0.20 * coverage_avg)
+
+        if combined < threshold:
+            continue
+
+        ranked.append((combined, row))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [row for _, row in ranked[:limit]]
+
 
 # ---------------------------------------------------------------------------
 # 1. Product search  (intent: product_search)
 # ---------------------------------------------------------------------------
 
+_PRODUCT_CATALOG_SELECT = """
+    SELECT
+        p.id::text            AS product_id,
+        p.sku,
+        p.name,
+        p.name_si,
+        p.price::float        AS price,
+        p.stock_quantity,
+        p.brand,
+        p.purchase_frequency,
+        p.is_active,
+        c.name                AS category,
+        c.name_si             AS category_si,
+        p.image_url
+    FROM core.products p
+    JOIN core.categories c ON c.id = p.category_id
+    WHERE p.is_active = true
+"""
+
+
 async def search_products(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    rows, _total = await search_products_page(query, limit=limit, offset=0)
+    return rows
+
+
+async def search_products_page(
+    query: str,
+    limit: int = 8,
+    offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
+    norm_query = _norm(query)
+    if not norm_query:
+        return [], 0
+
+    safe_limit = max(1, min(limit, 50))
+    safe_offset = max(0, offset)
+
+    try:
+        async with acquire() as conn:
+            primary_total = int(
+                await conn.fetchval(
+                    """
+                    SELECT COUNT(*)
+                    FROM core.products p
+                    JOIN core.categories c ON c.id = p.category_id
+                    WHERE p.is_active = true
+                      AND (
+                        lower(p.name)     LIKE $1
+                        OR lower(p.name_si)  LIKE $1
+                        OR lower(p.sku)   LIKE $1
+                        OR lower(p.brand) LIKE $1
+                      )
+                    """,
+                    f"%{norm_query}%",
+                )
+                or 0,
+            )
+
+            if primary_total > 0:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRODUCT_CATALOG_SELECT}
+                      AND (
+                        lower(p.name)     LIKE $1
+                        OR lower(p.name_si)  LIKE $1
+                        OR lower(p.sku)   LIKE $1
+                        OR lower(p.brand) LIKE $1
+                      )
+                    ORDER BY
+                        CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
+                        p.purchase_frequency DESC,
+                        p.name
+                    LIMIT $3
+                    OFFSET $4
+                    """,
+                    f"%{norm_query}%",
+                    norm_query,
+                    safe_limit,
+                    safe_offset,
+                )
+                return [_row(r) for r in rows], primary_total
+
+            alias_total = int(
+                await conn.fetchval(
+                    """
+                    SELECT COUNT(DISTINCT p.id)
+                    FROM core.products p
+                    JOIN core.categories c ON c.id = p.category_id
+                    JOIN core.product_aliases pa ON pa.product_id = p.id
+                    WHERE p.is_active = true
+                      AND lower(pa.alias_normalized) LIKE $1
+                    """,
+                    f"%{norm_query}%",
+                )
+                or 0,
+            )
+
+            if alias_total > 0:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRODUCT_CATALOG_SELECT}
+                    JOIN core.product_aliases pa ON pa.product_id = p.id
+                      AND lower(pa.alias_normalized) LIKE $1
+                    GROUP BY
+                        p.id, p.sku, p.name, p.name_si, p.price, p.stock_quantity,
+                        p.brand, p.purchase_frequency, p.is_active, c.name, c.name_si, p.image_url
+                    ORDER BY MAX(pa.weight) DESC, p.purchase_frequency DESC, p.name
+                    LIMIT $2
+                    OFFSET $3
+                    """,
+                    f"%{norm_query}%",
+                    safe_limit,
+                    safe_offset,
+                )
+                return [_row(r) for r in rows], alias_total
+
+            # Fuzzy fallback — fetch all names and rank by similarity
+            all_rows = await conn.fetch(
+                f"{_PRODUCT_CATALOG_SELECT} ORDER BY p.purchase_frequency DESC, p.name LIMIT 400"
+            )
+            candidates = [_row(r) for r in all_rows]
+            ranked = _fuzzy_rank(
+                query,
+                candidates,
+                key="name",
+                limit=min(400, safe_limit + safe_offset + 100),
+            )
+            total = len(ranked)
+            return ranked[safe_offset : safe_offset + safe_limit], total
+
+    except Exception as exc:
+        logger.warning("search_products failed query=%r error=%s", query, exc)
+        return [], 0
+
+
+async def fuzzy_suggest_products(query: str, limit: int = _FUZZY_LIMIT) -> list[str]:
+    """Return product name suggestions for a misspelled/partial query."""
     norm_query = _norm(query)
     if not norm_query:
         return []
+    try:
+        async with acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM core.products WHERE is_active = true ORDER BY purchase_frequency DESC LIMIT 400"
+            )
+        names = [r["name"] for r in rows]
+        norm_names = {i: _norm(n) for i, n in enumerate(names)}
+        results = fuzz_process.extract(
+            norm_query,
+            norm_names,
+            scorer=fuzz.WRatio,
+            limit=limit,
+            score_cutoff=_FUZZY_THRESHOLD,
+        )
+        return [names[idx] for _, _, idx in results]
+    except Exception as exc:
+        logger.warning("fuzzy_suggest_products failed query=%r error=%s", query, exc)
+        return []
+
+
+async def get_product_details_by_id(product_id: str) -> dict[str, Any] | None:
+    """Return a single active product by id with rich metadata for chat drill-down."""
+    if not product_id:
+        return None
+
+    try:
+        async with acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    p.id::text            AS product_id,
+                    p.sku,
+                    p.name,
+                    p.name_si,
+                    p.description,
+                    p.description_si,
+                    p.price::float        AS price,
+                    p.stock_quantity,
+                    p.brand,
+                    p.purchase_frequency,
+                    p.image_url,
+                    p.is_active,
+                    c.name                AS category,
+                    c.name_si             AS category_si
+                FROM core.products p
+                JOIN core.categories c ON c.id = p.category_id
+                WHERE p.id = $1::uuid
+                LIMIT 1
+                """,
+                product_id,
+            )
+            if not row:
+                return None
+            return _row(row)
+    except Exception as exc:
+        logger.warning("get_product_details_by_id failed product_id=%r error=%s", product_id, exc)
+        return None
+
+
+async def get_stt_vocabulary() -> list[str]:
+    """
+    Return a deduplicated list of English product/brand/category terms for use
+    as a Whisper prompt vocabulary.  Results are cached for _VOCAB_TTL_SEC seconds
+    so this never adds latency on the hot path after the first call.
+    """
+    now = time.monotonic()
+    if _vocab_cache["terms"] and (now - _vocab_cache["ts"]) < _VOCAB_TTL_SEC:
+        return _vocab_cache["terms"]  # type: ignore[return-value]
 
     try:
         async with acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT
-                    p.id::text            AS product_id,
-                    p.sku,
+                SELECT DISTINCT unnest(ARRAY[
                     p.name,
-                    p.name_si,
-                    p.price::float        AS price,
-                    p.stock_quantity,
                     p.brand,
-                    p.purchase_frequency,
-                    p.is_active,
-                    c.name                AS category,
-                    c.name_si             AS category_si,
-                    p.image_url
+                    c.name
+                ]) AS term
                 FROM core.products p
                 JOIN core.categories c ON c.id = p.category_id
                 WHERE p.is_active = true
-                  AND (
-                    lower(p.name)     LIKE $1
-                    OR lower(p.name_si)  LIKE $1
-                    OR lower(p.sku)   LIKE $1
-                    OR lower(p.brand) LIKE $1
-                  )
-                ORDER BY
-                    CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
-                    p.purchase_frequency DESC,
-                    p.name
-                LIMIT $3
-                """,
-                f"%{norm_query}%",
-                norm_query,
-                limit,
-            )
-
-            if rows:
-                return [_row(r) for r in rows]
-
-            rows = await conn.fetch(
+                  AND p.name IS NOT NULL
                 """
-                SELECT
-                    p.id::text            AS product_id,
-                    p.sku,
-                    p.name,
-                    p.name_si,
-                    p.price::float        AS price,
-                    p.stock_quantity,
-                    p.brand,
-                    p.purchase_frequency,
-                    p.is_active,
-                    c.name                AS category,
-                    c.name_si             AS category_si,
-                    p.image_url
-                FROM core.products p
-                JOIN core.categories c ON c.id = p.category_id
-                JOIN core.product_aliases pa ON pa.product_id = p.id
-                WHERE p.is_active = true
-                  AND lower(pa.alias_normalized) LIKE $1
-                ORDER BY pa.weight DESC, p.purchase_frequency DESC, p.name
-                LIMIT $2
-                """,
-                f"%{norm_query}%",
-                limit,
             )
-            return [_row(r) for r in rows]
+        terms: list[str] = []
+        seen: set[str] = set()
+        for r in rows:
+            raw = (r["term"] or "").strip()
+            if not raw:
+                continue
+            # Only keep Latin-script tokens — these are the English product names
+            # that Whisper tends to mis-transcribe into Sinhala script.
+            if re.search(r"[^\x00-\x024F\s]", raw):
+                continue
+            key = raw.lower()
+            if key not in seen:
+                seen.add(key)
+                terms.append(raw)
 
+        _vocab_cache["terms"] = terms
+        _vocab_cache["ts"] = now
+        logger.info("STT vocabulary cache refreshed: %d terms", len(terms))
+        return terms
     except Exception as exc:
-        logger.warning("search_products failed query=%r error=%s", query, exc)
-        return []
+        logger.warning("get_stt_vocabulary failed: %s", exc)
+        return _vocab_cache.get("terms") or []  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
 # 2. Product price  (intent: prices)
 # ---------------------------------------------------------------------------
 
-async def get_product_price(product_name: str) -> list[dict[str, Any]]:
+_PRICE_SELECT = """
+    SELECT
+        p.id::text        AS product_id,
+        p.sku,
+        p.name,
+        p.name_si,
+        p.price::float    AS price,
+        p.stock_quantity,
+        p.brand,
+        c.name            AS category,
+        c.name_si         AS category_si,
+        p.image_url
+    FROM core.products p
+    JOIN core.categories c ON c.id = p.category_id
+    WHERE p.is_active = true
+"""
+
+
+async def get_product_price(product_name: str, limit: int = 5) -> list[dict[str, Any]]:
+    rows, _total = await get_product_price_page(product_name, limit=limit, offset=0)
+    return rows
+
+
+async def get_product_price_page(
+    product_name: str,
+    limit: int = 5,
+    offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
     norm = _norm(product_name)
     if not norm:
-        return []
+        return [], 0
+
+    safe_limit = max(1, min(limit, 50))
+    safe_offset = max(0, offset)
 
     try:
         async with acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT
-                    p.id::text        AS product_id,
-                    p.sku,
-                    p.name,
-                    p.name_si,
-                    p.price::float    AS price,
-                    p.stock_quantity,
-                    p.brand,
-                    c.name            AS category,
-                    c.name_si         AS category_si
-                FROM core.products p
-                JOIN core.categories c ON c.id = p.category_id
-                WHERE p.is_active = true
-                  AND (
-                    lower(p.name)    LIKE $1
-                    OR lower(p.name_si) LIKE $1
-                    OR lower(p.sku)  = $2
-                  )
-                ORDER BY
-                    CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
-                    p.name
-                LIMIT 5
-                """,
-                f"%{norm}%",
-                norm,
+            primary_total = int(
+                await conn.fetchval(
+                    """
+                    SELECT COUNT(*)
+                    FROM core.products p
+                    JOIN core.categories c ON c.id = p.category_id
+                    WHERE p.is_active = true
+                      AND (
+                        lower(p.name)    LIKE $1
+                        OR lower(p.name_si) LIKE $1
+                        OR lower(p.sku)  = $2
+                      )
+                    """,
+                    f"%{norm}%",
+                    norm,
+                )
+                or 0,
             )
 
-            if rows:
-                return [_row(r) for r in rows]
+            if primary_total > 0:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND (
+                        lower(p.name)    LIKE $1
+                        OR lower(p.name_si) LIKE $1
+                        OR lower(p.sku)  = $2
+                      )
+                    ORDER BY
+                        CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
+                        p.name
+                    LIMIT $3
+                    OFFSET $4
+                    """,
+                    f"%{norm}%",
+                    norm,
+                    safe_limit,
+                    safe_offset,
+                )
+                return [_row(r) for r in rows], primary_total
 
-            rows = await conn.fetch(
-                """
-                SELECT
-                    p.id::text        AS product_id,
-                    p.sku,
-                    p.name,
-                    p.name_si,
-                    p.price::float    AS price,
-                    p.stock_quantity,
-                    p.brand,
-                    c.name            AS category,
-                    c.name_si         AS category_si
-                FROM core.products p
-                JOIN core.categories c ON c.id = p.category_id
-                JOIN core.product_aliases pa ON pa.product_id = p.id
-                WHERE p.is_active = true
-                  AND lower(pa.alias_normalized) LIKE $1
-                ORDER BY pa.weight DESC, p.name
-                LIMIT 5
-                """,
-                f"%{norm}%",
+            alias_total = int(
+                await conn.fetchval(
+                    """
+                    SELECT COUNT(DISTINCT p.id)
+                    FROM core.products p
+                    JOIN core.categories c ON c.id = p.category_id
+                    JOIN core.product_aliases pa ON pa.product_id = p.id
+                    WHERE p.is_active = true
+                      AND lower(pa.alias_normalized) LIKE $1
+                    """,
+                    f"%{norm}%",
+                )
+                or 0,
             )
-            return [_row(r) for r in rows]
+
+            if alias_total > 0:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                    JOIN core.product_aliases pa ON pa.product_id = p.id
+                      AND lower(pa.alias_normalized) LIKE $1
+                    GROUP BY
+                        p.id, p.sku, p.name, p.name_si, p.price, p.stock_quantity, p.brand,
+                        c.name, c.name_si, p.image_url
+                    ORDER BY MAX(pa.weight) DESC, p.name
+                    LIMIT $2
+                    OFFSET $3
+                    """,
+                    f"%{norm}%",
+                    safe_limit,
+                    safe_offset,
+                )
+                return [_row(r) for r in rows], alias_total
+
+            # Fuzzy fallback
+            all_rows = await conn.fetch(
+                f"{_PRICE_SELECT} ORDER BY p.name LIMIT 400"
+            )
+            candidates = [_row(r) for r in all_rows]
+            ranked = _fuzzy_rank(
+                product_name,
+                candidates,
+                key="name",
+                limit=min(400, safe_limit + safe_offset + 100),
+            )
+            total = len(ranked)
+            return ranked[safe_offset : safe_offset + safe_limit], total
 
     except Exception as exc:
         logger.warning("get_product_price failed name=%r error=%s", product_name, exc)
-        return []
+        return [], 0
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +515,11 @@ async def get_active_offers(limit: int = 6) -> list[dict[str, Any]]:
                     p.name,
                     p.name_si,
                     p.price::float      AS price,
+                    p.stock_quantity,
                     p.brand,
                     c.name              AS category,
                     c.name_si           AS category_si,
+                    p.image_url,
                     COUNT(DISTINCT oi.order_id) AS order_count,
                     AVG(o.discount::float)      AS avg_discount
                 FROM core.products p
@@ -228,9 +548,11 @@ async def get_active_offers(limit: int = 6) -> list[dict[str, Any]]:
                     p.name,
                     p.name_si,
                     p.price::float    AS price,
+                    p.stock_quantity,
                     p.brand,
                     c.name            AS category,
                     c.name_si         AS category_si,
+                    p.image_url,
                     0                 AS order_count,
                     0.0               AS avg_discount
                 FROM core.products p
@@ -356,6 +678,7 @@ async def get_buying_suggestions(
                         p.brand,
                         c.name            AS category,
                         c.name_si         AS category_si,
+                        p.image_url,
                         'personalised'    AS recommendation_source
                     FROM core.products p
                     JOIN core.categories c ON c.id = p.category_id
@@ -386,6 +709,7 @@ async def get_buying_suggestions(
                         p.brand,
                         c.name            AS category,
                         c.name_si         AS category_si,
+                        p.image_url,
                         'category-match'  AS recommendation_source
                     FROM core.products p
                     JOIN core.categories c ON c.id = p.category_id
@@ -413,6 +737,7 @@ async def get_buying_suggestions(
                     p.brand,
                     c.name            AS category,
                     c.name_si         AS category_si,
+                    p.image_url,
                     'bestsellers'     AS recommendation_source
                 FROM core.products p
                 JOIN core.categories c ON c.id = p.category_id

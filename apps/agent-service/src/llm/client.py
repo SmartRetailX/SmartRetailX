@@ -20,8 +20,10 @@ You are a helpful Sinhala retail assistant for SmartRetailX.
 Rules you must follow every time:
 1. Always reply in **Sinhala script** (Unicode Sinhala). Mix English only for brand \
 names, SKUs, or technical terms where no Sinhala equivalent exists.
-2. Format replies as GitHub-flavoured Markdown. Use tables for product lists, \
-bullet lists for short enumerations, and bold for key figures (prices, totals).
+2. Format replies as GitHub-flavoured Markdown. For order history use tables. \
+For product lists (prices/search/offers/suggestions) follow [Deterministic Draft] \
+exactly — the frontend shows interactive cards, so no table is needed. \
+Use bullet lists for short enumerations and bold for key figures (prices, totals).
 3. **Never invent** prices, order numbers, stock levels, or promotions. \
    All factual data is supplied in the [DB Context] block below. \
    If that block shows no data, say so honestly in Sinhala and ask a clarifying question.
@@ -44,24 +46,28 @@ _INTENT_GUIDANCE: dict[str, str] = {
         "– the data is already in [DB Context]."
     ),
     "prices": (
-        "Show the price table from [DB Context]. "
-        "Add a short note about stock availability. "
-        "If multiple products matched, show all of them in the table."
+        "Copy the header and count line from [Deterministic Draft] exactly. "
+        "Do NOT add a table, bullet list, or individual product names — "
+        "the frontend renders interactive cards already. "
+        "Optionally append one short Sinhala sentence about stock availability."
     ),
     "product_search": (
-        "Present search results as a Markdown table. "
-        "Include name, category, price, and stock status. "
-        "If stock_quantity is 0, mark it clearly as out-of-stock."
+        "Copy the header and count line from [Deterministic Draft] exactly. "
+        "Do NOT add a table, bullet list, or individual product names — "
+        "the frontend renders interactive cards already. "
+        "Optionally append one short Sinhala sentence about search quality."
     ),
     "offers": (
-        "Present current offers/featured products. "
-        "Highlight any discount amounts if present. "
-        "Encourage the user to buy."
+        "Copy the header and count line from [Deterministic Draft] exactly. "
+        "Do NOT add a table, bullet list, or individual product names — "
+        "the frontend renders interactive cards already. "
+        "Optionally append one short encouraging Sinhala sentence."
     ),
     "buying_suggestions": (
-        "Present personalised or category-based suggestions. "
-        "Mention the recommendation source (personalised/category/bestsellers) "
-        "in one Sinhala sentence."
+        "Copy the header and count line from [Deterministic Draft] exactly. "
+        "Do NOT add a table, bullet list, or individual product names — "
+        "the frontend renders interactive cards already. "
+        "Optionally append one Sinhala sentence about the recommendation source."
     ),
     "general": (
         "Answer the general question helpfully. "
@@ -69,6 +75,15 @@ _INTENT_GUIDANCE: dict[str, str] = {
         "give a brief Sinhala explanation."
     ),
 }
+
+_SIMPLE_EXPLAIN_SYSTEM_PROMPT = """\
+You write exactly one short Sinhala sentence for retail users.
+Rules:
+1. Sinhala script only (keep brand/product terms as-is if needed).
+2. Keep it simple and natural (max 22 words).
+3. No Markdown, no bullets, no quotes, no extra lines.
+4. Mention why these results were shown, based on intent + query + result count.
+"""
 
 
 async def generate_sinhala_response(
@@ -145,6 +160,73 @@ async def generate_sinhala_response(
         return ""
 
 
+async def generate_simple_result_explanation(
+    *,
+    intent_name: str,
+    entities: dict[str, Any] | None,
+    result_count: int,
+    db_source: str,
+    language: str = "si-LK",
+) -> str:
+    entity_product = str((entities or {}).get("product") or "").strip()
+    entity_category = str((entities or {}).get("category") or "").strip()
+
+    fallback = _fallback_simple_explanation(
+        intent_name=intent_name,
+        product=entity_product,
+        category=entity_category,
+        result_count=result_count,
+    )
+
+    payload = {
+        "model": settings.openai_response_model,
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": _SIMPLE_EXPLAIN_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"language={language}\n"
+                    f"intent={intent_name}\n"
+                    f"product={entity_product or '-'}\n"
+                    f"category={entity_category or '-'}\n"
+                    f"result_count={result_count}\n"
+                    f"db_source={db_source}\n"
+                    "Write one short Sinhala sentence."
+                ),
+            },
+        ],
+    }
+
+    headers = {"Content-Type": "application/json"}
+    if settings.openai_api_key:
+        headers["Authorization"] = f"Bearer {settings.openai_api_key}"
+    else:
+        return fallback
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.openai_response_timeout_ms / 1000) as client:
+            response = await client.post(
+                f"{settings.openai_api_base_url.rstrip('/')}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        if not content:
+            return fallback
+        return " ".join(content.splitlines()).strip()
+    except httpx.HTTPError:
+        return fallback
+
+
 def _build_xai_block(explainability: dict[str, Any] | None) -> str:
     if not explainability:
         return ""
@@ -166,3 +248,19 @@ def _build_xai_block(explainability: dict[str, Any] | None) -> str:
         )
 
     return ("[XAI Features]\n" + "\n".join(lines)) if lines else ""
+
+
+def _fallback_simple_explanation(
+    *,
+    intent_name: str,
+    product: str,
+    category: str,
+    result_count: int,
+) -> str:
+    if product:
+        return f"ඔබ {product} ගැන ඇසූ නිසා ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."
+    if category:
+        return f"ඔබ ඉල්ලූ {category} category එකට ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."
+    if intent_name == "order_history":
+        return f"ඔබගේ ඇණවුම් ඉතිහාසය අනුව ඇණවුම් {result_count}ක් පෙන්වලා තියෙනවා."
+    return f"ඔබගේ ඉල්ලීමට ගැලපෙන ප්‍රතිඵල {result_count}ක් පෙන්වලා තියෙනවා."
