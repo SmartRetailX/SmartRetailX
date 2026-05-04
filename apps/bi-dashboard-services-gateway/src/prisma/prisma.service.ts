@@ -7,8 +7,15 @@ import { PrismaClient } from '../generated/prisma';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor(configService: ConfigService) {
+    const connectionString =
+      configService.databaseUrl?.trim() || process.env['DATABASE_URL']?.trim();
+
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is required for PrismaService');
+    }
+
     super({
-      adapter: new PrismaPg({ connectionString: configService.databaseUrl }),
+      adapter: new PrismaPg({ connectionString }),
       log: process.env['NODE_ENV'] === 'development' ? ['error', 'warn'] : ['error'],
     });
   }
