@@ -443,7 +443,7 @@ class CollaborativeFilteringModel:
         
         print(f"\n  NOTE: Grocery CF metrics are typically lower than movie/music domains")
         print(f"  because customers buy from a large variety pool, not repeat items.")
-        print(f"  The CF→ML pipeline compensates via purchase probability scoring.")
+        print(f"  The CF->ML pipeline compensates via purchase probability scoring.")
         
         return {
             'Precision@K': avg_precision,

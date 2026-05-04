@@ -1,9 +1,9 @@
 """
 Cart Recommendations API — frequently-bought-together products.
 
-Accepts a list of storefront product UUIDs (products.id) that are
+Accepts a list of storefront product UUIDs (core.products.id) that are
 currently in the user's cart, and returns co-purchase recommendations
-from pe_transactions data, mapped back to storefront product IDs so
+from core.transactions data, mapped back to storefront product IDs so
 the frontend can offer a direct "Add to Cart" action.
 """
 
@@ -26,10 +26,9 @@ async def get_cart_recs(body: CartRecommendationRequest):
     """
     Return frequently-bought-together products for the given cart contents.
 
-    Pass the storefront product UUIDs (products.id) of the items currently
-    in the cart. The service resolves them to pe_products IDs via
-    products.external_product_id, then runs a co-purchase market basket
-    query on pe_transactions to find what other customers also bought.
+    Pass the storefront product UUIDs (core.products.id) of the items currently
+    in the cart. The service runs a co-purchase market basket query on
+    core.transactions to find what other customers also bought.
 
     Returns storefront product IDs in the response so the client can
     call the normal "Add to Cart" endpoint directly.

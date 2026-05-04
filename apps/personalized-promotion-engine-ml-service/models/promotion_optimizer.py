@@ -33,10 +33,36 @@ class PromotionOptimizer:
         """Load necessary data"""
         self.customer_features = pd.read_csv(customer_features_path)
         transactions = pd.read_csv(transactions_path)
-        
+
+        # Normalize DB-aligned column names if needed
+        transactions = transactions.rename(columns={
+            "promotion_id": "PromotionID",
+            "transaction_date": "TransactionDate",
+            "customer_id": "CustomerID",
+            "total_amount": "TotalAmount",
+        })
+
         # Extract promotion history
-        self.promotion_history = transactions[transactions['PromotionID'] != 'None'].copy()
-        self.promotion_history['TransactionDate'] = pd.to_datetime(self.promotion_history['TransactionDate'])
+        if "PromotionID" not in transactions.columns:
+            transactions["PromotionID"] = "None"
+
+        self.promotion_history = transactions[transactions["PromotionID"] != "None"].copy()
+        if "TransactionDate" in self.promotion_history.columns:
+            self.promotion_history["TransactionDate"] = pd.to_datetime(
+                self.promotion_history["TransactionDate"], errors="coerce"
+            )
+
+        # Ensure expected customer feature columns exist
+        required_cols = {
+            "total_spent": 0,
+            "avg_transaction_value": 0,
+            "avg_discount_per_transaction": 0,
+            "promo_response_rate": 0,
+            "CustomerSegment": "regular_shoppers",
+        }
+        for col, default in required_cols.items():
+            if col not in self.customer_features.columns:
+                self.customer_features[col] = default
         
     def calculate_optimal_discount(self, customer_id, product_price, base_discount=15):
         """
@@ -54,9 +80,11 @@ class PromotionOptimizer:
         promo_response = customer['promo_response_rate']
         
         # Factor 2: Price sensitivity (based on average discount received)
-        if customer['avg_discount_per_transaction'] > 0:
-            typical_discount = (customer['avg_discount_per_transaction'] / 
-                               customer['avg_transaction_value']) * 100
+        if customer['avg_discount_per_transaction'] > 0 and customer['avg_transaction_value'] > 0:
+            typical_discount = (
+                customer['avg_discount_per_transaction'] /
+                customer['avg_transaction_value']
+            ) * 100
         else:
             typical_discount = base_discount
         
@@ -93,21 +121,27 @@ class PromotionOptimizer:
         Prevents promotion fatigue
         """
         if current_date is None:
-            current_date = datetime.now()
+            current_date = pd.Timestamp.now(tz="UTC")
+        
+        # Ensure current_date is a pandas Timestamp for comparison
+        current_date = pd.Timestamp(current_date)
         
         # Get customer segment
         customer = self.customer_features[self.customer_features['CustomerID'] == customer_id]
         if len(customer) == 0:
-            return False  # Unknown customer, allow promotion
+            return False, 0, 2  # Unknown customer, allow promotion
         
         segment = customer.iloc[0]['CustomerSegment']
         threshold = self.fatigue_thresholds.get(segment, 2)
         
         # Count promotions in last 30 days
-        one_month_ago = current_date - timedelta(days=30)
+        one_month_ago = current_date - pd.Timedelta(days=30)
+        
+        # Normalize TransactionDate to match current_date timezone
+        txn_dates = pd.to_datetime(self.promotion_history['TransactionDate'], utc=True)
         recent_promos = self.promotion_history[
             (self.promotion_history['CustomerID'] == customer_id) &
-            (self.promotion_history['TransactionDate'] >= one_month_ago)
+            (txn_dates >= one_month_ago)
         ]
         
         promo_count = len(recent_promos)
@@ -258,41 +292,3 @@ class PromotionOptimizer:
         print(f"  Average ROI: {campaign_summary['avg_roi']:.1f}%")
         
         return campaign, campaign_summary
-
-
-def main():
-    """Example usage"""
-    
-    print("=" * 70)
-    print(" PROMOTION OPTIMIZER - DEMO")
-    print("=" * 70)
-    
-    # Initialize optimizer
-    optimizer = PromotionOptimizer()
-    
-    # Load data
-    print("\nLoading data...")
-    customer_features_path = 'f:\\.1 Research\\Personalized Promotion Engine\\data\\processed\\customer_features.csv'
-    transactions_path = 'f:\\.1 Research\\Personalized Promotion Engine\\data\\raw\\Transactions.csv'
-    
-    optimizer.load_data(customer_features_path, transactions_path)
-    
-    # Example: Check optimal discount for a customer
-    sample_customer = optimizer.customer_features.iloc[0]['CustomerID']
-    optimal_discount = optimizer.calculate_optimal_discount(sample_customer, product_price=500)
-    
-    print(f"\nSample Analysis for Customer: {sample_customer}")
-    print(f"  Optimal Discount: {optimal_discount}%")
-    
-    # Check fatigue
-    is_fatigued, count, threshold = optimizer.check_promotion_fatigue(sample_customer)
-    print(f"  Promotion Fatigue: {'Yes' if is_fatigued else 'No'}")
-    print(f"  Recent Promotions: {count}/{threshold}")
-    
-    print("\n" + "=" * 70)
-    print(" PROMOTION OPTIMIZER READY")
-    print("=" * 70)
-
-
-if __name__ == "__main__":
-    main()

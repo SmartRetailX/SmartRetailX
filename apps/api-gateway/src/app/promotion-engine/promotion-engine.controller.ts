@@ -136,7 +136,7 @@ export class PromotionEngineController {
   // ── Customer promotion inbox ────────────────────────────────────────────
   // These endpoints are auth-protected (global guard). The authenticated
   // user's email is forwarded to the Python service which resolves the
-  // pe_customers.customer_id via email match — no user-table migration needed.
+  // customer via auth.user.email → auth.user.id (Prisma schema).
 
   /** Must come before /:id/read so NestJS doesn't treat 'read-all' as an id. */
   @Patch('my-promotions/read-all')

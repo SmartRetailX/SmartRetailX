@@ -3,7 +3,7 @@ Product Suggestions API — co-purchase / market basket recommendations.
 
 For a given authenticated customer (resolved via email), this endpoint
 computes "customers who bought what you bought also bought …" suggestions
-by joining pe_transactions, pe_customers, and pe_products entirely in SQL.
+by joining core.transactions, auth.user, and core.products entirely in SQL.
 No ML model inference is needed — the logic lives in the DB query.
 """
 
