@@ -216,7 +216,7 @@ function RouteComponent() {
     (productsQuery.error as Error)?.message || (adjustProductStock.error as Error)?.message;
 
   return (
-    <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
+    <PageContainer className="flex min-h-0 flex-col" noMaxHeight>
       <Dialog
         open={stockDialogOpen}
         onOpenChange={(open) => {

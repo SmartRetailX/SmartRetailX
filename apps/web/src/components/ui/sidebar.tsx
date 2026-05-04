@@ -79,7 +79,7 @@ function SidebarProvider({
             ...style,
           } as React.CSSProperties
         }
-        className={cn('group/sidebar-wrapper flex min-h-svh w-full bg-background', className)}
+        className={cn('group/sidebar-wrapper flex h-dvh min-h-0 w-full overflow-hidden bg-background', className)}
         {...props}
       >
         {children}
@@ -122,7 +122,7 @@ function Sidebar({
       data-state={state}
       data-collapsible={state === 'collapsed' ? collapsible : ''}
       className={cn(
-        'group/sidebar hidden h-svh shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex',
+        'group/sidebar hidden h-dvh shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex',
         state === 'collapsed' && collapsible === 'icon'
           ? 'w-[var(--sidebar-width-icon)]'
           : 'w-[var(--sidebar-width)]',
