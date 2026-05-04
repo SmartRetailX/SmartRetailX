@@ -1,49 +1,48 @@
+from __future__ import annotations
+
 from typing import Any
 
 import httpx
 
-from .config import (
-    SINLLAMA_API_KEY,
-    SINLLAMA_BASE_URL,
-    SINLLAMA_INTENT_PATH,
-    SINLLAMA_RETRY_COUNT,
-    SINLLAMA_TIMEOUT_MS,
-)
-from .logging_setup import logger
+from ..config import settings
+from ..logging import logger
+from ..models import IntentResult
 
 
-def _normalize_features(raw_features: Any) -> list[dict[str, Any]]:
-    if not isinstance(raw_features, list):
+def _normalize_features(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
         return []
-    normalized: list[dict[str, Any]] = []
-    for item in raw_features[:5]:
+    result: list[dict[str, Any]] = []
+    for item in raw[:5]:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or item.get("feature") or "").strip()
         if not name:
             continue
-        normalized.append(
-            {
-                "name": name,
-                "weight": item.get("weight"),
-                "evidence": item.get("evidence") or item.get("token"),
-            }
-        )
-    return normalized
+        result.append({
+            "name": name,
+            "weight": item.get("weight"),
+            "evidence": item.get("evidence") or item.get("token"),
+        })
+    return result
 
 
 async def detect_intent_with_sinllama(
-    text: str, language: str, session_id: str, user_id: str | None, allowed_intents: list[str] | None
-) -> dict[str, Any] | None:
-    if not SINLLAMA_BASE_URL:
+    text: str,
+    language: str,
+    session_id: str,
+    user_id: str | None,
+    allowed_intents: list[str] | None,
+) -> IntentResult | None:
+    if not settings.sinllama_base_url:
         return None
 
-    url = f"{SINLLAMA_BASE_URL.rstrip('/')}/{SINLLAMA_INTENT_PATH.lstrip('/')}"
+    url = f"{settings.sinllama_base_url.rstrip('/')}/{settings.sinllama_intent_path.lstrip('/')}"
     headers = {"Content-Type": "application/json"}
-    if SINLLAMA_API_KEY:
-        headers["Authorization"] = f"Bearer {SINLLAMA_API_KEY}"
+    if settings.sinllama_api_key:
+        headers["Authorization"] = f"Bearer {settings.sinllama_api_key}"
 
-    resolved_intents = [intent for intent in (allowed_intents or []) if intent]
+    resolved_intents = [i for i in (allowed_intents or []) if i]
     if "general" not in resolved_intents:
         resolved_intents.append("general")
 
@@ -54,8 +53,8 @@ async def detect_intent_with_sinllama(
         "userId": user_id,
         "allowedIntents": resolved_intents,
     }
-    timeout_seconds = max(1000, SINLLAMA_TIMEOUT_MS) / 1000
-    attempts = max(1, SINLLAMA_RETRY_COUNT + 1)
+    timeout_seconds = max(1000, settings.sinllama_timeout_ms) / 1000
+    attempts = max(1, settings.sinllama_retry_count + 1)
 
     for attempt in range(1, attempts + 1):
         try:
@@ -68,38 +67,39 @@ async def detect_intent_with_sinllama(
             if not intent:
                 raise ValueError("sinLlama response missing intent")
 
-            confidence = data.get("confidence", 0.0)
+            confidence = float(data.get("confidence") or 0.0)
             entities = data.get("entities")
             explanation = data.get("explanation") if isinstance(data.get("explanation"), dict) else {}
             rationale = str(explanation.get("rationale") or "").strip()
             features = _normalize_features(explanation.get("features"))
-            resolved_confidence = float(confidence) if confidence is not None else 0.0
+
             logger.info(
                 "sinLlama intent detected: session=%s userId=%s intent=%s confidence=%.3f",
                 session_id,
                 user_id or "unknown",
                 intent,
-                resolved_confidence,
+                confidence,
             )
 
-            return {
-                "intent": intent,
-                "confidence": resolved_confidence,
-                "entities": entities if isinstance(entities, dict) else {},
-                "explainability": {
+            return IntentResult(
+                intent=intent,
+                confidence=confidence,
+                entities=entities if isinstance(entities, dict) else {},
+                explainability={
                     "source": "sinllama",
-                    "confidence": resolved_confidence,
+                    "confidence": confidence,
                     "rationale": rationale or None,
                     "features": features,
                 },
-            }
-        except Exception as error:
+            )
+
+        except Exception as exc:
             logger.warning(
-                "sinLlama intent call failed attempt=%s/%s session=%s error=%s",
+                "sinLlama intent call failed attempt=%d/%d session=%s error=%s",
                 attempt,
                 attempts,
                 session_id,
-                error,
+                exc,
             )
             if attempt == attempts:
                 return None

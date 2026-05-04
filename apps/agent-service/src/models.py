@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel
 
-@dataclass
-class VoiceChatResult:
+
+class VoiceChatResult(BaseModel):
     success: bool
     transcription: str
     response: str
@@ -16,3 +16,10 @@ class VoiceChatResult:
     entities: dict[str, Any] | None = None
     explainability: dict[str, Any] | None = None
     error: str | None = None
+
+
+class IntentResult(BaseModel):
+    intent: str
+    confidence: float
+    entities: dict[str, Any]
+    explainability: dict[str, Any]
