@@ -16,7 +16,9 @@ import { Route as AuthenticatedUserRouteImport } from './routes/_authenticated/_
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/_admin'
 import { Route as AuthenticatedUserVoiceAssistantRouteImport } from './routes/_authenticated/_user/voice-assistant'
 import { Route as AuthenticatedUserUserLoyaltyRouteImport } from './routes/_authenticated/_user/user-loyalty'
+import { Route as AuthenticatedUserProductSuggestionsRouteImport } from './routes/_authenticated/_user/product-suggestions'
 import { Route as AuthenticatedUserOrdersRouteImport } from './routes/_authenticated/_user/orders'
+import { Route as AuthenticatedUserMyPromotionsRouteImport } from './routes/_authenticated/_user/my-promotions'
 import { Route as AuthenticatedUserCartRouteImport } from './routes/_authenticated/_user/cart'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedAdminAdminIndexRouteImport } from './routes/_authenticated/_admin/admin.index'
@@ -65,11 +67,23 @@ const AuthenticatedUserUserLoyaltyRoute =
     path: '/user-loyalty',
     getParentRoute: () => AuthenticatedUserRoute,
   } as any)
+const AuthenticatedUserProductSuggestionsRoute =
+  AuthenticatedUserProductSuggestionsRouteImport.update({
+    id: '/product-suggestions',
+    path: '/product-suggestions',
+    getParentRoute: () => AuthenticatedUserRoute,
+  } as any)
 const AuthenticatedUserOrdersRoute = AuthenticatedUserOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
   getParentRoute: () => AuthenticatedUserRoute,
 } as any)
+const AuthenticatedUserMyPromotionsRoute =
+  AuthenticatedUserMyPromotionsRouteImport.update({
+    id: '/my-promotions',
+    path: '/my-promotions',
+    getParentRoute: () => AuthenticatedUserRoute,
+  } as any)
 const AuthenticatedUserCartRoute = AuthenticatedUserCartRouteImport.update({
   id: '/cart',
   path: '/cart',
@@ -152,7 +166,9 @@ export interface FileRoutesByFullPath {
   '/$auth': typeof PublicAuthRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/cart': typeof AuthenticatedUserCartRoute
+  '/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
+  '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
@@ -171,7 +187,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$auth': typeof PublicAuthRoute
   '/cart': typeof AuthenticatedUserCartRoute
+  '/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
+  '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
@@ -195,7 +213,9 @@ export interface FileRoutesById {
   '/_public/$auth': typeof PublicAuthRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/_user/cart': typeof AuthenticatedUserCartRoute
+  '/_authenticated/_user/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
   '/_authenticated/_user/orders': typeof AuthenticatedUserOrdersRoute
+  '/_authenticated/_user/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/_authenticated/_user/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/_authenticated/_user/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
@@ -217,7 +237,9 @@ export interface FileRouteTypes {
     | '/$auth'
     | '/admin'
     | '/cart'
+    | '/my-promotions'
     | '/orders'
+    | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/categories'
@@ -236,7 +258,9 @@ export interface FileRouteTypes {
     | '/'
     | '/$auth'
     | '/cart'
+    | '/my-promotions'
     | '/orders'
+    | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/categories'
@@ -259,7 +283,9 @@ export interface FileRouteTypes {
     | '/_public/$auth'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_user/cart'
+    | '/_authenticated/_user/my-promotions'
     | '/_authenticated/_user/orders'
+    | '/_authenticated/_user/product-suggestions'
     | '/_authenticated/_user/user-loyalty'
     | '/_authenticated/_user/voice-assistant'
     | '/_authenticated/_admin/admin/categories'
@@ -332,11 +358,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUserUserLoyaltyRouteImport
       parentRoute: typeof AuthenticatedUserRoute
     }
+    '/_authenticated/_user/product-suggestions': {
+      id: '/_authenticated/_user/product-suggestions'
+      path: '/product-suggestions'
+      fullPath: '/product-suggestions'
+      preLoaderRoute: typeof AuthenticatedUserProductSuggestionsRouteImport
+      parentRoute: typeof AuthenticatedUserRoute
+    }
     '/_authenticated/_user/orders': {
       id: '/_authenticated/_user/orders'
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof AuthenticatedUserOrdersRouteImport
+      parentRoute: typeof AuthenticatedUserRoute
+    }
+    '/_authenticated/_user/my-promotions': {
+      id: '/_authenticated/_user/my-promotions'
+      path: '/my-promotions'
+      fullPath: '/my-promotions'
+      preLoaderRoute: typeof AuthenticatedUserMyPromotionsRouteImport
       parentRoute: typeof AuthenticatedUserRoute
     }
     '/_authenticated/_user/cart': {
@@ -482,7 +522,9 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedUserRouteChildren {
   AuthenticatedUserCartRoute: typeof AuthenticatedUserCartRoute
+  AuthenticatedUserMyPromotionsRoute: typeof AuthenticatedUserMyPromotionsRoute
   AuthenticatedUserOrdersRoute: typeof AuthenticatedUserOrdersRoute
+  AuthenticatedUserProductSuggestionsRoute: typeof AuthenticatedUserProductSuggestionsRoute
   AuthenticatedUserUserLoyaltyRoute: typeof AuthenticatedUserUserLoyaltyRoute
   AuthenticatedUserVoiceAssistantRoute: typeof AuthenticatedUserVoiceAssistantRoute
   AuthenticatedUserProductsProductIdRoute: typeof AuthenticatedUserProductsProductIdRoute
@@ -490,7 +532,10 @@ interface AuthenticatedUserRouteChildren {
 
 const AuthenticatedUserRouteChildren: AuthenticatedUserRouteChildren = {
   AuthenticatedUserCartRoute: AuthenticatedUserCartRoute,
+  AuthenticatedUserMyPromotionsRoute: AuthenticatedUserMyPromotionsRoute,
   AuthenticatedUserOrdersRoute: AuthenticatedUserOrdersRoute,
+  AuthenticatedUserProductSuggestionsRoute:
+    AuthenticatedUserProductSuggestionsRoute,
   AuthenticatedUserUserLoyaltyRoute: AuthenticatedUserUserLoyaltyRoute,
   AuthenticatedUserVoiceAssistantRoute: AuthenticatedUserVoiceAssistantRoute,
   AuthenticatedUserProductsProductIdRoute:

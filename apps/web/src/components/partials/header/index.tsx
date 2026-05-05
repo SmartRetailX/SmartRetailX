@@ -9,6 +9,8 @@ import {
   Search,
   ShieldCheck,
   ShoppingCart,
+  Sparkles,
+  Tag,
   UserIcon,
 } from 'lucide-react';
 
@@ -97,6 +99,34 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
               </Link>
             )}
 
+            {user?.role === USER_ROLE.USER && (
+              <Link to="/product-suggestions">
+                <Button
+                  variant="ghost"
+                  className="h-10 w-10 rounded-full p-0 hover:bg-green-50 hover:text-primary sm:h-12 sm:w-auto sm:px-4"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  <span className="hidden sm:ml-2 sm:inline font-medium text-gray-700">
+                    For You
+                  </span>
+                </Button>
+              </Link>
+            )}
+
+            {user?.role === USER_ROLE.USER && (
+              <Link to="/my-promotions">
+                <Button
+                  variant="ghost"
+                  className="h-10 w-10 rounded-full p-0 hover:bg-green-50 hover:text-primary sm:h-12 sm:w-auto sm:px-4"
+                >
+                  <Tag className="h-5 w-5" />
+                  <span className="hidden sm:ml-2 sm:inline font-medium text-gray-700">
+                    Promotions
+                  </span>
+                </Button>
+              </Link>
+            )}
+
             <Link to="/cart">
               <Button
                 variant="ghost"
@@ -143,6 +173,28 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
                         My Orders
                       </Link>
                     </DropdownMenuItem>
+                    {user?.role === USER_ROLE.USER && (
+                      <>
+                        <DropdownMenuItem className="p-3 text-base cursor-pointer rounded-lg">
+                          <Link
+                            to="/product-suggestions"
+                            className="flex w-full items-center gap-2 text-gray-700"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            Product Suggestions
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="p-3 text-base cursor-pointer rounded-lg">
+                          <Link
+                            to="/my-promotions"
+                            className="flex w-full items-center gap-2 text-gray-700"
+                          >
+                            <Tag className="h-4 w-4" />
+                            My Promotions
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
                     {user?.role === 'admin' && (
                       <DropdownMenuItem className="p-3 text-base cursor-pointer rounded-lg">
                         <Link to="/admin" className="flex w-full items-center gap-2 text-gray-700">
