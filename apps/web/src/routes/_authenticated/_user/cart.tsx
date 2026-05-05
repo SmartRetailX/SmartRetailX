@@ -1,7 +1,15 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useMemo, useState } from 'react';
 import { useCartQuery, useCartRecommendations, useStoreMutations } from '@/hooks';
 import { createFileRoute } from '@tanstack/react-router';
-import { AlertCircle, Minus, Plus, ShoppingCart, Sparkles, Tag, Trash2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Minus,
+  Plus,
+  ShoppingCart,
+  Sparkles,
+  Tag,
+  Trash2,
+} from 'lucide-react';
 
 import { PageContainer } from '@/components/partials/container/page-container';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -9,11 +17,27 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { useActivePromotions, type ActivePromotion } from '@/hooks';
 import { formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_authenticated/_user/cart')({
   component: RouteComponent,
 });
+
+// ── Promotion type short labels ───────────────────────────────────────────────
+
+const PROMO_LABELS: Record<string, string> = {
+  seasonal_offer:  '🌿 Seasonal',
+  awrudu_offer:    '🎉 Awrudu',
+  christmas_offer: '🎄 Christmas',
+  new_year_offer:  '🎆 New Year',
+  flash_sale:      '⚡ Flash Sale',
+  clearance:       '🏷️ Clearance',
+  bundle_deal:     '📦 Bundle',
+  loyalty_reward:  '⭐ Loyalty',
+};
+
+// ── Cart recommendations (existing) ──────────────────────────────────────────
 
 function CartRecommendationsSection({ productIds }: { productIds: string[] }) {
   const { addToCart } = useStoreMutations();
@@ -98,9 +122,13 @@ function CartRecommendationsSection({ productIds }: { productIds: string[] }) {
   );
 }
 
+// ── Main cart page ────────────────────────────────────────────────────────────
+
 function RouteComponent() {
   const cartQuery = useCartQuery();
   const { updateCartItem, removeFromCart, clearCart, checkout } = useStoreMutations();
+  const { data: promotionsData } = useActivePromotions();
+
   const [shipping, setShipping] = useState({
     street: '',
     city: '',
@@ -112,11 +140,36 @@ function RouteComponent() {
 
   const cart = cartQuery.data?.data;
 
+  // Build productId → promotion map from active store-wide promotions
+  const promotionMap = useMemo<Map<string, ActivePromotion>>(() => {
+    const map = new Map<string, ActivePromotion>();
+    for (const promo of promotionsData?.data?.promotions ?? []) {
+      map.set(promo.productId, promo);
+    }
+    return map;
+  }, [promotionsData]);
+
   const handleAddressChange =
     (field: keyof typeof shipping) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setShipping((current) => ({ ...current, [field]: event.target.value }));
     };
+
+  // Compute totals with promotions applied
+  const totals = useMemo(() => {
+    if (!cart) return { original: 0, savings: 0, discounted: 0 };
+    let original = 0;
+    let savings = 0;
+    for (const item of cart.items) {
+      const promo = promotionMap.get(item.productId);
+      const lineOriginal = item.unitPrice * item.quantity;
+      original += lineOriginal;
+      if (promo) {
+        savings += lineOriginal * (promo.discountPercentage / 100);
+      }
+    }
+    return { original, savings, discounted: original - savings };
+  }, [cart, promotionMap]);
 
   const canCheckout =
     !!cart &&
@@ -170,70 +223,119 @@ function RouteComponent() {
         ) : (
           <div className="space-y-6">
             <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+              {/* ── Cart items ── */}
               <div className="space-y-4">
-                {cart.items.map((item) => (
-                  <Card key={item.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <CardTitle>{item.productName}</CardTitle>
-                          <p className="mt-1 text-sm text-muted-foreground">{item.sku}</p>
+                {cart.items.map((item) => {
+                  const promo = promotionMap.get(item.productId);
+                  const discountedUnit = promo
+                    ? item.unitPrice * (1 - promo.discountPercentage / 100)
+                    : null;
+                  const discountedTotal = discountedUnit !== null
+                    ? discountedUnit * item.quantity
+                    : null;
+
+                  return (
+                    <Card key={item.id} className={promo ? 'border-orange-200 dark:border-orange-900/50' : ''}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <CardTitle>{item.productName}</CardTitle>
+                            <p className="text-sm text-muted-foreground">{item.sku}</p>
+                            {/* Promotion badge */}
+                            {promo && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">
+                                <Tag className="h-3 w-3" />
+                                {promo.discountPercentage}% off ·{' '}
+                                {PROMO_LABELS[promo.promotionType] ?? promo.promotionType}
+                              </span>
+                            )}
+                          </div>
+                          <Button variant="ghost" onClick={() => removeFromCart.mutate(item.productId)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button variant="ghost" onClick={() => removeFromCart.mutate(item.productId)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        Unit price ${item.unitPrice.toFixed(2)}. Available stock {item.currentStock}.
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            updateCartItem.mutate({
-                              productId: item.productId,
-                              quantity: item.quantity - 1,
-                            })
-                          }
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <Input
-                          value={item.quantity}
-                          onChange={(event) =>
-                            updateCartItem.mutate({
-                              productId: item.productId,
-                              quantity: Number(event.target.value || 0),
-                            })
-                          }
-                          type="number"
-                          min={0}
-                          max={item.currentStock}
-                          className="w-20 text-center"
-                        />
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            updateCartItem.mutate({
-                              productId: item.productId,
-                              quantity: item.quantity + 1,
-                            })
-                          }
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-between">
-                      <span className="text-sm text-muted-foreground">{item.quantity} units</span>
-                      <span className="text-lg font-semibold">${item.totalPrice.toFixed(2)}</span>
-                    </CardFooter>
-                  </Card>
-                ))}
+                      </CardHeader>
+
+                      <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        {/* Unit price */}
+                        <div className="text-sm text-muted-foreground">
+                          {discountedUnit !== null ? (
+                            <span className="flex items-baseline gap-2">
+                              <span className="text-base font-semibold text-orange-600 dark:text-orange-400">
+                                {formatCurrency(discountedUnit)}
+                              </span>
+                              <span className="line-through">
+                                {formatCurrency(item.unitPrice)}
+                              </span>
+                              <span>/ unit · stock {item.currentStock}</span>
+                            </span>
+                          ) : (
+                            <span>
+                              Unit price {formatCurrency(item.unitPrice)} · stock{' '}
+                              {item.currentStock}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Quantity controls */}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              updateCartItem.mutate({
+                                productId: item.productId,
+                                quantity: item.quantity - 1,
+                              })
+                            }
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateCartItem.mutate({
+                                productId: item.productId,
+                                quantity: Number(event.target.value || 0),
+                              })
+                            }
+                            type="number"
+                            min={0}
+                            max={item.currentStock}
+                            className="w-20 text-center"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              updateCartItem.mutate({
+                                productId: item.productId,
+                                quantity: item.quantity + 1,
+                              })
+                            }
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+
+                      <CardFooter className="justify-between">
+                        <span className="text-sm text-muted-foreground">{item.quantity} units</span>
+                        <div className="flex items-baseline gap-2">
+                          {discountedTotal !== null && (
+                            <span className="text-sm text-muted-foreground line-through">
+                              {formatCurrency(item.totalPrice)}
+                            </span>
+                          )}
+                          <span className={`text-lg font-semibold ${discountedTotal !== null ? 'text-orange-600 dark:text-orange-400' : ''}`}>
+                            {formatCurrency(discountedTotal ?? item.totalPrice)}
+                          </span>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  );
+                })}
               </div>
 
+              {/* ── Checkout panel ── */}
               <div className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -277,10 +379,34 @@ function RouteComponent() {
                       <span className="text-muted-foreground">Items</span>
                       <span>{cart.itemCount}</span>
                     </div>
+
+                    {/* Show savings row only when promotions apply */}
+                    {totals.savings > 0 && (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="line-through text-muted-foreground">
+                            {formatCurrency(totals.original)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm font-medium text-orange-600 dark:text-orange-400">
+                          <span className="flex items-center gap-1">
+                            <Tag className="h-3.5 w-3.5" />
+                            Promotion savings
+                          </span>
+                          <span>− {formatCurrency(totals.savings)}</span>
+                        </div>
+                        <hr className="border-border" />
+                      </>
+                    )}
+
                     <div className="flex items-center justify-between text-lg font-semibold">
                       <span>Total</span>
-                      <span>${cart.subtotal.toFixed(2)}</span>
+                      <span className={totals.savings > 0 ? 'text-orange-600 dark:text-orange-400' : ''}>
+                        {formatCurrency(totals.savings > 0 ? totals.discounted : totals.original)}
+                      </span>
                     </div>
+
                     <Button
                       disabled={!canCheckout || checkout.isPending}
                       onClick={() =>
