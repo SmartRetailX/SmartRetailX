@@ -522,11 +522,12 @@ def get_cart_recommendations(product_ids: list, limit: int = 10) -> dict:
         GROUP BY t.product_id
     )
     SELECT
-        p.id::text             AS product_id,
+        p.id::text             AS storefront_product_id,
         p.name                 AS product_name,
         cat.name               AS category,
         COALESCE(p.brand, '')  AS brand,
         CAST(p.price AS FLOAT) AS price,
+        p.image_url            AS image_url,
         c.co_buyer_count,
         ROUND(
             CAST(c.co_buyer_count AS NUMERIC)

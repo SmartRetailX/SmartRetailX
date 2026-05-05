@@ -94,6 +94,7 @@ export interface CartRecommendation {
   category: string;
   brand: string;
   price: number;
+  image_url: string | null;
   co_buyer_count: number;
   confidence_score: number;
   because_cart_items: string[];
