@@ -706,23 +706,23 @@ export function RouteComponent() {
           explanation={
             restockExplanation
               ? {
-                  summary: restockExplanation.explanation?.en,
-                  features: restockExplanation.features?.map((f) => ({
-                    name: f.name,
-                    nameSi: f.nameSi,
-                    description: f.description,
-                    descriptionSi: f.descriptionSi,
-                    direction:
-                      f.direction === 'increase' || f.direction === 'decrease' ? f.direction : undefined,
-                    value: f.value,
-                    contribution:
-                      typeof f.contribution === 'number' ? f.contribution : undefined,
-                    contributionLabel: f.contributionLabel,
-                    impact: typeof f.impact === 'number' ? f.impact : undefined,
-                    importance: typeof f.importance === 'number' ? f.importance : undefined,
-                  })),
-                  metrics: restockExplanation.metrics,
-                }
+                summary: restockExplanation.explanation?.en,
+                features: restockExplanation.features?.map((f) => ({
+                  name: f.name,
+                  nameSi: f.nameSi,
+                  description: f.description,
+                  descriptionSi: f.descriptionSi,
+                  direction:
+                    f.direction === 'increase' || f.direction === 'decrease' ? f.direction : undefined,
+                  value: f.value,
+                  contribution:
+                    typeof f.contribution === 'number' ? f.contribution : undefined,
+                  contributionLabel: f.contributionLabel,
+                  impact: typeof f.impact === 'number' ? f.impact : undefined,
+                  importance: typeof f.importance === 'number' ? f.importance : undefined,
+                })),
+                metrics: restockExplanation.metrics,
+              }
               : null
           }
           onExport={handleExportRestockExplanation}
