@@ -1,26 +1,40 @@
-import { config } from 'dotenv';
 import { resolve } from 'path';
+import { loadEnvFile } from 'node:process';
+import { existsSync } from 'node:fs';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-config({ path: resolve(__dirname, '../../../.env') });
+// Load .env from project root
+const envPath = resolve(__dirname, '../../../.env');
+if (existsSync(envPath)) {
+  loadEnvFile(envPath);
+}
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma';
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error(
+    'DATABASE_URL is not set. Export it in your shell or create a workspace .env file before running prisma:bi-dashboard:clean.'
+  );
+}
+
+const adapter = new PrismaPg({ connectionString: databaseUrl });
+const prisma = new PrismaClient({ adapter });
 
 /**
- * Truncate/Clean all database tables
- * Run: npm run prisma:clean
+ * Truncate/Clean all database tables for BI Dashboard
+ * Run: pnpm prisma:bi-dashboard:clean
  * 
- * WARNING: This will delete ALL data from the database!
+ * WARNING: This will delete ALL BI Dashboard data from the database!
  * Use with caution in development environments only.
  */
 async function main() {
-  console.log('⚠️  WARNING: This will DELETE ALL DATA from the database!');
+  console.log('⚠️  WARNING: This will DELETE ALL BI Dashboard data from the database!');
   console.log('Starting database cleanup in 3 seconds...\n');
   
   await new Promise(resolve => setTimeout(resolve, 3000));
 
-  console.log('🧹 Starting database cleanup...\n');
+  console.log('🧹 Starting BI Dashboard database cleanup...\n');
 
   try {
     // Delete in correct order to respect foreign key constraints
@@ -74,10 +88,10 @@ async function main() {
     console.log(`   ✅ Deleted ${products.count} products`);
 
     console.log('\n' + '='.repeat(60));
-    console.log('✅ Database cleanup completed successfully!');
-    console.log('⚠️  Note: Better Auth tables (user, session, account, verification) are NOT cleaned');
+    console.log('✅ BI Dashboard database cleanup completed successfully!');
+    console.log('⚠️  Note: Core schema tables (user, session, account, verification) are NOT affected');
     console.log('='.repeat(60));
-    console.log('\n📊 Total records deleted:');
+    console.log('\n📊 Total BI Dashboard records deleted:');
     console.log(`   Products: ${products.count}`);
     console.log(`   Customers: ${customers.count}`);
     console.log(`   Sales: ${sales.count}`);
@@ -97,8 +111,8 @@ async function main() {
                   promotions.count + promotionProducts.count + auditLogs.count + 
                   notifications.count;
     
-    console.log(`\n   TOTAL: ${total} records deleted`);
-    console.log('\n💡 To add fresh data, run: npm run prisma:seed');
+    console.log(`\n   TOTAL: ${total} BI Dashboard records deleted`);
+    console.log('\n💡 To add fresh data, run: pnpm prisma:bi-dashboard:seed');
     console.log('='.repeat(60) + '\n');
 
   } catch (error) {

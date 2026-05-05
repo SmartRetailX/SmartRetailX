@@ -66,7 +66,7 @@ export class PromotionsController {
               startDate: '2025-12-01',
               endDate: '2025-12-31',
               status: 'ACTIVE',
-              applicableProducts: ['PROD001', 'PROD002'],
+              applicableProducts: ['550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001'],
               minPurchaseAmount: 5000.0,
               usageCount: 125,
               totalRevenue: 450000.0,

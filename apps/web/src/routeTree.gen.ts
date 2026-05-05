@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BiDashboardMlExplainRouteImport } from './routes/bi-dashboard/ml-explain'
 import { Route as PublicAuthRouteImport } from './routes/_public/$auth'
 import { Route as AuthenticatedUserRouteImport } from './routes/_authenticated/_user'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/_admin'
@@ -30,9 +31,11 @@ import { Route as AuthenticatedAdminAdminPromotionsRouteImport } from './routes/
 import { Route as AuthenticatedAdminAdminProductsRouteImport } from './routes/_authenticated/_admin/admin.products'
 import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_authenticated/_admin/admin.orders'
 import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'
+import { Route as AuthenticatedAdminAdminForecastingRouteImport } from './routes/_authenticated/_admin/admin.forecasting'
 import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
 import { Route as AuthenticatedAdminAdminBulkPromotionsRouteImport } from './routes/_authenticated/_admin/admin.bulk-promotions'
+import { Route as AuthenticatedAdminAdminBiDashboardRouteImport } from './routes/_authenticated/_admin/admin.bi-dashboard'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -41,6 +44,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BiDashboardMlExplainRoute = BiDashboardMlExplainRouteImport.update({
+  id: '/bi-dashboard/ml-explain',
+  path: '/bi-dashboard/ml-explain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublicAuthRoute = PublicAuthRouteImport.update({
@@ -149,6 +157,12 @@ const AuthenticatedAdminAdminLoyaltyRoute =
     path: '/loyalty',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminForecastingRoute =
+  AuthenticatedAdminAdminForecastingRouteImport.update({
+    id: '/forecasting',
+    path: '/forecasting',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 const AuthenticatedAdminAdminCustomersRoute =
   AuthenticatedAdminAdminCustomersRouteImport.update({
     id: '/customers',
@@ -167,10 +181,17 @@ const AuthenticatedAdminAdminBulkPromotionsRoute =
     path: '/bulk-promotions',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminBiDashboardRoute =
+  AuthenticatedAdminAdminBiDashboardRouteImport.update({
+    id: '/bi-dashboard',
+    path: '/bi-dashboard',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/cart': typeof AuthenticatedUserCartRoute
   '/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
@@ -178,9 +199,11 @@ export interface FileRoutesByFullPath {
   '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -194,15 +217,18 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/cart': typeof AuthenticatedUserCartRoute
   '/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
   '/orders': typeof AuthenticatedUserOrdersRoute
   '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -220,6 +246,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/_user': typeof AuthenticatedUserRouteWithChildren
   '/_public/$auth': typeof PublicAuthRoute
+  '/bi-dashboard/ml-explain': typeof BiDashboardMlExplainRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
   '/_authenticated/_user/cart': typeof AuthenticatedUserCartRoute
   '/_authenticated/_user/my-promotions': typeof AuthenticatedUserMyPromotionsRoute
@@ -227,9 +254,11 @@ export interface FileRoutesById {
   '/_authenticated/_user/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/_authenticated/_user/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/_authenticated/_user/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/_authenticated/_admin/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
   '/_authenticated/_admin/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/_authenticated/_admin/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
+  '/_authenticated/_admin/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
   '/_authenticated/_admin/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
   '/_authenticated/_admin/admin/orders': typeof AuthenticatedAdminAdminOrdersRoute
   '/_authenticated/_admin/admin/products': typeof AuthenticatedAdminAdminProductsRoute
@@ -245,6 +274,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/admin'
     | '/cart'
     | '/my-promotions'
@@ -252,9 +282,11 @@ export interface FileRouteTypes {
     | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
+    | '/admin/bi-dashboard'
     | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
+    | '/admin/forecasting'
     | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
@@ -268,15 +300,18 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/cart'
     | '/my-promotions'
     | '/orders'
     | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
+    | '/admin/bi-dashboard'
     | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
+    | '/admin/forecasting'
     | '/admin/loyalty'
     | '/admin/orders'
     | '/admin/products'
@@ -293,6 +328,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin'
     | '/_authenticated/_user'
     | '/_public/$auth'
+    | '/bi-dashboard/ml-explain'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_user/cart'
     | '/_authenticated/_user/my-promotions'
@@ -300,9 +336,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_user/product-suggestions'
     | '/_authenticated/_user/user-loyalty'
     | '/_authenticated/_user/voice-assistant'
+    | '/_authenticated/_admin/admin/bi-dashboard'
     | '/_authenticated/_admin/admin/bulk-promotions'
     | '/_authenticated/_admin/admin/categories'
     | '/_authenticated/_admin/admin/customers'
+    | '/_authenticated/_admin/admin/forecasting'
     | '/_authenticated/_admin/admin/loyalty'
     | '/_authenticated/_admin/admin/orders'
     | '/_authenticated/_admin/admin/products'
@@ -318,6 +356,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   PublicAuthRoute: typeof PublicAuthRoute
+  BiDashboardMlExplainRoute: typeof BiDashboardMlExplainRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -334,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bi-dashboard/ml-explain': {
+      id: '/bi-dashboard/ml-explain'
+      path: '/bi-dashboard/ml-explain'
+      fullPath: '/bi-dashboard/ml-explain'
+      preLoaderRoute: typeof BiDashboardMlExplainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_public/$auth': {
@@ -469,6 +515,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminLoyaltyRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/forecasting': {
+      id: '/_authenticated/_admin/admin/forecasting'
+      path: '/forecasting'
+      fullPath: '/admin/forecasting'
+      preLoaderRoute: typeof AuthenticatedAdminAdminForecastingRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
     '/_authenticated/_admin/admin/customers': {
       id: '/_authenticated/_admin/admin/customers'
       path: '/customers'
@@ -490,13 +543,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminBulkPromotionsRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/bi-dashboard': {
+      id: '/_authenticated/_admin/admin/bi-dashboard'
+      path: '/bi-dashboard'
+      fullPath: '/admin/bi-dashboard'
+      preLoaderRoute: typeof AuthenticatedAdminAdminBiDashboardRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
   }
 }
 
 interface AuthenticatedAdminAdminRouteChildren {
+  AuthenticatedAdminAdminBiDashboardRoute: typeof AuthenticatedAdminAdminBiDashboardRoute
   AuthenticatedAdminAdminBulkPromotionsRoute: typeof AuthenticatedAdminAdminBulkPromotionsRoute
   AuthenticatedAdminAdminCategoriesRoute: typeof AuthenticatedAdminAdminCategoriesRoute
   AuthenticatedAdminAdminCustomersRoute: typeof AuthenticatedAdminAdminCustomersRoute
+  AuthenticatedAdminAdminForecastingRoute: typeof AuthenticatedAdminAdminForecastingRoute
   AuthenticatedAdminAdminLoyaltyRoute: typeof AuthenticatedAdminAdminLoyaltyRoute
   AuthenticatedAdminAdminOrdersRoute: typeof AuthenticatedAdminAdminOrdersRoute
   AuthenticatedAdminAdminProductsRoute: typeof AuthenticatedAdminAdminProductsRoute
@@ -509,12 +571,16 @@ interface AuthenticatedAdminAdminRouteChildren {
 
 const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren =
   {
+    AuthenticatedAdminAdminBiDashboardRoute:
+      AuthenticatedAdminAdminBiDashboardRoute,
     AuthenticatedAdminAdminBulkPromotionsRoute:
       AuthenticatedAdminAdminBulkPromotionsRoute,
     AuthenticatedAdminAdminCategoriesRoute:
       AuthenticatedAdminAdminCategoriesRoute,
     AuthenticatedAdminAdminCustomersRoute:
       AuthenticatedAdminAdminCustomersRoute,
+    AuthenticatedAdminAdminForecastingRoute:
+      AuthenticatedAdminAdminForecastingRoute,
     AuthenticatedAdminAdminLoyaltyRoute: AuthenticatedAdminAdminLoyaltyRoute,
     AuthenticatedAdminAdminOrdersRoute: AuthenticatedAdminAdminOrdersRoute,
     AuthenticatedAdminAdminProductsRoute: AuthenticatedAdminAdminProductsRoute,
@@ -586,6 +652,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   PublicAuthRoute: PublicAuthRoute,
+  BiDashboardMlExplainRoute: BiDashboardMlExplainRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

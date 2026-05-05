@@ -15,6 +15,16 @@ const commands = [
     command: 'pnpm',
     args: ['run', 'prisma:push'],
   },
+  {
+    label: 'Generate BI Dashboard Prisma client',
+    command: 'pnpm',
+    args: ['run', 'prisma:bi-dashboard:generate'],
+  },
+  {
+    label: 'Create or update BI Dashboard schema',
+    command: 'pnpm',
+    args: ['run', 'prisma:bi-dashboard:push'],
+  },
 ];
 
 const isDryRun = process.argv.includes('--dry-run');

@@ -38,10 +38,10 @@ export class InventoryController {
           },
           items: [
             {
-              productId: 'PROD001',
-              productName: 'Basmati Rice 5kg',
-              currentStock: 50,
-              reorderLevel: 20,
+              productId: '550e8400-e29b-41d4-a716-446655440000',
+              productName: 'Ambarella',
+              currentStock: 100,
+              reorderLevel: 50,
               status: 'in_stock',
               daysUntilStockout: 12,
               lastRestocked: '2025-11-25T10:00:00Z',
@@ -65,10 +65,10 @@ export class InventoryController {
   @ApiBody({
     schema: {
       example: {
-        productId: 'PROD001',
+        productId: '550e8400-e29b-41d4-a716-446655440000',
         quantity: 100,
-        cost: 4091.0,
-        supplier: 'ABC Distributors',
+        cost: 42000.0,
+        supplier: 'Local Suppliers Ltd',
         invoiceNumber: 'INV-2025-12-001',
       },
     },
@@ -81,8 +81,8 @@ export class InventoryController {
         success: true,
         data: {
           restockId: 'rst_1733318400000',
-          productId: 'PROD001',
-          newStock: 150,
+          productId: '550e8400-e29b-41d4-a716-446655440000',
+          newStock: 200,
           timestamp: '2025-12-04T10:00:00Z',
         },
       },

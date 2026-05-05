@@ -14,36 +14,48 @@ datasource db {
 
 
 // ==================== PRODUCTS ====================
+// Aligned with core products schema for easy data sync
 model Product {
-  id            String    @id @default(uuid())
-  sku           String    @unique
-  barcode       String?   @unique
-  name          String
-  nameSi        String?   @map("name_si")
-  category      String
-  categorySi    String?   @map("category_si")
-  price         Float
-  cost          Float
-  currentStock  Int       @map("current_stock")
-  reorderLevel  Int       @map("reorder_level")
-  maxStock      Int       @map("max_stock")
-  status        StockStatus @default(IN_STOCK)
-  supplier      String?
-  lastRestocked DateTime? @map("last_restocked")
-  expiryDate    DateTime? @map("expiry_date")
-  imageUrl      String?   @map("image_url")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  // === Core Fields (synced from core.products) ===
+  id                String    @id @default(uuid())
+  sku               String    @unique
+  name              String
+  nameSi            String?   @map("name_si")
+  description       String?
+  descriptionSi     String?   @map("description_si")
+  categoryId        String?   @map("category_id")  // Reference to core category, not enforced
+  price             Float
+  brand             String?
+  purchaseFrequency String?   @map("purchase_frequency") // e.g., "high", "medium", "low"
+  imageUrl          String?   @map("image_url")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdBy         String?   @map("created_by")
+  
+  // === BI-Specific Fields ===
+  cost              Float?    // Procurement cost for margin analysis
+  currentStock      Int       @default(0) @map("current_stock")
+  reorderLevel      Int       @default(0) @map("reorder_level")
+  maxStock          Int       @default(0) @map("max_stock")
+  status            StockStatus @default(IN_STOCK)
+  supplier          String?
+  lastRestocked     DateTime? @map("last_restocked")
+    competitorPricing Float?    @map("competitor_pricing")  // Market competitive price
+  
+  // Timestamps
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
   
   // Relations
-  sales         SaleItem[]
-  inventory     InventoryMovement[]
-  promotions    PromotionProduct[]
-  forecasts     Forecast[]
-  alerts        Alert[]
+  sales             SaleItem[]
+  inventory         InventoryMovement[]
+  promotions        PromotionProduct[]
+  forecasts         Forecast[]
+  alerts            Alert[]
   
-  @@index([category])
+  @@index([sku])
+  @@index([categoryId])
   @@index([status])
+  @@index([isActive])
   @@map("products")
   @@schema("bi_dashboard")
 }

@@ -2,6 +2,8 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Bell,
   Boxes,
+  BarChart3,
+  BrainCircuit,
   FolderTree,
   Gift,
   Layers,
@@ -12,6 +14,7 @@ import {
   ShoppingBag,
   Store,
   Target,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 
@@ -61,6 +64,18 @@ const adminNavItems = [
     path: '/admin/orders',
     href: '/admin/orders?page=1&limit=10',
     icon: ShoppingBag,
+  },
+  {
+    label: 'BI Dashboard',
+    path: '/admin/bi-dashboard',
+    href: '/admin/bi-dashboard',
+    icon: BarChart3,
+  },
+  {
+    label: 'Forecasting',
+    path: '/admin/forecasting',
+    href: '/admin/forecasting',
+    icon: TrendingUp,
   },
   {
     label: 'Static Segmentation',
