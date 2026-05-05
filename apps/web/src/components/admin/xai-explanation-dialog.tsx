@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { exportToJSON } from '@/lib/export-utils';
 
 export interface XAIExplanationDialogProps {
     open: boolean;
@@ -39,6 +40,7 @@ export interface XAIExplanationDialogProps {
             [key: string]: string | number;
         };
     } | null;
+    onExport?: () => void;
 }
 
 export function XAIExplanationDialog({
@@ -48,6 +50,7 @@ export function XAIExplanationDialog({
     description = 'Understanding how the AI model makes predictions',
     isLoading = false,
     error = null,
+    onExport,
     explanation = null,
 }: XAIExplanationDialogProps) {
     const topFeatures = explanation?.features
@@ -56,16 +59,16 @@ export function XAIExplanationDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                    <DialogDescription>{description}</DialogDescription>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader className="pb-2 border-b">
+                    <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
+                    <DialogDescription className="text-sm">{description}</DialogDescription>
                 </DialogHeader>
 
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-8 px-6">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-5 w-5 animate-spin" />
+                    <div className="flex items-center justify-center py-12 px-6">
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                            <Loader2 className="h-6 w-6 animate-spin" />
                             <span>Loading explanation...</span>
                         </div>
                     </div>
@@ -78,13 +81,16 @@ export function XAIExplanationDialog({
                         </Alert>
                     </div>
                 ) : explanation ? (
-                    <div className="px-6 py-6 space-y-6">
+                    <div className="px-6 py-8 space-y-8">
                         {/* Summary Section */}
                         {explanation.summary && (
-                            <div className="rounded-2xl border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-900/20 p-4">
-                                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                                    Analysis Summary
-                                </h3>
+                            <div className="rounded-3xl border border-blue-200/60 bg-gradient-to-br from-blue-50 to-blue-50/50 dark:border-blue-900/40 dark:bg-gradient-to-br dark:from-blue-950/30 dark:to-blue-900/20 p-6">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                                    <h3 className="font-bold text-blue-900 dark:text-blue-100 text-lg">
+                                        Analysis Summary
+                                    </h3>
+                                </div>
                                 <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                                     {explanation.summary}
                                 </p>
@@ -94,17 +100,17 @@ export function XAIExplanationDialog({
                         {/* Key Metrics */}
                         {explanation.metrics && Object.keys(explanation.metrics).length > 0 && (
                             <div>
-                                <h3 className="font-semibold mb-3">Key Metrics</h3>
-                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                <h3 className="font-bold mb-4 text-lg">Key Metrics</h3>
+                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                     {Object.entries(explanation.metrics).map(([key, value]) => (
                                         <div
                                             key={key}
-                                            className="rounded-2xl border p-4 bg-muted/30"
+                                            className="rounded-2xl border border-border/60 p-5 bg-gradient-to-br from-muted/50 to-muted/20 hover:border-primary/50 hover:bg-muted/40 transition-all"
                                         >
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.05em]">
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
                                                 {key.replace(/([A-Z])/g, ' $1').trim()}
                                             </p>
-                                            <p className="mt-2 text-2xl font-bold">{value}</p>
+                                            <p className="mt-3 text-2xl font-bold text-primary">{value}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -114,7 +120,7 @@ export function XAIExplanationDialog({
                         {/* Feature Importance Chart */}
                         {topFeatures.length > 0 && (
                             <div>
-                                <h3 className="font-semibold mb-3">Feature Importance (SHAP Analysis)</h3>
+                                <h3 className="font-bold mb-4 text-lg">Feature Importance (SHAP Analysis)</h3>
                                 <Card>
                                     <CardContent className="p-4">
                                         <div className="h-[300px] rounded-2xl border bg-background p-3">
@@ -156,16 +162,16 @@ export function XAIExplanationDialog({
                         {/* Detailed Feature Analysis */}
                         {explanation.features && explanation.features.length > 0 && (
                             <div>
-                                <h3 className="font-semibold mb-3">Detailed Feature Analysis</h3>
-                                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-2">
+                                <h3 className="font-bold mb-4 text-lg">Detailed Feature Analysis</h3>
+                                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-3 py-2">
                                     {explanation.features
                                         .sort((a, b) => Math.abs((b.contribution ?? b.impact ?? 0)) - Math.abs((a.contribution ?? a.impact ?? 0)))
                                         .map((feature, idx) => (
                                             <div
                                                 key={idx}
-                                                className="flex items-start gap-4 p-4 bg-muted/40 rounded-lg hover:bg-muted/60 transition-colors border"
+                                                className="flex items-start gap-4 p-5 bg-gradient-to-r from-muted/30 to-transparent rounded-2xl hover:from-muted/50 hover:to-muted/20 transition-all border border-border/40 hover:border-primary/30"
                                             >
-                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-col">
+                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center flex-col border border-primary/20">
                                                     <span className="text-xs font-bold text-primary">
                                                         #{idx + 1}
                                                     </span>
@@ -231,15 +237,16 @@ export function XAIExplanationDialog({
                             </div>
                         )}
 
-                        <DialogFooter>
-                            <Button variant="outline">
-                                <Download className="mr-2 h-4 w-4" />
+                        <div className="flex items-center justify-between pt-6 mt-6 border-t">
+                            <p className="text-xs text-muted-foreground">XAI-powered analysis using SHAP methodology</p>
+                            <Button variant="outline" onClick={onExport} disabled={!onExport} className="gap-2">
+                                <Download className="h-4 w-4" />
                                 Export Report
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center py-8 px-6 text-muted-foreground">
+                    <div className="flex items-center justify-center py-12 px-6 text-muted-foreground">
                         <p>No explanation data available</p>
                     </div>
                 )}

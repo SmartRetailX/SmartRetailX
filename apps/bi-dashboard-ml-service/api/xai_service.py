@@ -562,6 +562,12 @@ class XAIService:
                 "description":   f"7-day average of {feat_val:.1f} {up} forecast by {mag:.1f} units",
                 "descriptionSi": f"{feat_val:.1f} 7-දින සාමාන්‍යය {up_si} {mag:.1f} ඒකක",
             },
+            "rolling_std_7": {
+                "name":          "7-Day Sales Volatility",
+                "nameSi":        "7-දින විකුණුම් අස්ථිරතාවය",
+                "description":   f"Sales volatility over 7 days: {feat_val:.2f} std dev {up} forecast by {mag:.1f} units",
+                "descriptionSi": f"සතිගේ විකුණුම් අස්ථිරතාවය: {feat_val:.2f} සම්මත අපගමනය {up_si} {mag:.1f} ඒකක",
+            },
             "rolling_mean_30": {
                 "name":          "30-Day Sales Trend",
                 "nameSi":        "30-දින විකුණුම් ප්‍රවණතාව",

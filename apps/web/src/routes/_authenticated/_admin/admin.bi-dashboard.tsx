@@ -40,6 +40,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { XAIExplanationDialog } from '@/components/admin/xai-explanation-dialog';
+import { exportToJSON } from '@/lib/export-utils';
 import { cn } from '@/lib/utils';
 import type { BiAlert, DashboardPeriod, TrendDirection } from '@/types/bi-dashboard';
 
@@ -199,6 +200,45 @@ export function RouteComponent() {
     [kpis],
   );
 
+  const handleExportForecastExplanation = () => {
+    if (!forecastExplanation) {
+      alert('No forecast explanation available to export');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const productName = selectedProduct?.name || 'forecast';
+    const exportData = {
+      type: 'Forecast Explanation',
+      product: productName,
+      productId: selectedProductId,
+      timestamp,
+      modelType: forecastQuery.data?.data.modelType,
+      confidence: forecastQuery.data?.data.confidence,
+      explanation: forecastExplanation,
+    };
+
+    exportToJSON(exportData, `forecast-explanation-${productName}-${timestamp}`);
+  };
+
+  const handleExportRestockExplanation = () => {
+    if (!restockExplanation) {
+      alert('No restock explanation available to export');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const productName = selectedAlert?.productName || selectedAlert?.productId || 'alert';
+    const exportData = {
+      type: 'Restock Alert Explanation',
+      alert: selectedAlert,
+      timestamp,
+      explanation: restockExplanation,
+    };
+
+    exportToJSON(exportData, `restock-explanation-${productName}-${timestamp}`);
+  };
+
   return (
     <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
       <div className="flex h-full min-h-0 flex-col gap-6 overflow-auto pb-4">
@@ -225,19 +265,7 @@ export function RouteComponent() {
                 )}
                 Generate alerts
               </Button>
-              <Button
-                variant="outline"
-                className="border-white/25 bg-transparent text-white hover:bg-white/10"
-                onClick={() => autoDismissAlerts.mutate()}
-                disabled={autoDismissAlerts.isPending}
-              >
-                {autoDismissAlerts.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Auto-dismiss resolved
-              </Button>
+              {/* Auto-dismiss button removed as requested */}
             </div>
           </div>
         </section>
@@ -467,23 +495,6 @@ export function RouteComponent() {
                           </div>
                           <div className="mt-4 flex flex-wrap gap-2">
                             <Button
-                              size="sm"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                acceptAlert.mutate({
-                                  alertId: alert.id,
-                                  payload: {
-                                    action: 'create_po',
-                                    quantity: alert.recommendedQuantity ?? undefined,
-                                    notes: 'Approved from BI dashboard',
-                                  },
-                                });
-                              }}
-                              disabled={acceptAlert.isPending}
-                            >
-                              Approve
-                            </Button>
-                            <Button
                               variant="outline"
                               size="sm"
                               className="gap-2"
@@ -681,6 +692,7 @@ export function RouteComponent() {
           isLoading={forecastExplanationQuery.isLoading}
           error={forecastExplanationQuery.error as Error | null}
           explanation={forecastExplanation}
+          onExport={handleExportForecastExplanation}
         />
 
         {/* Restock Explanation Dialog */}
@@ -691,22 +703,29 @@ export function RouteComponent() {
           description="Understanding why the AI recommends this restock action"
           isLoading={restockExplanationQuery.isLoading}
           error={restockExplanationQuery.error as Error | null}
-          explanation={restockExplanation ? {
-            summary: restockExplanation.explanation?.en,
-            features: restockExplanation.features?.map((f) => ({
-              name: f.name,
-              nameSi: f.nameSi,
-              description: f.description,
-              descriptionSi: f.descriptionSi,
-              direction: (f.direction === 'increase' || f.direction === 'decrease') ? f.direction : undefined,
-              value: f.value,
-              contribution: typeof f.contribution === 'number' ? f.contribution : undefined,
-              contributionLabel: f.contributionLabel,
-              impact: typeof f.impact === 'number' ? f.impact : undefined,
-              importance: typeof f.importance === 'number' ? f.importance : undefined,
-            })),
-            metrics: restockExplanation.metrics,
-          } : null}
+          explanation={
+            restockExplanation
+              ? {
+                  summary: restockExplanation.explanation?.en,
+                  features: restockExplanation.features?.map((f) => ({
+                    name: f.name,
+                    nameSi: f.nameSi,
+                    description: f.description,
+                    descriptionSi: f.descriptionSi,
+                    direction:
+                      f.direction === 'increase' || f.direction === 'decrease' ? f.direction : undefined,
+                    value: f.value,
+                    contribution:
+                      typeof f.contribution === 'number' ? f.contribution : undefined,
+                    contributionLabel: f.contributionLabel,
+                    impact: typeof f.impact === 'number' ? f.impact : undefined,
+                    importance: typeof f.importance === 'number' ? f.importance : undefined,
+                  })),
+                  metrics: restockExplanation.metrics,
+                }
+              : null
+          }
+          onExport={handleExportRestockExplanation}
         />
       </div>
     </PageContainer>

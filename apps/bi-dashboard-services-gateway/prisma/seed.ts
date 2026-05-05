@@ -36,16 +36,16 @@ async function main() {
   // - Reorder level: ~1.5 days supply
   // - Healthy stock: 3–5 days supply (400–700 units)
   const productData = [
-    { sku: '916002', name: 'Ambarella', nameSi: 'ඇඹරැල්ලා', description: 'Tangy and fiber-rich local fruit used for chutneys and curries.', brand: 'unbranded', frequency: 'medium', price: 560, cost: 420, stock: 150, reorder: 80, max: 400 },
-    { sku: '914000', name: 'Ash Plantains', nameSi: 'අළු කෙසෙල්', description: 'Starchy green cooking bananas ideal for deep frying or curries.', brand: 'unbranded', frequency: 'medium', price: 160, cost: 100, stock: 200, reorder: 100, max: 500 },
-    { sku: '915001', name: 'Baby Potatoes', nameSi: 'බේබි අල', description: 'Small, tender potatoes with a thin skin, perfect for roasting whole.', brand: 'unbranded', frequency: 'medium', price: 700, cost: 450, stock: 120, reorder: 70, max: 450 },
+    { sku: '916002', name: 'Ambarella', nameSi: 'ඇඹරැල්ලා', description: 'Tangy and fiber-rich local fruit used for chutneys and curries.', brand: 'unbranded', frequency: 'medium', price: 560, cost: 420, stock: 250, reorder: 80, max: 400 },
+    { sku: '914000', name: 'Ash Plantains', nameSi: 'අළු කෙසෙල්', description: 'Starchy green cooking bananas ideal for deep frying or curries.', brand: 'unbranded', frequency: 'medium', price: 160, cost: 100, stock: 360, reorder: 100, max: 500 },
+    { sku: '915001', name: 'Baby Potatoes', nameSi: 'බේබි අල', description: 'Small, tender potatoes with a thin skin, perfect for roasting whole.', brand: 'unbranded', frequency: 'medium', price: 700, cost: 450, stock: 60, reorder: 70, max: 450 },
     { sku: '912113', name: 'Basil Leaves 50g', nameSi: 'බැසිල් කොළ ග්‍රෑම් 50', description: 'Fragrant culinary herbs commonly used in Italian and Mediterranean dishes.', brand: 'unbranded', frequency: 'medium', price: 100, cost: 60, stock: 300, reorder: 120, max: 600 },
-    { sku: '914004', name: 'Batana', nameSi: 'බටනා', description: 'A variety of local pumpkin known for its sweet and creamy texture.', brand: 'unbranded', frequency: 'medium', price: 380, cost: 280, stock: 90, reorder: 60, max: 350 },
-    { sku: '915002', name: 'Beetroot', nameSi: 'බීට්රූට්', description: 'Vibrant red root vegetable rich in antioxidants and iron.', brand: 'unbranded', frequency: 'medium', price: 280, cost: 180, stock: 250, reorder: 100, max: 550 },
-    { sku: '913005', name: 'Bell Pepper Green', nameSi: 'මාළු මිරිස් (කොළ)', description: 'Crisp green peppers with a mild, slightly bitter flavor.', brand: 'unbranded', frequency: 'medium', price: 620, cost: 450, stock: 80, reorder: 50, max: 300 },
-    { sku: '913006', name: 'Bell Pepper Red', nameSi: 'මාළු මිරිස් (රතු)', description: 'Sweet and crunchy ripe peppers, excellent for salads and stir-fries.', brand: 'unbranded', frequency: 'medium', price: 760, cost: 550, stock: 110, reorder: 70, max: 350 },
+    { sku: '914004', name: 'Batana', nameSi: 'බටනා', description: 'A variety of local pumpkin known for its sweet and creamy texture.', brand: 'unbranded', frequency: 'medium', price: 380, cost: 280, stock: 50, reorder: 60, max: 350 },
+    { sku: '915002', name: 'Beetroot', nameSi: 'බීට්රූට්', description: 'Vibrant red root vegetable rich in antioxidants and iron.', brand: 'unbranded', frequency: 'medium', price: 280, cost: 180, stock: 405, reorder: 100, max: 550 },
+    { sku: '913005', name: 'Bell Pepper Green', nameSi: 'මාළු මිරිස් (කොළ)', description: 'Crisp green peppers with a mild, slightly bitter flavor.', brand: 'unbranded', frequency: 'medium', price: 620, cost: 450, stock: 200, reorder: 50, max: 300 },
+    { sku: '913006', name: 'Bell Pepper Red', nameSi: 'මාළු මිරිස් (රතු)', description: 'Sweet and crunchy ripe peppers, excellent for salads and stir-fries.', brand: 'unbranded', frequency: 'medium', price: 760, cost: 550, stock: 205, reorder: 70, max: 350 },
     { sku: '941067', name: 'Thalapath Small', nameSi: 'තලපත් (කුඩා)', description: 'Fresh small-sized Sailfish.', brand: 'unbranded', frequency: 'medium', price: 2290, cost: 1750, stock: 30, reorder: 40, max: 200 },
-    { sku: '913007', name: 'Bell Pepper Yellow', nameSi: 'මාළු මිරිස් (කහ)', description: 'Sweet, sunny-colored peppers that add brightness to any dish.', brand: 'unbranded', frequency: 'medium', price: 900, cost: 650, stock: 85, reorder: 55, max: 320 },
+    { sku: '913007', name: 'Bell Pepper Yellow', nameSi: 'මාළු මිරිස් (කහ)', description: 'Sweet, sunny-colored peppers that add brightness to any dish.', brand: 'unbranded', frequency: 'medium', price: 900, cost: 650, stock: 310, reorder: 55, max: 320 },
   ];
 
   const products = await Promise.all(

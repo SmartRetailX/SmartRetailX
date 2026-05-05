@@ -40,6 +40,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { exportToCSV, exportToJSON } from '@/lib/export-utils';
 import type { BiForecastResponse } from '@/types/bi-dashboard';
 
 export const Route = createFileRoute('/_authenticated/_admin/admin/forecasting')({
@@ -121,6 +122,45 @@ export function RouteComponent() {
     }, [forecast]);
 
     const confidenceColor = forecast?.confidence ? (forecast.confidence > 0.8 ? 'text-green-600' : forecast.confidence > 0.6 ? 'text-yellow-600' : 'text-red-600') : 'text-gray-600';
+
+    const handleExportForecast = () => {
+        if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) {
+            alert('No forecast data available to export');
+            return;
+        }
+
+        const exportData = forecast.forecasts.map((item: any) => ({
+            date: item.date,
+            predictedSales: item.predictedSales,
+            lowerBound: item.lowerBound,
+            upperBound: item.upperBound,
+        }));
+
+        const timestamp = new Date().toISOString().split('T')[0];
+        const productName = selectedProduct?.name || 'forecast';
+        exportToCSV(exportData, `forecast-${productName}-${timestamp}`);
+    };
+
+    const handleExportExplanation = () => {
+        if (!explanation) {
+            alert('No explanation data available to export');
+            return;
+        }
+
+        const timestamp = new Date().toISOString().split('T')[0];
+        const productName = selectedProduct?.name || 'forecast';
+        const exportData = {
+            product: productName,
+            productId: selectedProductId,
+            timestamp,
+            horizon,
+            modelType: forecast?.modelType,
+            confidence: forecast?.confidence,
+            explanation: explanation,
+        };
+
+        exportToJSON(exportData, `forecast-explanation-${productName}-${timestamp}`);
+    };
 
     return (
         <PageContainer className="flex h-full min-h-0 flex-col" noMaxHeight>
@@ -294,7 +334,7 @@ export function RouteComponent() {
                                         </p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button size="sm" variant="outline" disabled>
+                                        <Button size="sm" variant="outline" onClick={handleExportForecast} disabled={!forecast}>
                                             <Download className="mr-2 h-3.5 w-3.5" />
                                             Export
                                         </Button>
@@ -409,13 +449,15 @@ export function RouteComponent() {
 
                 {/* XAI Explanation Modal */}
                 <Dialog open={showExplanationModal} onOpenChange={setShowExplanationModal}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <HelpCircle className="h-5 w-5" />
+                    <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader className="pb-2 border-b">
+                            <DialogTitle className="flex items-center gap-3 text-xl font-bold">
+                                <div className="rounded-lg bg-primary/10 p-2">
+                                    <HelpCircle className="h-5 w-5 text-primary" />
+                                </div>
                                 Forecast Explanation - AI Analysis
                             </DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription className="text-sm">
                                 Understanding how the AI model makes predictions using explainable AI (XAI)
                             </DialogDescription>
                         </DialogHeader>
@@ -436,13 +478,16 @@ export function RouteComponent() {
                                 </AlertDescription>
                             </Alert>
                         ) : explanation ? (
-                            <div className="space-y-6">
+                            <div className="px-6 py-8 space-y-8">
                                 {/* Summary */}
                                 {explanation.summary && (
-                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-900/20 p-4">
-                                        <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                                            Summary
-                                        </h3>
+                                    <div className="rounded-3xl border border-blue-200/60 bg-gradient-to-br from-blue-50 to-blue-50/50 dark:border-blue-900/40 dark:bg-gradient-to-br dark:from-blue-950/30 dark:to-blue-900/20 p-6">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                                            <h3 className="font-bold text-blue-900 dark:text-blue-100 text-lg">
+                                                Analysis Summary
+                                            </h3>
+                                        </div>
                                         <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                                             {explanation.summary}
                                         </p>
@@ -452,8 +497,8 @@ export function RouteComponent() {
                                 {/* Key Metrics */}
                                 {explanation.features && explanation.features.length > 0 && (
                                     <div>
-                                        <h3 className="font-semibold mb-3">Feature Importance</h3>
-                                        <div className="h-[300px] rounded-2xl border bg-background p-3">
+                                        <h3 className="font-bold mb-4 text-lg">Feature Importance (SHAP Analysis)</h3>
+                                        <div className="h-[340px] rounded-2xl border bg-background p-4">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart
                                                     data={explanation.features
@@ -487,28 +532,28 @@ export function RouteComponent() {
                                 {/* Feature Details */}
                                 {explanation.features && explanation.features.length > 0 && (
                                     <div>
-                                        <h3 className="font-semibold mb-3">Detailed Feature Analysis</h3>
-                                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                        <h3 className="font-bold mb-4 text-lg">Detailed Feature Analysis</h3>
+                                        <div className="space-y-3 max-h-[480px] overflow-y-auto pr-3 py-2">
                                             {explanation.features
                                                 .sort((a, b) => (b.contribution || 0) - (a.contribution || 0))
                                                 .map((feature, idx) => (
                                                     <div
                                                         key={idx}
-                                                        className="flex items-center gap-4 p-3 bg-muted/40 rounded-lg hover:bg-muted/60 transition-colors"
+                                                        className="flex items-start gap-4 p-5 bg-gradient-to-r from-muted/30 to-transparent rounded-2xl hover:from-muted/50 hover:to-muted/20 transition-all border border-border/40 hover:border-primary/30"
                                                     >
-                                                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center flex-col border border-primary/20">
                                                             <span className="text-xs font-bold text-primary">
                                                                 #{idx + 1}
                                                             </span>
                                                         </div>
-                                                        <div className="flex-1">
+                                                        <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-sm">{feature.name}</p>
-                                                            <p className="text-xs text-muted-foreground">
+                                                            <p className="text-xs text-muted-foreground mt-1">
                                                                 {feature.description}
                                                             </p>
                                                         </div>
                                                         <div className="flex-shrink-0 text-right">
-                                                            <p className="font-bold text-sm">{(feature.contribution || 0).toFixed(3)}</p>
+                                                            <p className="font-bold text-sm text-primary">{(feature.contribution || 0).toFixed(3)}</p>
                                                             <p className="text-xs text-muted-foreground">
                                                                 Contribution
                                                             </p>
@@ -520,9 +565,10 @@ export function RouteComponent() {
                                 )}
 
                                 {/* Export */}
-                                <div className="flex justify-end gap-2 pt-4 border-t">
-                                    <Button variant="outline">
-                                        <Download className="mr-2 h-4 w-4" />
+                                <div className="flex items-center justify-between pt-6 mt-6 border-t">
+                                    <p className="text-xs text-muted-foreground">XAI-powered analysis using SHAP methodology</p>
+                                    <Button variant="outline" onClick={handleExportExplanation} className="gap-2">
+                                        <Download className="h-4 w-4" />
                                         Export Report
                                     </Button>
                                 </div>
