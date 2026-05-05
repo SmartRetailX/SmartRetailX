@@ -313,9 +313,11 @@ def get_customer_promotions_by_email(email: str) -> list:
     sql = """
     SELECT cp.id, cp.customer_id, cp.campaign_id, cp.product_id, cp.product_name,
            cp.product_category, cp.discount_percent, cp.message,
-           cp.is_read, cp.expires_at, cp.created_at
+           cp.is_read, cp.expires_at, cp.created_at,
+           p.image_url AS image_url
     FROM core.pe_customer_promotions cp
     JOIN auth."user" u ON u.id = cp.customer_id
+    LEFT JOIN core.products p ON p.id::text = cp.product_id
     WHERE LOWER(u.email) = LOWER(%s)
       AND (cp.expires_at IS NULL OR cp.expires_at > NOW())
     ORDER BY cp.is_read ASC, cp.created_at DESC
@@ -424,6 +426,7 @@ def get_product_suggestions_by_email(email: str, limit: int = 20) -> dict:
         cat.name                     AS category,
         COALESCE(p.brand, '')        AS brand,
         CAST(p.price AS FLOAT)       AS price,
+        p.image_url                  AS image_url,
         c.co_buyer_count,
         ROUND(
             CAST(c.co_buyer_count AS NUMERIC)

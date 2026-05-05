@@ -113,6 +113,7 @@ export interface ProductSuggestion {
   category: string;
   brand: string;
   price: number;
+  image_url: string | null;
   co_buyer_count: number;
   confidence_score: number;
   because_you_bought: string[];
@@ -139,6 +140,7 @@ export interface PromotionNotification {
   is_read: boolean;
   expires_at: string | null;
   created_at: string;
+  image_url: string | null;
 }
 
 export interface PromotionsResponse {
@@ -190,16 +192,18 @@ export function useProductCategories(enabled = true) {
 }
 
 /** List products, optionally filtered by category. */
-export function usePromotionProducts(category?: string, enabled = true) {
+export function usePromotionProducts(category?: string, enabled = true, limit = 500) {
   return useQuery({
-    queryKey: ['promotion-engine', 'products', category],
+    queryKey: ['promotion-engine', 'products', category, limit],
     queryFn: () => {
-      const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      params.set('limit', String(limit));
       return apiFetch<{
         success: boolean;
         products: { id: string; name: string; category: string; price: number }[];
         total: number;
-      }>(`${BASE}/products${qs}`);
+      }>(`${BASE}/products?${params.toString()}`);
     },
     enabled,
   });

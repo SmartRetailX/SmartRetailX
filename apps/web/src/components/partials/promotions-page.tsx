@@ -49,6 +49,7 @@ export default function PromotionsPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
 
   // A/B test state
+  const [abCategory, setAbCategory] = useState('')
   const [abProduct, setAbProduct] = useState('')
   const [abPersonalizedDiscount, setAbPersonalizedDiscount] = useState(10)
   const [abBroadcastDiscount, setAbBroadcastDiscount] = useState(15)
@@ -69,7 +70,7 @@ export default function PromotionsPage() {
   const generateMutation = useGenerateCampaign()
   const { data: historyData, isLoading: historyLoading, refetch: refetchHistory } = useCampaignHistory()
   const { data: campaignDetail, isLoading: detailLoading } = useCampaignDetail(selectedCampaignId)
-  const { data: allProductsData } = usePromotionProducts(undefined, isMLReady)
+  const { data: allProductsData, isLoading: abProductsLoading } = usePromotionProducts(abCategory || undefined, isMLReady)
   const compareMutation = useCompareAB()
   const { data: bundlesData, isFetching: bundlesFetching } = useProductBundles(
     selectedProduct || null
@@ -763,6 +764,24 @@ export default function PromotionsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {/* A/B test: category → product two-step */}
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Category</label>
+                  <div className="relative">
+                    <select
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm appearance-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      value={abCategory}
+                      onChange={(e) => { setAbCategory(e.target.value); setAbProduct(''); }}
+                    >
+                      <option value="">All Categories</option>
+                      {categoriesData?.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1.5">Product *</label>
                   <div className="relative">
@@ -770,8 +789,11 @@ export default function PromotionsPage() {
                       className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm appearance-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                       value={abProduct}
                       onChange={(e) => setAbProduct(e.target.value)}
+                      disabled={abProductsLoading}
                     >
-                      <option value="">Select a product</option>
+                      <option value="">
+                        {abProductsLoading ? 'Loading products…' : 'Select a product'}
+                      </option>
                       {allProductsData?.products?.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name} — Rs. {p.price.toLocaleString()}
