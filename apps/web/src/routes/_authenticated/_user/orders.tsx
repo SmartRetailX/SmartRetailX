@@ -109,13 +109,13 @@ function RouteComponent() {
                     <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
                       Subtotal
                     </div>
-                    <div className="mt-1 font-semibold">${order.subtotal.toFixed(2)}</div>
+                    <div className="mt-1 font-semibold">Rs. {order.subtotal.toFixed(2)}</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
                       Total
                     </div>
-                    <div className="mt-1 font-semibold">${order.total.toFixed(2)}</div>
+                    <div className="mt-1 font-semibold">Rs. {order.total.toFixed(2)}</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">

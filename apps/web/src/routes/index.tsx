@@ -82,6 +82,7 @@ function RouteComponent() {
   const categoriesQuery = useCatalogCategoriesQuery();
   const { addToCart } = useStoreMutations();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [pendingCartId, setPendingCartId] = useState<string | null>(null);
 
   const products = productsQuery.data?.pages.flatMap((page) => page.data.products) ?? [];
   const categories = categoriesQuery.data?.data?.categories ?? [];
@@ -285,7 +286,7 @@ function RouteComponent() {
                           {product.description || 'Fresh catalog item ready to sell.'}
                         </div>
                         <div className="flex items-center justify-between">
-                          <div className="text-2xl font-bold">${product.price.toFixed(2)}</div>
+                          <div className="text-2xl font-bold">Rs. {product.price.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">
                             Stock {product.currentStock}
                           </div>
@@ -302,10 +303,16 @@ function RouteComponent() {
                           </Button>
                         ) : (
                           <Button
-                            disabled={!user || product.currentStock <= 0 || addToCart.isPending}
-                            onClick={() => addToCart.mutate({ productId: product.id })}
+                            disabled={!user || product.currentStock <= 0 || pendingCartId === product.id}
+                            onClick={() => {
+                              setPendingCartId(product.id);
+                              addToCart.mutate(
+                                { productId: product.id },
+                                { onSettled: () => setPendingCartId(null) },
+                              );
+                            }}
                           >
-                            {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
+                            {pendingCartId === product.id ? 'Adding...' : 'Add to Cart'}
                           </Button>
                         )}
                       </CardFooter>

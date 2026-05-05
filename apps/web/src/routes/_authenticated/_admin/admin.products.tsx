@@ -318,7 +318,7 @@ function RouteComponent() {
       {
         accessorKey: 'price',
         header: 'Price',
-        cell: ({ row }) => `$${row.original.price.toFixed(2)}`,
+        cell: ({ row }) => `Rs. ${row.original.price.toFixed(2)}`,
       },
       {
         accessorKey: 'currentStock',

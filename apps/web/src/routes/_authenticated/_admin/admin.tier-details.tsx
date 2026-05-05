@@ -275,7 +275,7 @@ function RouteComponent() {
         <StatCard
           icon={DollarSign}
           label="Total Revenue"
-          value={`$${tier.total_revenue.toLocaleString()}`}
+          value={`Rs. ${tier.total_revenue.toLocaleString()}`}
         />
         <StatCard
           icon={TrendingUp}
@@ -351,7 +351,7 @@ function RouteComponent() {
             <StatCard
               icon={DollarSign}
               label="Top Category Revenue"
-              value={`$${topCategoryRevenue.toLocaleString()}`}
+              value={`Rs. ${topCategoryRevenue.toLocaleString()}`}
             />
             <StatCard
               icon={ShoppingBag}
@@ -370,9 +370,9 @@ function RouteComponent() {
                   margin={{ left: 16, right: 24 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                  <XAxis type="number" tickFormatter={(v) => `Rs. ${(v / 1000).toFixed(0)}k`} />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v: number) => [`$${v.toLocaleString()}`, 'Revenue']} />
+                  <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString()}`, 'Revenue']} />
                   <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
                     {categoryContributions.map((_, i) => (
                       <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />

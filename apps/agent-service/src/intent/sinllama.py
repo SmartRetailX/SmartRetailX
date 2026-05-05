@@ -10,8 +10,9 @@ from ..models import IntentResult
 
 # Sinhala/English question words that are never product names
 _ENTITY_NOISE: set[str] = {
-    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද",
+    "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද", "price", "මිල",
+    "අඩු", "කරලා", "තියෙනවා", "දෙන්න", "ගන්න",
 }
 
 

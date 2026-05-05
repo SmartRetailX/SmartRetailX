@@ -7,6 +7,7 @@ import { ConfigService } from '@smart-retail-x/config';
 import { AppModule } from './app/app.module';
 import { SwaggerDocumentService } from './docs/swagger-document.service';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
+import { createCorsMatcher, parseCorsOrigins } from './lib/cors';
 
 async function bootstrap() {
   // Disable body parser to allow Better Auth to handle request bodies
@@ -18,24 +19,19 @@ async function bootstrap() {
   // Enable global request logging
   app.useGlobalInterceptors(new LoggingInterceptor());
 
+  const allowedOrigins = parseCorsOrigins(configService.corsOrigin);
+  const isOriginAllowed = createCorsMatcher(allowedOrigins);
+
   // Enable CORS for the client
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, curl)
-      if (!origin) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
 
-      const allowedOrigins = configService.corsOrigin.split(',').map((o) => o.trim());
-
-      // Check if origin is allowed
-      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        // Log rejected origin for debugging
-        Logger.warn(`CORS: Rejected origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
+      Logger.warn(`CORS: Rejected origin: ${origin ?? 'unknown'}`);
+      // Return "false" instead of throwing an error so disallowed origins don't surface as server 500s.
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

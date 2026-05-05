@@ -12,10 +12,14 @@ from typing import Any
 from ..db.queries import (
     fuzzy_suggest_products,
     get_active_offers,
+    get_active_offers_for_product,
     get_active_promotions,
     get_buying_suggestions,
+    get_cheapest_products,
     get_order_history,
     get_product_price,
+    get_product_price_by_budget,
+    get_products_by_budget,
     get_user_profile,
     search_products,
 )
@@ -50,9 +54,14 @@ async def resolve_intent(
     if intent == "product_search":
         return await _resolve_product_search(entities, xai_features)
     if intent == "offers":
-        return await _resolve_offers(xai_features)
+        return await _resolve_offers(entities, xai_features)
     if intent == "order_history":
-        return await _resolve_order_history(user_id, xai_features, last_order_only=bool(entities.get("last_order_only")))
+        return await _resolve_order_history(
+            user_id,
+            xai_features,
+            last_order_only=bool(entities.get("last_order_only")),
+            entities=entities,
+        )
     if intent == "buying_suggestions":
         return await _resolve_buying_suggestions(user_id, entities, xai_features)
     if intent == "user_profile":
@@ -72,6 +81,106 @@ async def _resolve_prices(
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
     product_name = str(entities.get("product") or "").strip()
+    modifier = str(entities.get("price_modifier") or "").strip()
+    budget_amount = entities.get("budget_amount")
+    category = str(entities.get("category") or "").strip() or None
+
+    # If the extracted "product" is just the category name (e.g. user said "beverages under 1000"
+    # and both product="beverages" and category="Beverages" were set), treat it as category-only.
+    if product_name and category and product_name.lower() in category.lower():
+        product_name = ""
+
+    # Product + budget: search by name AND filter by price cap (e.g. "shampoo under Rs. 1000")
+    if budget_amount and product_name:
+        try:
+            budget = float(str(budget_amount).replace(",", ""))
+        except ValueError:
+            budget = None
+        if budget:
+            rows = await get_product_price_by_budget(product_name, budget, category=category, limit=20)
+            if not rows:
+                # Fuzzy fallback: fuzzy-find the product (handles typos / alternate spellings),
+                # then apply the budget and optional category filter client-side.
+                all_rows = await get_product_price(product_name, limit=40)
+                rows = [r for r in all_rows if float(r.get("price") or 0) <= budget]
+                if category and rows:
+                    cat_lower = category.lower()
+                    rows = [r for r in rows if cat_lower in str(r.get("category") or "").lower()]
+            logger.info(
+                "resolve_prices product=%r budget=%.0f category=%r results=%d",
+                product_name, budget, category, len(rows),
+            )
+            suggestions: list[str] = []
+            if not rows:
+                suggestions = await fuzzy_suggest_products(product_name)
+            return ResolvedContext(
+                intent="prices",
+                entities=entities,
+                db_results=rows,
+                db_source="db-catalog",
+                has_data=bool(rows),
+                needs_clarification=not rows,
+                clarification_prompt_si=(
+                    "" if rows else
+                    f"**{product_name}** (රු. {budget_amount} ට ඇතුළත) නිෂ්පාදන හමු නොවුණා. "
+                    "වෙනත් නමකින් හෝ budget එක වැඩි කළොත් සොයා දෙන්නම්."
+                ),
+                suggestions=suggestions,
+                xai_features=xai_features,
+            )
+
+    # Budget-bound query: show all products under a price cap (optionally in a category)
+    if budget_amount and not product_name:
+        try:
+            budget = float(str(budget_amount).replace(",", ""))
+        except ValueError:
+            budget = None
+        if budget:
+            rows = await get_products_by_budget(budget, category=category, limit=20)
+            logger.info(
+                "resolve_prices budget=%.0f category=%r results=%d",
+                budget, category, len(rows),
+            )
+            return ResolvedContext(
+                intent="prices",
+                entities=entities,
+                db_results=rows,
+                db_source="db-catalog",
+                has_data=bool(rows),
+                xai_features=xai_features,
+            )
+
+    # Cheapest product in a category/search
+    if modifier == "cheapest" and not product_name:
+        rows = await get_cheapest_products(category=category, limit=10)
+        logger.info("resolve_prices cheapest category=%r results=%d", category, len(rows))
+        return ResolvedContext(
+            intent="prices",
+            entities=entities,
+            db_results=rows,
+            db_source="db-catalog",
+            has_data=bool(rows),
+            xai_features=xai_features,
+        )
+
+    # Category-only price browse (no specific product, no budget, no modifier)
+    if category and not product_name and not budget_amount:
+        rows = await search_products(category, limit=20)
+        logger.info("resolve_prices category=%r results=%d", category, len(rows))
+        return ResolvedContext(
+            intent="prices",
+            entities=entities,
+            db_results=rows,
+            db_source="db-catalog",
+            has_data=bool(rows),
+            needs_clarification=not rows,
+            clarification_prompt_si=(
+                "" if rows else
+                f"**{category}** category හි භාණ්ඩ හමු නොවුණා. "
+                "වෙනත් category නමක් කිවොත් ගැලපෙන ඒවා දෙන්නම."
+            ),
+            xai_features=xai_features,
+        )
 
     if not product_name:
         suggestions = await fuzzy_suggest_products("")
@@ -88,7 +197,13 @@ async def _resolve_prices(
         )
 
     rows = await get_product_price(product_name, limit=20)
-    logger.info("resolve_prices product=%r results=%d", product_name, len(rows))
+    logger.info("resolve_prices product=%r modifier=%r results=%d", product_name, modifier, len(rows))
+
+    # Apply cheapest/most_expensive sort post-fetch
+    if rows and modifier == "cheapest":
+        rows = sorted(rows, key=lambda r: float(r.get("price") or 0))[:5]
+    elif rows and modifier == "most_expensive":
+        rows = sorted(rows, key=lambda r: float(r.get("price") or 0), reverse=True)[:5]
 
     suggestions: list[str] = []
     if not rows:
@@ -116,8 +231,12 @@ async def _resolve_product_search(
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
     product_name = str(entities.get("product") or "").strip()
+    category = str(entities.get("category") or "").strip()
 
-    if not product_name:
+    # If no product name but we have a category, search by category
+    search_query = product_name or category
+
+    if not search_query:
         suggestions = await fuzzy_suggest_products("")
         return ResolvedContext(
             intent="product_search",
@@ -131,8 +250,8 @@ async def _resolve_product_search(
             xai_features=xai_features,
         )
 
-    rows = await search_products(product_name, limit=20)
-    logger.info("resolve_product_search query=%r results=%d", product_name, len(rows))
+    rows = await search_products(search_query, limit=20)
+    logger.info("resolve_product_search query=%r results=%d", search_query, len(rows))
 
     # Fuzzy suggestions if LIKE + fuzzy DB search still returned nothing
     suggestions: list[str] = []
@@ -148,7 +267,7 @@ async def _resolve_product_search(
         needs_clarification=not rows,
         clarification_prompt_si=(
             "" if rows else
-            f"**{product_name}** සඳහා භාණ්ඩ හමු නොවුණා. "
+            f"**{search_query}** සඳහා භාණ්ඩ හමු නොවුණා. "
             "වෙනත් නමකින් හෝ category එකෙන් සොයන්නද?"
         ),
         suggestions=suggestions,
@@ -156,13 +275,63 @@ async def _resolve_product_search(
     )
 
 
-async def _resolve_offers(xai_features: list[dict[str, Any]]) -> ResolvedContext:
+async def _resolve_offers(
+    entities: dict[str, Any],
+    xai_features: list[dict[str, Any]],
+) -> ResolvedContext:
+    product_name = str(entities.get("product") or "").strip()
+    if product_name:
+        rows = await get_active_offers_for_product(product_name, limit=20)
+        logger.info(
+            "resolve_offers product=%r results=%d",
+            product_name,
+            len(rows),
+        )
+
+        if rows:
+            return ResolvedContext(
+                intent="offers",
+                entities=entities,
+                db_results=rows,
+                db_source="db-offers",
+                has_data=True,
+                xai_features=xai_features,
+            )
+
+        # Product-aware no-offer case: don't show unrelated global offers.
+        catalog_matches = await search_products(product_name, limit=3)
+        if not catalog_matches:
+            suggestions = await fuzzy_suggest_products(product_name)
+            return ResolvedContext(
+                intent="offers",
+                entities=entities,
+                db_results=[],
+                db_source="db-offers",
+                has_data=False,
+                needs_clarification=True,
+                clarification_prompt_si=(
+                    f"**{product_name}** නමින් භාණ්ඩයක් හමු නොවුණා. "
+                    "නම තව ටිකක් නිවැරදිව දෙන්නද?"
+                ),
+                suggestions=suggestions,
+                xai_features=xai_features,
+            )
+
+        return ResolvedContext(
+            intent="offers",
+            entities=entities,
+            db_results=[],
+            db_source="db-offers",
+            has_data=False,
+            xai_features=xai_features,
+        )
+
     rows = await get_active_offers(limit=20)
     logger.info("resolve_offers results=%d", len(rows))
 
     return ResolvedContext(
         intent="offers",
-        entities={},
+        entities=entities,
         db_results=rows,
         db_source="db-offers",
         has_data=bool(rows),
@@ -174,6 +343,7 @@ async def _resolve_order_history(
     user_id: str | None,
     xai_features: list[dict[str, Any]],
     last_order_only: bool = False,
+    entities: dict[str, Any] | None = None,
 ) -> ResolvedContext:
     if not user_id:
         return ResolvedContext(
@@ -184,12 +354,32 @@ async def _resolve_order_history(
             xai_features=xai_features,
         )
 
-    rows = await get_order_history(user_id, limit=1 if last_order_only else 5)
-    logger.info("resolve_order_history user=%r last_only=%s results=%d", user_id, last_order_only, len(rows))
+    entities = dict(entities or {})
+    status_filter = str(entities.get("order_status_filter") or "").strip() or None
+    last_n = entities.get("last_n_orders")
+
+    if last_order_only:
+        limit = 1
+    elif last_n:
+        limit = int(last_n)
+    else:
+        limit = 5
+
+    rows = await get_order_history(user_id, limit=limit, status_filter=status_filter)
+    logger.info(
+        "resolve_order_history user=%r last_only=%s status_filter=%r last_n=%s results=%d",
+        user_id, last_order_only, status_filter, last_n, len(rows),
+    )
+
+    final_entities = {
+        "user_id": user_id,
+        "last_order_only": last_order_only,
+        **entities,
+    }
 
     return ResolvedContext(
         intent="order_history",
-        entities={"user_id": user_id, "last_order_only": last_order_only},
+        entities=final_entities,
         db_results=rows,
         db_source="db-order",
         has_data=bool(rows),
@@ -205,10 +395,18 @@ async def _resolve_buying_suggestions(
     xai_features: list[dict[str, Any]],
 ) -> ResolvedContext:
     category_hint = str(entities.get("category") or entities.get("product") or "").strip() or None
-    rows = await get_buying_suggestions(user_id, category_hint, limit=20)
+    rows = await get_buying_suggestions(
+        user_id,
+        category_hint,
+        limit=20,
+        filters=entities,
+    )
     logger.info(
-        "resolve_buying_suggestions user=%r category=%r results=%d",
-        user_id, category_hint, len(rows),
+        "resolve_buying_suggestions user=%r category=%r requires_promo=%s results=%d",
+        user_id,
+        category_hint,
+        bool(entities.get("requires_promo")),
+        len(rows),
     )
 
     return ResolvedContext(

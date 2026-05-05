@@ -1102,9 +1102,9 @@ npx expo start --clear
 Production container configuration lives at the repo root and under `docker/`:
 
 ```bash
-cp .env.production.example .env.production
-docker compose --env-file .env.production -f docker-compose.prod.yml config
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+cp .env.production.example .env.prod
+docker compose --env-file .env.prod -f docker-compose.prod.yml config
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
 Default services:
@@ -1117,7 +1117,7 @@ Default services:
 Optional large model service:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml --profile assistant-model up -d --build assistant-model
+docker compose --env-file .env.prod -f docker-compose.prod.yml --profile assistant-model up -d --build assistant-model
 ```
 
 ### Kubernetes

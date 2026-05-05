@@ -11,37 +11,38 @@ Responsibilities:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .resolver import ResolvedContext
 
 _ORDER_STATUS_SI: dict[str, str] = {
-    "pending":    "බලාපොරොත්තුවෙන්",
-    "confirmed":  "තහවුරු කළා",
+    "pending": "පිළියෙළ කිරීමට නියමිතයි",
+    "confirmed": "තහවුරු කළා",
     "processing": "සකස් කරමින්",
-    "shipped":    "යවා ඇත",
-    "delivered":  "ලැබී ඇත",
-    "cancelled":  "අවලංගු කළා",
+    "shipped": "යවා ඇත",
+    "delivered": "ලැබී ඇත",
+    "cancelled": "අවලංගු කළා",
 }
 
 _PURCHASE_FREQ_SI: dict[str, str] = {
-    "high":   "ජනප්‍රිය",
+    "high": "ජනප්‍රිය",
     "medium": "මධ්‍යම",
-    "low":    "දුර්ලභ",
+    "low": "දුර්ලභ",
 }
 
 _GENDER_SI: dict[str, str] = {
-    "male":   "පිරිමි",
+    "male": "පිරිමි",
     "female": "ගැහැනු",
-    "other":  "වෙනත්",
+    "other": "වෙනත්",
 }
 
 _SEGMENT_SI: dict[str, str] = {
-    "premium":    "ප්‍රීමියම්",
-    "regular":    "සාමාන්‍ය",
+    "premium": "ප්‍රීමියම්",
+    "regular": "සාමාන්‍ය",
     "occasional": "කලාතුරකින්",
-    "vip":        "VIP",
-    "new":        "නව",
+    "vip": "VIP",
+    "new": "නව",
 }
 
 _SEGMENT_DESCRIPTION_SI: dict[str, str] = {
@@ -74,9 +75,18 @@ _SEGMENT_DESCRIPTION_SI: dict[str, str] = {
 _PROMOTION_TYPE_SI: dict[str, str] = {
     "percentage": "ප්‍රතිශත වට්ටමක්",
     "flash_sale": "Flash Sale",
-    "seasonal":   "සෘතුමය ඉතිරිය",
-    "clearance":  "Clearance Sale",
-    "bundle":     "Bundle Deal",
+    "seasonal": "සෘතුමය ඉතිරිය",
+    "clearance": "Clearance Sale",
+    "bundle": "Bundle Deal",
+    "buy_one_get_one": "Buy 1 Get 1",
+    "buy_two_get_one": "Buy 2 Get 1",
+    "three_for_two": "3 for 2",
+}
+
+_OFFER_TYPE_LABEL_SI: dict[str, str] = {
+    "buy_one_get_one": "Buy 1 Get 1",
+    "buy_two_get_one": "Buy 2 Get 1",
+    "three_for_two": "3 for 2",
 }
 
 
@@ -84,19 +94,20 @@ _PROMOTION_TYPE_SI: dict[str, str] = {
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def build_deterministic_response(ctx: ResolvedContext) -> str:
     """Produce a complete Sinhala Markdown response purely from DB data."""
     if ctx.needs_clarification and not ctx.has_data:
         return _with_xai(ctx.clarification_prompt_si or _generic_clarification(), ctx)
 
     renderers = {
-        "prices":            _render_prices,
-        "product_search":    _render_product_search,
-        "offers":            _render_offers,
-        "order_history":     _render_order_history,
+        "prices": _render_prices,
+        "product_search": _render_product_search,
+        "offers": _render_offers,
+        "order_history": _render_order_history,
         "buying_suggestions": _render_buying_suggestions,
-        "user_profile":      _render_user_profile,
-        "promotions":        _render_promotions,
+        "user_profile": _render_user_profile,
+        "promotions": _render_promotions,
     }
     renderer = renderers.get(ctx.intent)
     if renderer:
@@ -138,15 +149,89 @@ def build_llm_context_summary(ctx: ResolvedContext) -> str:
 # Per-intent renderers
 # ---------------------------------------------------------------------------
 
+
+_STOCK_STATUS_SI: dict[str, str] = {
+    "in_stock": "✅ ඇත",
+    "low": "⚠️ අඩුයි",
+    "out": "❌ නැත",
+}
+
+
+def _stock_label(qty: int | None) -> str:
+    if qty is None:
+        return "—"
+    if qty <= 0:
+        return "❌ නැත"
+    if qty <= 5:
+        return f"⚠️ {qty} ක් ඇත"
+    return f"✅ {qty} ක් ඇත"
+
+
 def _render_prices(ctx: ResolvedContext) -> str:
     if not ctx.has_data:
         return ctx.clarification_prompt_si or _generic_clarification()
 
     product_name = ctx.entities.get("product", "")
-    count = len(ctx.db_results)
-    header = f"### 💰 {product_name} – මිල ගණන්\n\n" if product_name else "### 💰 භාණ්ඩ මිල ගණන්\n\n"
-    # Product cards are rendered by the frontend UI — just emit the header + count summary
-    return header + f"භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    modifier = str(ctx.entities.get("price_modifier") or "")
+    budget_amount = ctx.entities.get("budget_amount")
+    category = str(ctx.entities.get("category") or "").strip()
+    include_stock = bool(ctx.entities.get("include_stock"))
+
+    context_label = product_name or category or ""
+
+    if budget_amount:
+        if context_label:
+            header = f"### 💰 රු. {budget_amount} ට ගත හැකි {context_label} භාණ්ඩ\n\n"
+        else:
+            header = f"### 💰 රු. {budget_amount} ට ගත හැකි භාණ්ඩ\n\n"
+    elif modifier == "cheapest":
+        header = (
+            f"### 💰 {context_label} – ලාභම විකල්ප\n\n"
+            if context_label
+            else "### 💰 ලාභම භාණ්ඩ\n\n"
+        )
+    elif modifier == "range":
+        header = (
+            f"### 💰 {context_label} – මිල පරාසය\n\n"
+            if context_label
+            else "### 💰 භාණ්ඩ මිල පරාසය\n\n"
+        )
+    elif product_name:
+        header = f"### 💰 {product_name} – මිල ගණන්\n\n"
+    elif category:
+        header = f"### 💰 {category} – භාණ්ඩ ලැයිස්තුව\n\n"
+    else:
+        header = "### 💰 භාණ්ඩ මිල ගණන්\n\n"
+
+    lines: list[str] = [header]
+
+    if include_stock:
+        lines.append("| භාණ්ඩය | Brand | Category | මිල (රු.) | Stock |\n|---|---|---|---:|:---:|\n")
+        for row in ctx.db_results:
+            name = str(row.get("name") or "")
+            name_si = str(row.get("name_si") or "")
+            display = f"{name_si} / {name}" if name_si else name
+            brand = str(row.get("brand") or "-")
+            cat = str(row.get("category") or "-")
+            price = float(row.get("price") or 0)
+            qty = row.get("stock_quantity")
+            stock = _stock_label(int(qty) if qty is not None else None)
+            lines.append(f"| {display} | {brand} | {cat} | **රු. {price:,.2f}** | {stock} |\n")
+    else:
+        lines.append("| භාණ්ඩය | Brand | Category | මිල (රු.) |\n|---|---|---|---:|\n")
+        for row in ctx.db_results:
+            name = str(row.get("name") or "")
+            name_si = str(row.get("name_si") or "")
+            display = f"{name_si} / {name}" if name_si else name
+            brand = str(row.get("brand") or "-")
+            cat = str(row.get("category") or "-")
+            price = float(row.get("price") or 0)
+            lines.append(f"| {display} | {brand} | {cat} | **රු. {price:,.2f}** |\n")
+
+    if ctx.suggestions:
+        lines.append(f"\n> 💡 **ඔබ අදහස් කළේ:** {', '.join(ctx.suggestions[:3])}")
+
+    return "".join(lines)
 
 
 def _render_product_search(ctx: ResolvedContext) -> str:
@@ -154,30 +239,127 @@ def _render_product_search(ctx: ResolvedContext) -> str:
         return ctx.clarification_prompt_si or _generic_clarification()
 
     query = ctx.entities.get("product", "")
-    count = len(ctx.db_results)
+    include_stock = bool(ctx.entities.get("include_stock"))
+
     header = (
-        f"### 🔍 \"{query}\" – සෙවීමේ ප්‍රතිඵල\n\n" if query
+        f'### 🔍 "{query}" – සෙවීමේ ප්‍රතිඵල\n\n'
+        if query
         else "### 🔍 භාණ්ඩ ලැයිස්තුව\n\n"
     )
-    return header + f"ගැලපෙන භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+
+    lines: list[str] = [header]
+
+    if include_stock:
+        lines.append("| භාණ්ඩය | Brand | Category | මිල (රු.) | Stock |\n|---|---|---|---:|:---:|\n")
+        for row in ctx.db_results:
+            name = str(row.get("name") or "")
+            name_si = str(row.get("name_si") or "")
+            display = f"{name_si} / {name}" if name_si else name
+            brand = str(row.get("brand") or "-")
+            cat = str(row.get("category") or "-")
+            price = float(row.get("price") or 0)
+            qty = row.get("stock_quantity")
+            stock = _stock_label(int(qty) if qty is not None else None)
+            lines.append(f"| {display} | {brand} | {cat} | රු. {price:,.2f} | {stock} |\n")
+    else:
+        lines.append("| භාණ්ඩය | Brand | Category | මිල (රු.) |\n|---|---|---|---:|\n")
+        for row in ctx.db_results:
+            name = str(row.get("name") or "")
+            name_si = str(row.get("name_si") or "")
+            display = f"{name_si} / {name}" if name_si else name
+            brand = str(row.get("brand") or "-")
+            cat = str(row.get("category") or "-")
+            price = float(row.get("price") or 0)
+            lines.append(f"| {display} | {brand} | {cat} | රු. {price:,.2f} |\n")
+
+    if ctx.suggestions:
+        lines.append(f"\n> 💡 **ඔබ අදහස් කළේ:** {', '.join(ctx.suggestions[:3])}")
+
+    return "".join(lines)
 
 
 def _render_offers(ctx: ResolvedContext) -> str:
+    product_name = _normalize_entity_text(ctx.entities.get("product"))
+    offer_type = str(ctx.entities.get("offer_type") or "")
+    offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
+
     if not ctx.has_data:
-        return "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
+        if product_name:
+            if offer_label:
+                return (
+                    f"දැනට **{product_name}** සඳහා **{offer_label}** offers නැත. "
+                    "ළඟදීම නව offers එකතු වෙනවා!"
+                )
+            return (
+                f"දැනට **{product_name}** වලට offers නැත. "
+                "ළඟදීම නව offers එකතු වෙනවා!"
+            )
+        if offer_label:
+            return (
+                f"දැනට **{offer_label}** ආකාරයේ offers හමු නොවුණා. "
+                "ළඟදීම නව offers එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
+            )
+        return (
+            "දැනට විශේෂ offers හමු නොවුණා. ටිකක් ඉවසන්න – ළඟදීම නව offers එකතු වෙනවා!"
+        )
 
     count = len(ctx.db_results)
-    return f"### 🎉 දැනට ඇති Offers & Featured Products\n\nවිශේෂ offers සහිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
+    heading = (
+        f"### 🎉 {offer_label} Offers"
+        if offer_label
+        else "### 🎉 දැනට ඇති Offers & Featured Products"
+    )
+
+    lines: list[str] = [
+        f"{heading}\n\n"
+        "| භාණ්ඩය | Brand | Category | මිල (රු.) | avg වට්ටම |\n"
+        "|---|---|---|---:|:---:|\n"
+    ]
+    for row in ctx.db_results:
+        name = str(row.get("name") or "")
+        name_si = str(row.get("name_si") or "")
+        display = f"{name_si} / {name}" if name_si else name
+        brand = str(row.get("brand") or "-")
+        cat = str(row.get("category") or "-")
+        price = float(row.get("price") or 0)
+        avg_disc = row.get("avg_discount")
+        disc_str = f"**{float(avg_disc):.0f}%**" if avg_disc and float(avg_disc) > 0 else "-"
+        lines.append(f"| {display} | {brand} | {cat} | රු. {price:,.2f} | {disc_str} |\n")
+
+    lines.append("\n> 💡 **ඉක්මනින් ගන්න!** Offers ගෙවී ගිය දිනට ස්වයංක්‍රීයව අවලංගු වෙනවා.\n")
+    return "".join(lines)
+
+
+_ORDER_STATUS_FILTER_SI: dict[str, str] = {
+    "cancelled": "අවලංගු",
+    "delivered": "ලැබී ඇති",
+    "pending": "අපේක්ෂිත",
+    "refunded": "රිෆන්ඩ් කළ",
+    "shipped": "යවා ඇති",
+    "processing": "සකස් වෙමින්",
+}
 
 
 def _render_order_history(ctx: ResolvedContext) -> str:
     if not ctx.has_data:
+        status_filter = str(ctx.entities.get("order_status_filter") or "")
+        if status_filter:
+            label = _ORDER_STATUS_FILTER_SI.get(status_filter, status_filter)
+            return f"ඔබගේ **{label}** ඇණවුම් හමු නොවුණා."
         return ctx.clarification_prompt_si or "ඔබගේ ඇණවුම් ඉතිහාසයක් හමු නොවුණා."
 
     last_only = bool(ctx.entities.get("last_order_only"))
+    status_filter = str(ctx.entities.get("order_status_filter") or "")
+    last_n = ctx.entities.get("last_n_orders")
     count = len(ctx.db_results)
+
     if last_only:
         heading = "### 📦 ඔබගේ අන්තිම ඇණවුම\n\n"
+    elif status_filter:
+        label = _ORDER_STATUS_FILTER_SI.get(status_filter, status_filter)
+        heading = f"### 📦 ඔබගේ {label} ඇණවුම්\n\nඇණවුම් **{count}ක්** හමු විය.\n\n"
+    elif last_n:
+        heading = f"### 📦 ඔබගේ අන්තිම ඇණවුම් {last_n}\n\nඇණවුම් **{count}ක්** හමු විය.\n\n"
     else:
         heading = f"### 📦 ඔබගේ ඇණවුම් ඉතිහාසය\n\nමෑත ඇණවුම් **{count}ක්** හමු විය.\n\n"
     sections: list[str] = [heading]
@@ -188,22 +370,24 @@ def _render_order_history(ctx: ResolvedContext) -> str:
         order_num = order.get("order_number", "N/A")
 
         status_emoji = {
-            "pending":    "⏳",
-            "confirmed":  "✅",
+            "pending": "⏳",
+            "confirmed": "✅",
             "processing": "🔄",
-            "shipped":    "🚚",
-            "delivered":  "📬",
-            "cancelled":  "❌",
+            "shipped": "🚚",
+            "delivered": "📬",
+            "cancelled": "❌",
         }.get(raw_status, "📋")
 
         sections.append(
-            f"#### {status_emoji} ඇණවුම් #{order_num}\n"
+            f"#### {status_emoji} ඇණවුම් [#{order_num}](/orders)\n"
             f"**තත්ත්වය:** {status_si} &nbsp;|&nbsp; **දිනය:** {created}\n\n"
         )
 
         items: list[dict[str, Any]] = order.get("items", [])
         if items:
-            sections.append("| භාණ්ඩය | ප්‍රමාණය | එකක මිල (රු.) | එකතුව (රු.) |\n|---|:---:|---:|---:|\n")
+            sections.append(
+                "| භාණ්ඩය | ප්‍රමාණය | එකක මිල (රු.) | එකතුව (රු.) |\n|---|:---:|---:|---:|\n"
+            )
             for item in items:
                 name = item.get("product_name", "-")
                 if item.get("product_name_si"):
@@ -238,16 +422,77 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
 
     source = str((ctx.db_results[0] or {}).get("recommendation_source", "bestsellers"))
     source_label = {
-        "personalised":   "ඔබේ ගැනුම් ඉතිහාසය මත",
+        "personalised": "ඔබේ ගැනුම් ඉතිහාසය මත",
         "category-match": "ඔබ ඉල්ලූ category එකෙන්",
-        "bestsellers":    "ජනප්‍රිය භාණ්ඩ",
+        "bestsellers": "ජනප්‍රිය භාණ්ඩ",
     }.get(source, "යෝජිත භාණ්ඩ")
 
-    count = len(ctx.db_results)
-    return (
+    preference_line = _build_buying_preference_line(ctx.entities)
+    pref_extra = f"\n\n{preference_line}" if preference_line else ""
+
+    lines: list[str] = [
         f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
-        f"යෝජිත භාණ්ඩ {count}ක් හමු විය. පහත කාඩ්ස් බලන්න."
-    )
+        f"{pref_extra}\n\n"
+        "| # | භාණ්ඩය | Brand | Category | මිල (රු.) |\n"
+        "|:---:|---|---|---|---:|\n"
+    ]
+    for i, row in enumerate(ctx.db_results, 1):
+        name = str(row.get("name") or "")
+        name_si = str(row.get("name_si") or "")
+        display = f"{name_si} / {name}" if name_si else name
+        brand = str(row.get("brand") or "-")
+        cat = str(row.get("category") or "-")
+        price = float(row.get("price") or 0)
+        lines.append(f"| {i} | {display} | {brand} | {cat} | රු. {price:,.2f} |\n")
+
+    return "".join(lines)
+
+
+def _build_buying_preference_line(entities: dict[str, Any]) -> str:
+    if not entities:
+        return ""
+    labels: list[str] = []
+    if entities.get("occasion") == "breakfast":
+        labels.append("Breakfast")
+    elif entities.get("occasion") == "tea_time":
+        labels.append("Tea time")
+    elif entities.get("occasion") == "party":
+        labels.append("Party")
+    elif entities.get("occasion") == "lunch_box":
+        labels.append("Lunch box")
+
+    if entities.get("dietary") == "vegan":
+        labels.append("Vegan")
+    elif entities.get("dietary") == "high_protein":
+        labels.append("High protein")
+    elif entities.get("dietary") == "sugar_free":
+        labels.append("Sugar free")
+    elif entities.get("dietary") == "diabetic_friendly":
+        labels.append("Diabetic-friendly")
+
+    if entities.get("diet_goal") == "healthy":
+        labels.append("Healthy")
+    elif entities.get("diet_goal") == "weight_loss":
+        labels.append("Weight loss")
+
+    if entities.get("audience") == "kids":
+        labels.append("Kids")
+    elif entities.get("audience") == "elderly":
+        labels.append("Elderly")
+
+    if entities.get("preparation") == "easy_cook":
+        labels.append("Easy cook")
+    if entities.get("budget") == "low":
+        labels.append("Budget-friendly")
+    if entities.get("requires_promo"):
+        labels.append("Promo available")
+    if entities.get("use_order_history"):
+        labels.append("Order history based")
+
+    if not labels:
+        return ""
+    joined = ", ".join(labels)
+    return f"ඔබ ඉල්ලූ කොන්දේසි: **{joined}**."
 
 
 def _render_user_profile(ctx: ResolvedContext) -> str:
@@ -256,20 +501,24 @@ def _render_user_profile(ctx: ResolvedContext) -> str:
 
     p = ctx.db_results[0]
 
-    name     = str(p.get("name") or "")
-    email    = str(p.get("email") or "")
-    city     = str(p.get("city") or "")
-    mobile   = str(p.get("mobile_number") or "")
-    gender   = _GENDER_SI.get(str(p.get("gender") or "").lower(), "")
-    age      = p.get("age")
-    segment  = str(p.get("customer_segment") or "").lower()
-    joined   = str(p.get("joined_at") or "")[:10]
+    name = str(p.get("name") or "")
+    email = str(p.get("email") or "")
+    city = str(p.get("city") or "")
+    mobile = str(p.get("mobile_number") or "")
+    gender = _GENDER_SI.get(str(p.get("gender") or "").lower(), "")
+    age = p.get("age")
+    segment = str(p.get("customer_segment") or "").lower()
+    joined = str(p.get("joined_at") or "")[:10]
     total_orders = int(p.get("total_orders") or 0)
-    total_spent  = float(p.get("total_spent") or 0)
-    last_order   = str(p.get("last_order_at") or "")[:10] if p.get("last_order_at") else None
+    total_spent = float(p.get("total_spent") or 0)
+    last_order = (
+        str(p.get("last_order_at") or "")[:10] if p.get("last_order_at") else None
+    )
 
-    segment_label = _SEGMENT_SI.get(segment, segment.capitalize() if segment else "නිර්ණය කර නැත")
-    segment_desc  = _SEGMENT_DESCRIPTION_SI.get(segment, "")
+    segment_label = _SEGMENT_SI.get(
+        segment, segment.capitalize() if segment else "නිර්ණය කර නැත"
+    )
+    segment_desc = _SEGMENT_DESCRIPTION_SI.get(segment, "")
 
     lines: list[str] = [f"### 👤 ඔබගේ Profile – {name}\n\n"]
 
@@ -306,15 +555,28 @@ def _render_user_profile(ctx: ResolvedContext) -> str:
 
 
 def _render_promotions(ctx: ResolvedContext) -> str:
+    offer_type = str(ctx.entities.get("offer_type") or "")
+    offer_label = _OFFER_TYPE_LABEL_SI.get(offer_type, "")
+
     if not ctx.has_data:
+        if offer_label:
+            return (
+                f"දැනට **{offer_label}** ආකාරයේ promotions හමු නොවුණා. "
+                "ළඟදීම නව promotions එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
+            )
         return (
             "දැනට සක්‍රිය promotions හමු නොවුණා. "
-            "ළඟදීම නව offers හා promotions එකතු වෙනවා — නැවත check කරන්න!"
+            "ළඟදීම නව offers හා promotions එකතු වෙනවා. ටික වේලාවකට පසු නැවත උත්සාහ කරන්න."
         )
 
     count = len(ctx.db_results)
+    heading = (
+        f"### 🎁 {offer_label} Promotions"
+        if offer_label
+        else "### 🎁 දැනට ක්‍රියාත්මක Promotions"
+    )
     lines: list[str] = [
-        f"### 🎁 දැනට ක්‍රියාත්මක Promotions\n\n"
+        f"{heading}\n\n"
         f"ඔබට ලැබිය හැකි **{count}ක්** promotions හමු විය!\n\n"
         "| භාණ්ඩය | Brand | වට්ටම | ආකාරය | අවසන් දිනය |\n"
         "|---|---|:---:|---|---|\n"
@@ -323,20 +585,24 @@ def _render_promotions(ctx: ResolvedContext) -> str:
     for promo in ctx.db_results:
         product_name = str(promo.get("product_name") or "")
         product_name_si = str(promo.get("product_name_si") or "")
-        name_display = f"{product_name_si} / {product_name}" if product_name_si else product_name
+        name_display = (
+            f"{product_name_si} / {product_name}" if product_name_si else product_name
+        )
 
-        brand        = str(promo.get("brand") or "-")
+        brand = str(promo.get("brand") or "-")
         discount_pct = float(promo.get("discount_percentage") or 0)
-        promo_type   = str(promo.get("promotion_type") or "")
+        promo_type = str(promo.get("promotion_type") or "")
         promo_type_si = _PROMOTION_TYPE_SI.get(promo_type, promo_type)
-        end_date     = str(promo.get("end_date") or "")[:10]
+        end_date = str(promo.get("end_date") or "")[:10]
 
-        original_price    = float(promo.get("original_price") or 0)
-        discounted_price  = original_price * (1 - discount_pct / 100)
+        original_price = float(promo.get("original_price") or 0)
+        discounted_price = original_price * (1 - discount_pct / 100)
 
         price_note = ""
         if original_price > 0:
-            price_note = f" ~~රු.{original_price:,.2f}~~ → **රු.{discounted_price:,.2f}**"
+            price_note = (
+                f" ~~රු.{original_price:,.2f}~~ → **රු.{discounted_price:,.2f}**"
+            )
 
         lines.append(
             f"| {name_display}{price_note} | {brand} | **{discount_pct:.0f}%** | {promo_type_si} | {end_date} |\n"
@@ -351,6 +617,7 @@ def _render_promotions(ctx: ResolvedContext) -> str:
 # ---------------------------------------------------------------------------
 # XAI block
 # ---------------------------------------------------------------------------
+
 
 def _with_xai(body: str, ctx: ResolvedContext) -> str:
     if not ctx.xai_features and not ctx.entities and not ctx.db_source:
@@ -368,16 +635,21 @@ def _with_xai(body: str, ctx: ResolvedContext) -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
     reasons: list[str] = []
 
-    product = str(ctx.entities.get("product") or "").strip() if ctx.entities else ""
+    product = _normalize_entity_text(ctx.entities.get("product")) if ctx.entities else ""
     category = str(ctx.entities.get("category") or "").strip() if ctx.entities else ""
 
     if product:
-        reasons.append(f"ඔබ **{product}** ගැන අහපු නිසා ඒකට ගැලපෙන ප්‍රතිඵල සොයා පෙන්වුවා.")
+        reasons.append(
+            f"ඔබ **{product}** ගැන අහපු නිසා ඒකට ගැලපෙන ප්‍රතිඵල සොයා පෙන්වුවා."
+        )
     elif category:
-        reasons.append(f"ඔබ ඉල්ලූ **{category}** category එකට ගැලපෙන දත්ත පාවිච්චි කළා.")
+        reasons.append(
+            f"ඔබ ඉල්ලූ **{category}** category එකට ගැලපෙන දත්ත පාවිච්චි කළා."
+        )
     else:
         reasons.append(_intent_reason(ctx.intent))
 
@@ -394,11 +666,15 @@ def _build_user_friendly_reasons(ctx: ResolvedContext) -> list[str]:
         if ctx.intent in {"prices", "product_search", "offers", "buying_suggestions"}:
             reasons.append(f"මෙම පිළිතුර අදාළ භාණ්ඩ **{count}ක්** මත ගොඩනැගුණා.")
         elif ctx.intent == "order_history":
-            reasons.append(f"මෙම පිළිතුර ඔබගේ ඇණවුම් **{count}ක්** පදනම් කරගෙන දීලා තියෙනවා.")
+            reasons.append(
+                f"මෙම පිළිතුර ඔබගේ ඇණවුම් **{count}ක්** පදනම් කරගෙන දීලා තියෙනවා."
+            )
         elif ctx.intent == "promotions":
             reasons.append(f"සක්‍රිය promotions **{count}ක්** catalog එකෙන් ලබාගත්තා.")
         elif ctx.intent == "user_profile":
-            reasons.append("ඔබගේ account දත්ත ආරක්ෂිතව ලබාගෙන profile සාරාංශය සකස් කළා.")
+            reasons.append(
+                "ඔබගේ account දත්ත ආරක්ෂිතව ලබාගෙන profile සාරාංශය සකස් කළා."
+            )
     elif ctx.needs_clarification:
         reasons.append("නිවැරදි ප්‍රතිඵල දෙන්න තව ටිකක් පැහැදිලි විස්තර අවශ්‍ය වුණා.")
 
@@ -423,7 +699,9 @@ def _intent_reason(intent: str) -> str:
     if intent == "product_search":
         return "ඔබ භාණ්ඩ සෙවුමක් කළ නිසා නම/brand/category ගැලපීම් අනුව ප්‍රතිඵල තෝරාගත්තා."
     if intent == "offers":
-        return "ඔබ offers ගැන අහපු නිසා discount සහ ගනුදෙනු දත්ත බලලා ප්‍රතිඵල තෝරාගත්තා."
+        return (
+            "ඔබ offers ගැන අහපු නිසා discount සහ ගනුදෙනු දත්ත බලලා ප්‍රතිඵල තෝරාගත්තා."
+        )
     if intent == "order_history":
         return "ඔබගේ ඉල්ලීම අනුව ඔබට අදාළ ඇණවුම් ඉතිහාස දත්ත භාවිත කළා."
     if intent == "buying_suggestions":
@@ -431,7 +709,7 @@ def _intent_reason(intent: str) -> str:
     if intent == "user_profile":
         return "ඔබ profile ගැන අහපු නිසා ඔබගේ ගිණුම් දත්ත ආරක්ෂිතව ලබාගෙන සාරාංශ කළා."
     if intent == "promotions":
-        return "ඔබ promotions ගැන අහපු නිසා දැනට ක්‍රියාත්මක promotions catalog එකෙන් ලබාගත්තා."
+        return "ඔයා promotions ගැන අහපු නිසා, දැනට තියෙන promotions catalog එකෙන් මම විස්තර ටික ගත්තා."
     return "ඔබගේ ප්‍රශ්නයේ අර්ථය අනුව ගැලපෙන දත්ත තෝරාගෙන පිළිතුර සකස් කළා."
 
 
@@ -469,7 +747,18 @@ def _feature_reason(features: list[dict[str, Any]]) -> str:
 
 
 def _generic_clarification() -> str:
-    return "ඔබගේ ප්‍රශ්නය ලැබුණා. ටිකක් වැඩි විස්තරයක් දුන්නොත් මම නිවැරදිව උත්තර දෙන්නම්."
+    return "ප්‍රශ්නය පැහැදිලියි, හැබැයි ඒ ගැන තව විස්තර ටිකක් දෙනවා නම් මට වඩාත් නිවැරදිව උදව් කරන්න පුළුවන්."
+
+
+def _normalize_entity_text(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    # Trim common markdown/control wrappers to avoid placeholder-like output.
+    text = text.strip("*`_~|[](){}<>")
+    if not re.search(r"[A-Za-z0-9඀-෿]", text):
+        return ""
+    return text
 
 
 def _compact_row(row: dict[str, Any]) -> str:

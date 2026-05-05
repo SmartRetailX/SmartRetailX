@@ -125,7 +125,7 @@ function RouteComponent() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: ({ row }) => `$${row.original.total.toFixed(2)}`,
+        cell: ({ row }) => `Rs. ${row.original.total.toFixed(2)}`,
       },
       {
         accessorKey: 'status',

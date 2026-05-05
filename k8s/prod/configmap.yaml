@@ -20,6 +20,7 @@ data:
   BETTER_AUTH_URL: "https://api.example.com"
   CORS_ORIGIN: "https://app.example.com"
   PUBLIC_BASE_URL: "https://api.example.com"
+  PUBLIC_WEBSOCKET_URL: ""
   CORE_SERVICE_QUEUE: "core_queue"
   BI_DASHBOARD_SERVICE_QUEUE: "bi_dashboard_queue"
   WEBSOCKET_SERVICE_QUEUE: "websocket_queue"

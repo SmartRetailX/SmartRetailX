@@ -11,7 +11,7 @@ import { PageContainer } from '@/components/partials/container/page-container';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { getPublicBaseUrl } from '@/lib/base-url';
+import { getDefaultWebsocketBaseUrl, getPublicBaseUrl, getPublicWebsocketUrl } from '@/lib/base-url';
 import { USER_ROLE } from '@/types/auth';
 
 export const Route = createFileRoute('/_authenticated/_user/voice-assistant')({
@@ -195,13 +195,9 @@ function voiceUrl(path: string) {
 }
 
 function websocketUrl() {
-  const env = import.meta.env ?? {};
-  const configured = (env.PUBLIC_WEBSOCKET_URL || '').trim().replace(/\/$/, '');
+  const configured = getPublicWebsocketUrl();
   if (configured) return configured;
-  if (typeof window === 'undefined') return 'http://localhost:3004';
-
-  const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:${env.WEBSOCKET_SERVICE_PORT || 3004}`;
+  return getDefaultWebsocketBaseUrl();
 }
 
 function getSpeechRecognitionConstructor() {
