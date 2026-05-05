@@ -252,7 +252,7 @@ export class AlertsController {
     schema: {
       example: {
         statusCode: 503,
-        message: 'Failed to generate alerts from ML service: Connection refused. Ensure ML service is running at http://localhost:8000',
+        message: 'Failed to generate alerts from ML service: Connection refused. Ensure ML service is running at http://localhost:8019',
       },
     },
   })

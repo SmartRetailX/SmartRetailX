@@ -169,6 +169,8 @@ function RouteComponent() {
   const cartQuery = useCartQuery();
   const { updateCartItem, removeFromCart, clearCart, checkout } = useStoreMutations();
   const { data: promotionsData } = useActivePromotions();
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const [shipping, setShipping] = useState({
     street: '',
@@ -306,12 +308,23 @@ function RouteComponent() {
                           )}
                         </div>
                         <Button
+                          type="button"
                           variant="ghost"
                           size="icon"
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromCart.mutate(item.productId)}
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          disabled={removingId === item.productId}
+                          onClick={() => {
+                            setRemovingId(item.productId);
+                            removeFromCart.mutate(item.productId, {
+                              onSuccess: () => toast.success(`${item.productName} removed`),
+                              onError:   (e) => toast.error((e as Error).message ?? 'Failed to remove'),
+                              onSettled: () => setRemovingId(null),
+                            });
+                          }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {removingId === item.productId
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Trash2 className="h-4 w-4" />}
                         </Button>
                       </div>
                     </CardHeader>
@@ -337,30 +350,49 @@ function RouteComponent() {
                       {/* Quantity controls */}
                       <div className="flex items-center gap-2">
                         <Button
+                          type="button"
                           variant="outline"
-                          size="icon"
-                          onClick={() =>
-                            updateCartItem.mutate({ productId: item.productId, quantity: item.quantity - 1 })
-                          }
+                          className="h-8 w-8 p-0"
+                          disabled={updatingId === item.productId || item.quantity <= 1}
+                          onClick={() => {
+                            setUpdatingId(item.productId);
+                            updateCartItem.mutate(
+                              { productId: item.productId, quantity: item.quantity - 1 },
+                              { onSettled: () => setUpdatingId(null) },
+                            );
+                          }}
                         >
                           <Minus className="h-4 w-4" />
                         </Button>
                         <Input
                           value={item.quantity}
-                          onChange={(e) =>
-                            updateCartItem.mutate({ productId: item.productId, quantity: Number(e.target.value || 0) })
-                          }
+                          onChange={(e) => {
+                            const qty = Number(e.target.value);
+                            if (qty >= 0 && qty <= item.currentStock) {
+                              setUpdatingId(item.productId);
+                              updateCartItem.mutate(
+                                { productId: item.productId, quantity: qty },
+                                { onSettled: () => setUpdatingId(null) },
+                              );
+                            }
+                          }}
                           type="number"
-                          min={0}
+                          min={1}
                           max={item.currentStock}
                           className="w-16 text-center"
                         />
                         <Button
+                          type="button"
                           variant="outline"
-                          size="icon"
-                          onClick={() =>
-                            updateCartItem.mutate({ productId: item.productId, quantity: item.quantity + 1 })
-                          }
+                          className="h-8 w-8 p-0"
+                          disabled={updatingId === item.productId || item.quantity >= item.currentStock}
+                          onClick={() => {
+                            setUpdatingId(item.productId);
+                            updateCartItem.mutate(
+                              { productId: item.productId, quantity: item.quantity + 1 },
+                              { onSettled: () => setUpdatingId(null) },
+                            );
+                          }}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>

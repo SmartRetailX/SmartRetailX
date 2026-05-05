@@ -191,7 +191,7 @@ function RouteComponent() {
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-6 px-2">
       {/* Header */}
       <div className="rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-transparent to-transparent px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

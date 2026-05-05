@@ -13,7 +13,7 @@ class XaiService {
     private httpService: HttpService,
     private configService: ConfigService,
   ) {
-    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL') || 'http://localhost:8000';
+    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL') || 'http://localhost:8019';
   }
 
   /**

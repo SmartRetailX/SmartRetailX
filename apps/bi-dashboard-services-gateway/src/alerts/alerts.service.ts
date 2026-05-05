@@ -13,7 +13,7 @@ export class AlertsService implements OnModuleInit {
     private prisma: PrismaService,
     private configService: ConfigService,
   ) {
-    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL') || 'http://localhost:8000';
+    this.mlServiceUrl = this.configService.get<string>('ML_SERVICE_URL') || 'http://localhost:8019';
   }
 
   async onModuleInit() {

@@ -251,7 +251,7 @@ export function Header({ user, signOut }: { user?: User | null; signOut: () => v
         {!isVoiceAssistantRoute && (
           <form
             onSubmit={handleSearch}
-            className="relative mx-4 hidden max-w-2xl flex-1 items-center md:flex"
+            className="relative hidden max-w-2xl flex-1 items-center md:flex"
           >
             <Input
               value={search}
