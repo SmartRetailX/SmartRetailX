@@ -253,6 +253,17 @@ async def _resolve_product_search(
     rows = await search_products(search_query, limit=20)
     logger.info("resolve_product_search query=%r results=%d", search_query, len(rows))
 
+    # Apply budget cap if present (e.g. "is there yogurt under Rs. 500?")
+    budget_cap: float | None = None
+    raw_cap = entities.get("budget_amount")
+    if raw_cap is not None:
+        try:
+            budget_cap = float(str(raw_cap).replace(",", ""))
+        except (ValueError, TypeError):
+            pass
+    if budget_cap is not None:
+        rows = [r for r in rows if float(r.get("price") or 0.0) <= budget_cap]
+
     # Fuzzy suggestions if LIKE + fuzzy DB search still returned nothing
     suggestions: list[str] = []
     if not rows:

@@ -154,9 +154,7 @@ declare global {
 }
 
 const rootBaseUrl = getPublicBaseUrl();
-const PRODUCT_PAGE_COMMAND_PREFIX = '__srx_product_page__:';
 const PRODUCT_DETAIL_COMMAND_PREFIX = '__srx_product_detail__:';
-const PRODUCT_PAGE_SIZE = 5;
 
 const markdownComponents: Components = {
   a: ({ href, children, ...props }) => (
@@ -313,17 +311,6 @@ function resolveImageUrl(imageUrl?: string | null) {
   return raw;
 }
 
-function buildProductPageCommand(paging: ProductPagination) {
-  const payload = {
-    intent: paging.intent || 'product_search',
-    query: paging.query || null,
-    categoryHint: paging.categoryHint || null,
-    offset: paging.nextOffset ?? (paging.offset ?? 0) + (paging.limit ?? PRODUCT_PAGE_SIZE),
-    limit: paging.limit ?? PRODUCT_PAGE_SIZE,
-  };
-  return `${PRODUCT_PAGE_COMMAND_PREFIX}${JSON.stringify(payload)}`;
-}
-
 function buildProductDetailCommand(product: VoiceProduct) {
   const payload = {
     productId: product.product_id,
@@ -344,91 +331,7 @@ function splitMessageExplanation(content: string) {
   };
 }
 
-function inferIntentFromContent(content: string): ProductPagination['intent'] {
-  const lowered = content.toLowerCase();
-  if (lowered.includes('මිල ගණන්')) return 'prices';
-  if (lowered.includes('සෙවීමේ ප්‍රතිඵල') || lowered.includes('භාණ්ඩ ලැයිස්තුව'))
-    return 'product_search';
-  if (lowered.includes('offers')) return 'offers';
-  if (lowered.includes('නිර්දේශ')) return 'buying_suggestions';
-  return 'product_search';
-}
 
-function inferQueryFromContent(content: string) {
-  const quoted = content.match(/["“](.+?)["”]\s*[-–—]/);
-  if (quoted?.[1]) return quoted[1].trim();
-
-  const priceHeader = content.match(/###\s*💰\s*(.+?)\s*[-–—]\s*මිල\s*ගණන්/i);
-  if (priceHeader?.[1]) return priceHeader[1].trim();
-
-  const sinhalaForMatch = content.match(/^(.+?)\s+සඳහා\s+/);
-  if (sinhalaForMatch?.[1]) return sinhalaForMatch[1].trim().replace(/^"+|"+$/g, '');
-
-  return '';
-}
-
-function isControlShowMoreText(text: string) {
-  const normalized = text.trim().toLowerCase();
-  return (
-    normalized.startsWith('show more products for') ||
-    normalized.startsWith('තවත් භාණ්ඩ පෙන්වන්න') ||
-    normalized.includes('සඳහා තවත් භාණ්ඩ පෙන්වන්න')
-  );
-}
-
-function resolvePaginationForMessage(
-  message: VoiceMessage,
-  sortedMessages: VoiceMessage[],
-  messageIndex: number,
-): ProductPagination | null {
-  if (message.productPagination) return message.productPagination;
-  if (!message.products || message.products.length === 0) return null;
-
-  let inferredQuery = inferQueryFromContent(message.content || '');
-  if (!inferredQuery) {
-    for (let i = messageIndex - 1; i >= 0; i -= 1) {
-      const prev = sortedMessages[i];
-      if (prev.role === 'user' && prev.content.trim() && !isControlShowMoreText(prev.content)) {
-        inferredQuery = prev.content.trim();
-        break;
-      }
-    }
-  }
-
-  const content = message.content || '';
-  const ofTotalMatch = content.match(/\bof\s+(\d+)\b/i);
-  const rangeMatch = content.match(/(\d+)\s*-\s*(\d+)\s*of\s*(\d+)/i);
-  const inferredTotal = rangeMatch?.[3]
-    ? Number(rangeMatch[3])
-    : ofTotalMatch?.[1]
-      ? Number(ofTotalMatch[1])
-      : message.products.length;
-  const inferredStart = rangeMatch?.[1] ? Number(rangeMatch[1]) : 1;
-  const inferredLimit =
-    rangeMatch?.[1] && rangeMatch?.[2]
-      ? Math.max(1, Number(rangeMatch[2]) - Number(rangeMatch[1]) + 1)
-      : PRODUCT_PAGE_SIZE;
-  const nextOffset = Math.max(0, inferredStart - 1) + inferredLimit;
-  const hasMore = Number.isFinite(inferredTotal) && nextOffset < inferredTotal;
-
-  return {
-    intent: inferIntentFromContent(message.content || ''),
-    query: inferredQuery || null,
-    offset: Math.max(0, inferredStart - 1),
-    limit: inferredLimit,
-    nextOffset,
-    total: Number.isFinite(inferredTotal) ? inferredTotal : message.products.length,
-    hasMore,
-  };
-}
-
-function buildMoreProductsPrompt(message: VoiceMessage, paging: ProductPagination) {
-  const total = paging.total ?? message.products?.length ?? 0;
-  const shownCount = Math.min(PRODUCT_PAGE_SIZE, message.products?.length ?? 0);
-  const query = (paging.query || '').trim();
-  const queryPrefix = query ? `${query} ` : '';
-  return `ඔබට ${queryPrefix}මිල ගණන් පිළිබඳ විවිධ විකල්ප ${shownCount}ක් පෙන්වා ඇත (${total}න්). තවත් අවශ්‍යද?`;
-}
 
 function toImmediateMessages(
   payload: VoiceChatResponse,
@@ -558,7 +461,7 @@ function ProductCardTable({
   onRequestDetails?: (product: VoiceProduct) => void;
   disabled?: boolean;
 }) {
-  const visibleProducts = products.slice(0, PRODUCT_PAGE_SIZE);
+  const visibleProducts = products;
   const comparableProducts = visibleProducts.filter(
     (p) => Number.isFinite(p.price) && (p.stock_quantity ?? 0) >= 0,
   );
@@ -810,9 +713,6 @@ function RouteComponent() {
   const [error, setError] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<VoiceProcessingStatus | null>(null);
   const [voiceAccessState, setVoiceAccessState] = useState<VoiceAccessState | null>(null);
-  const [moreProductsChoiceByMessage, setMoreProductsChoiceByMessage] = useState<
-    Record<string, 'yes' | 'no'>
-  >({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -1015,19 +915,6 @@ function RouteComponent() {
     } finally {
       setSending(false);
     }
-  };
-
-  const handleRequestMoreProducts = async (paging: ProductPagination, messageId: string) => {
-    const command = buildProductPageCommand(paging);
-    const displayText = paging.query
-      ? `"${paging.query}" සඳහා තවත් භාණ්ඩ පෙන්වන්න`
-      : 'තවත් භාණ්ඩ පෙන්වන්න';
-    setMoreProductsChoiceByMessage((prev) => ({ ...prev, [messageId]: 'yes' }));
-    await sendAutomatedTextRequest(displayText, command);
-  };
-
-  const handleDeclineMoreProducts = (messageId: string) => {
-    setMoreProductsChoiceByMessage((prev) => ({ ...prev, [messageId]: 'no' }));
   };
 
   const handleRequestProductDetails = async (product: VoiceProduct) => {
@@ -1379,20 +1266,6 @@ function RouteComponent() {
                 const normalizedTranscript = (message.transcription || '').trim();
                 const { body: contentBody, explanation } =
                   splitMessageExplanation(normalizedContent);
-                const isLatestMessage = messageIndex === sortedMessages.length - 1;
-                const messagePaging = resolvePaginationForMessage(
-                  message,
-                  sortedMessages,
-                  messageIndex,
-                );
-                const hasMoreForMessage =
-                  message.role === 'assistant' &&
-                  Boolean(message.products?.length) &&
-                  Boolean(messagePaging) &&
-                  Boolean(messagePaging?.hasMore);
-                const moreChoice = moreProductsChoiceByMessage[message.id];
-                const moreButtonsDisabled =
-                  !isLatestMessage || Boolean(moreChoice) || inputDisabled;
                 const hideMainContent =
                   message.channel === 'voice' &&
                   normalizedTranscript.length > 0 &&
@@ -1412,7 +1285,7 @@ function RouteComponent() {
                           : 'max-w-[90%] rounded-2xl rounded-bl-md bg-muted px-3 py-2.5 shadow-sm sm:max-w-[78%] sm:px-4 sm:py-3'
                       }
                     >
-                      {!hideMainContent && contentBody ? (
+                      {!hideMainContent && contentBody && !(message.role === 'assistant' && message.products && message.products.length > 0) ? (
                         <MarkdownMessage content={contentBody} />
                       ) : null}
                       {message.channel === 'voice' &&
@@ -1458,35 +1331,6 @@ function RouteComponent() {
                       {message.role === 'assistant' && explanation ? (
                         <div className="mt-2 border-t border-border/60 pt-2">
                           <MarkdownMessage content={explanation} />
-                        </div>
-                      ) : null}
-                      {hasMoreForMessage ? (
-                        <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
-                          <p className="text-xs text-foreground">
-                            {buildMoreProductsPrompt(message, messagePaging as ProductPagination)}
-                          </p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              type="button"
-                              disabled={moreButtonsDisabled}
-                              onClick={() =>
-                                messagePaging
-                                  ? void handleRequestMoreProducts(messagePaging, message.id)
-                                  : undefined
-                              }
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
-                            >
-                              ඔව්
-                            </button>
-                            <button
-                              type="button"
-                              disabled={moreButtonsDisabled}
-                              onClick={() => handleDeclineMoreProducts(message.id)}
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-muted-foreground/25 bg-background px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                            >
-                              නැත
-                            </button>
-                          </div>
                         </div>
                       ) : null}
                       <div

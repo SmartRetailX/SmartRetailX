@@ -998,6 +998,14 @@ async def get_buying_suggestions(
             if require_promo
             else ""
         )
+        budget_cap: float | None = None
+        raw_budget = filters.get("budget_amount")
+        if raw_budget is not None:
+            try:
+                budget_cap = float(str(raw_budget).replace(",", ""))
+            except (ValueError, TypeError):
+                budget_cap = None
+        budget_where = f"AND p.price <= {budget_cap}" if budget_cap else ""
 
         async with acquire() as conn:
             candidates: list[dict[str, Any]] = []
@@ -1038,6 +1046,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND p.category_id IN (SELECT category_id FROM user_cats)
                       AND p.id NOT IN (SELECT product_id FROM bought_products)
                     ORDER BY p.purchase_frequency DESC, p.name
@@ -1073,6 +1082,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND (lower(c.name) LIKE $1 OR lower(c.name_si) LIKE $1)
                     ORDER BY p.purchase_frequency DESC, p.name
                     LIMIT $2
@@ -1106,6 +1116,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND p.purchase_frequency = 'high'
                     ORDER BY p.name
                     LIMIT $1
@@ -1142,6 +1153,19 @@ def _apply_buying_suggestion_filters(
     terms = _build_buying_filter_terms(filters)
     hint = _norm(category_hint or "")
     low_budget = str(filters.get("budget") or "").lower() == "low"
+
+    # Hard budget cap: drop rows that exceed an explicit budget_amount (SQL WHERE may
+    # not have caught rows already in candidates from a prior fetch without the cap)
+    cap: float | None = None
+    raw_cap = filters.get("budget_amount")
+    if raw_cap is not None:
+        try:
+            cap = float(str(raw_cap).replace(",", ""))
+        except (ValueError, TypeError):
+            cap = None
+    if cap is not None:
+        deduped = [r for r in deduped if float(r.get("price") or 0.0) <= cap]
+        low_budget = True
 
     scored: list[tuple[float, dict[str, Any]]] = []
     for row in deduped:
