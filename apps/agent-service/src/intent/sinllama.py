@@ -12,6 +12,7 @@ from ..models import IntentResult
 _ENTITY_NOISE: set[str] = {
     "කීය", "කීයද", "මොන", "මොනවා", "මොනවාද", "මොනවද", "මොකක්ද", "මොකද",
     "what", "which", "how", "much", "ද", "price", "මිල",
+    "අඩු", "කරලා", "තියෙනවා", "දෙන්න", "ගන්න",
 }
 
 

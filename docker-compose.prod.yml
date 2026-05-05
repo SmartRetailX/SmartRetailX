@@ -13,6 +13,12 @@ x-node-environment: &node-environment
   BI_DASHBOARD_SERVICE_QUEUE: ${BI_DASHBOARD_SERVICE_QUEUE:-bi_dashboard_queue}
   WEBSOCKET_SERVICE_QUEUE: ${WEBSOCKET_SERVICE_QUEUE:-websocket_queue}
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-20m}
+    max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
 services:
   sinlama:
     image: ${SINLAMA_IMAGE:-${IMAGE_PREFIX:-smart-retail-x}/sinlama-service:${TAG:-latest}}
@@ -28,6 +34,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
+    logging: *default-logging
     networks:
       - backend
 
@@ -64,6 +71,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging: *default-logging
 
   core-service:
     image: ${IMAGE_PREFIX:-smart-retail-x}/core-service:${TAG:-latest}
@@ -75,6 +83,7 @@ services:
       <<: *node-environment
       AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+    logging: *default-logging
     networks:
       - backend
 
@@ -94,6 +103,7 @@ services:
       ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
     expose:
       - '3001'
+    logging: *default-logging
     networks:
       - backend
 
@@ -108,6 +118,7 @@ services:
       WEBSOCKET_SERVICE_PORT: 3004
     expose:
       - '3004'
+    logging: *default-logging
     networks:
       - backend
 
@@ -118,12 +129,18 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      PUBLIC_WEBSOCKET_URL: ${PUBLIC_WEBSOCKET_URL:-}
     restart: unless-stopped
     depends_on:
       api-gateway:
         condition: service_healthy
+      websocket-service:
+        condition: service_started
     ports:
       - '${WEB_PORT:-8080}:80'
+    logging: *default-logging
     networks:
       - edge
       - backend
@@ -146,6 +163,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    logging: *default-logging
     networks:
       - backend
 
@@ -165,6 +183,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    logging: *default-logging
     networks:
       - backend
 
@@ -184,6 +203,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    logging: *default-logging
     networks:
       - backend
 
@@ -222,6 +242,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging: *default-logging
     networks:
       - backend
 
@@ -249,6 +270,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging: *default-logging
     networks:
       - backend
 

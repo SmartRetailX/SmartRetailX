@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { admin as adminPlugin, openAPI } from 'better-auth/plugins';
 
+import { parseCorsOrigins } from './cors';
 import { prisma } from './prisma';
 
 /**
@@ -16,10 +17,10 @@ import { prisma } from './prisma';
  */
 export const createBetterAuthInstance = (configService: ConfigService) => {
   const baseURL = configService.betterAuthUrl;
-  const corsOrigins = configService.corsOrigin.split(',').map((o) => o.trim());
+  const corsOrigins = parseCorsOrigins(configService.corsOrigin);
   const trustedOrigins = configService.isProduction
     ? [
-        ...corsOrigins.filter((o) => o !== '*' && o.startsWith('http')),
+        ...corsOrigins.filter((o) => o !== '*' && o.startsWith('http') && !o.includes('*')),
         'mobile-app://',
         'mobile-app://*',
       ]
