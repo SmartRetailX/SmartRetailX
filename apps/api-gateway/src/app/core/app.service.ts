@@ -216,4 +216,42 @@ export class CoreService implements OnModuleInit {
         this.logger.warn(`Failed to publish broadcast websocket event: ${error?.message ?? error}`),
     });
   }
+
+  // ── Bulk Promotions ────────────────────────────────────────────────────────
+
+  createPromotion(data: {
+    productId: string;
+    discountPercentage: number;
+    startDate: string;
+    endDate: string;
+    promotionType: string;
+    productScope?: string;
+  }): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'promotion_create' }, data);
+  }
+
+  listPromotions(params: { status?: string; page?: number; limit?: number }): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'promotion_list' }, params);
+  }
+
+  updatePromotion(
+    promotionId: string,
+    data: {
+      discountPercentage?: number;
+      startDate?: string;
+      endDate?: string;
+      promotionType?: string;
+      status?: string;
+    },
+  ): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'promotion_update' }, { promotionId, ...data });
+  }
+
+  deletePromotion(promotionId: string): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'promotion_delete' }, { promotionId });
+  }
+
+  getActivePromotions(): Observable<unknown> {
+    return this.coreClient.send({ cmd: 'promotion_active' }, {});
+  }
 }

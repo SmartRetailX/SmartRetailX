@@ -378,3 +378,37 @@ export function useCartRecommendations(productIds: string[], limit = 8) {
     staleTime: 60_000,
   });
 }
+
+// ── Bulk / store-wide promotions ────────────────────────────────────────────
+
+export interface ActivePromotion {
+  id: string;
+  productId: string;
+  productName: string;
+  productCategory: string;
+  productPrice: number;
+  productImageUrl: string | null;
+  discountPercentage: number;
+  startDate: string;
+  endDate: string;
+  promotionType: string;
+  productScope: string | null;
+  status: string | null;
+  createdAt: string;
+}
+
+export interface ActivePromotionsResponse {
+  success: boolean;
+  data: { promotions: ActivePromotion[] };
+}
+
+/** Currently active store-wide promotions visible to all customers. */
+export function useActivePromotions() {
+  return useQuery({
+    queryKey: ['active-promotions'],
+    queryFn: () =>
+      apiFetch<ActivePromotionsResponse>('/api/core/promotions/active'),
+    staleTime: 5 * 60_000, // refresh every 5 min
+    retry: false,
+  });
+}

@@ -34,6 +34,7 @@ import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_au
 import { Route as AuthenticatedAdminAdminForecastingRouteImport } from './routes/_authenticated/_admin/admin.forecasting'
 import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
+import { Route as AuthenticatedAdminAdminBulkPromotionsRouteImport } from './routes/_authenticated/_admin/admin.bulk-promotions'
 import { Route as AuthenticatedAdminAdminBiDashboardRouteImport } from './routes/_authenticated/_admin/admin.bi-dashboard'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -174,6 +175,12 @@ const AuthenticatedAdminAdminCategoriesRoute =
     path: '/categories',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminBulkPromotionsRoute =
+  AuthenticatedAdminAdminBulkPromotionsRouteImport.update({
+    id: '/bulk-promotions',
+    path: '/bulk-promotions',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 const AuthenticatedAdminAdminBiDashboardRoute =
   AuthenticatedAdminAdminBiDashboardRouteImport.update({
     id: '/bi-dashboard',
@@ -193,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
+  '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
@@ -217,6 +225,7 @@ export interface FileRoutesByTo {
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
+  '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
@@ -246,6 +255,7 @@ export interface FileRoutesById {
   '/_authenticated/_user/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/_authenticated/_user/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
   '/_authenticated/_admin/admin/bi-dashboard': typeof AuthenticatedAdminAdminBiDashboardRoute
+  '/_authenticated/_admin/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/_authenticated/_admin/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/_authenticated/_admin/admin/forecasting': typeof AuthenticatedAdminAdminForecastingRoute
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/bi-dashboard'
+    | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/forecasting'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/user-loyalty'
     | '/voice-assistant'
     | '/admin/bi-dashboard'
+    | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/forecasting'
@@ -325,6 +337,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_user/user-loyalty'
     | '/_authenticated/_user/voice-assistant'
     | '/_authenticated/_admin/admin/bi-dashboard'
+    | '/_authenticated/_admin/admin/bulk-promotions'
     | '/_authenticated/_admin/admin/categories'
     | '/_authenticated/_admin/admin/customers'
     | '/_authenticated/_admin/admin/forecasting'
@@ -523,6 +536,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminCategoriesRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/bulk-promotions': {
+      id: '/_authenticated/_admin/admin/bulk-promotions'
+      path: '/bulk-promotions'
+      fullPath: '/admin/bulk-promotions'
+      preLoaderRoute: typeof AuthenticatedAdminAdminBulkPromotionsRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
     '/_authenticated/_admin/admin/bi-dashboard': {
       id: '/_authenticated/_admin/admin/bi-dashboard'
       path: '/bi-dashboard'
@@ -535,6 +555,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminAdminRouteChildren {
   AuthenticatedAdminAdminBiDashboardRoute: typeof AuthenticatedAdminAdminBiDashboardRoute
+  AuthenticatedAdminAdminBulkPromotionsRoute: typeof AuthenticatedAdminAdminBulkPromotionsRoute
   AuthenticatedAdminAdminCategoriesRoute: typeof AuthenticatedAdminAdminCategoriesRoute
   AuthenticatedAdminAdminCustomersRoute: typeof AuthenticatedAdminAdminCustomersRoute
   AuthenticatedAdminAdminForecastingRoute: typeof AuthenticatedAdminAdminForecastingRoute
@@ -552,6 +573,8 @@ const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren
   {
     AuthenticatedAdminAdminBiDashboardRoute:
       AuthenticatedAdminAdminBiDashboardRoute,
+    AuthenticatedAdminAdminBulkPromotionsRoute:
+      AuthenticatedAdminAdminBulkPromotionsRoute,
     AuthenticatedAdminAdminCategoriesRoute:
       AuthenticatedAdminAdminCategoriesRoute,
     AuthenticatedAdminAdminCustomersRoute:

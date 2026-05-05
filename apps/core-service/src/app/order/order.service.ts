@@ -94,10 +94,48 @@ export class OrderService {
         return { success: false, message: 'Cart is empty' };
       }
 
+      // ── Apply active bulk promotions ───────────────────────────────────────
+      const now = new Date();
+      const activePromotions = await this.prisma.promotion.findMany({
+        where: {
+          isTargettedPromotion: false,
+          status: 'active',
+          startDate: { lte: now },
+          endDate: { gte: now },
+          productId: { in: cart.items.map((i) => i.productId) },
+        },
+        select: { productId: true, discountPercentage: true },
+      });
+
+      // Map productId → discountPercentage (number 0-100)
+      const promoMap = new Map(
+        activePromotions.map((p) => [p.productId, Number(p.discountPercentage)]),
+      );
+
+      // Build line items with discount applied
+      const lineItems = cart.items.map((item) => {
+        const discountPct = promoMap.get(item.productId) ?? 0;
+        const discountedUnit = item.unitPrice * (1 - discountPct / 100);
+        const discountedTotal = discountedUnit * item.quantity;
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          productNameSi: item.productNameSi ?? null,
+          productSku: item.sku,
+          quantity: item.quantity,
+          unitPrice: discountedUnit,
+          totalPrice: discountedTotal,
+        };
+      });
+
       const subtotal = cart.items.reduce((sum, i) => sum + i.totalPrice, 0);
-      const discount = 0;
+      const discount = lineItems.reduce(
+        (sum, li, idx) => sum + (cart.items[idx].totalPrice - li.totalPrice),
+        0,
+      );
       const tax = 0;
       const total = subtotal - discount + tax;
+
       const orderNumber = `ORD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
       const order = await this.prisma.$transaction(async (tx) => {
@@ -113,17 +151,7 @@ export class OrderService {
             shippingAddress: input.shippingAddress ? JSON.stringify(input.shippingAddress) : null,
             billingAddress: input.billingAddress ? JSON.stringify(input.billingAddress) : null,
             notes: input.notes ?? null,
-            items: {
-              create: cart.items.map((item) => ({
-                productId: item.productId,
-                productName: item.productName,
-                productNameSi: item.productNameSi ?? null,
-                productSku: item.sku,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                totalPrice: item.totalPrice,
-              })),
-            },
+            items: { create: lineItems },
           },
           include: { items: true },
         });

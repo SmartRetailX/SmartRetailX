@@ -970,4 +970,111 @@ export class CoreController {
       return { success: false, message };
     }
   }
+
+  // ── Bulk Promotions ────────────────────────────────────────────────────────
+
+  @Get('promotions/active')
+  @AllowAnonymous()
+  @ApiOperation({ summary: 'Get currently active bulk promotions (all users)' })
+  async getActivePromotions() {
+    try {
+      return await firstValueFrom(this.coreService.getActivePromotions().pipe(timeout(8000)));
+    } catch (error) {
+      this.logger.error('Failed to get active promotions', (error as Error).message);
+      return { success: false, data: { promotions: [] } };
+    }
+  }
+
+  @Get('admin/promotions')
+  @ApiOperation({ summary: 'List all bulk promotions (admin)' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'page',   required: false, type: Number })
+  @ApiQuery({ name: 'limit',  required: false, type: Number })
+  async listPromotions(
+    @Req() req: AuthenticatedRequest,
+    @Query('status') status?: string,
+    @Query('page')   page?: string,
+    @Query('limit')  limit?: string,
+  ) {
+    this.requireAdmin(req);
+    try {
+      return await firstValueFrom(
+        this.coreService
+          .listPromotions({
+            status,
+            page:  page  ? Number(page)  : undefined,
+            limit: limit ? Number(limit) : undefined,
+          })
+          .pipe(timeout(8000)),
+      );
+    } catch (error) {
+      this.logger.error('Failed to list promotions', (error as Error).message);
+      return { success: false, data: { promotions: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } } };
+    }
+  }
+
+  @Post('admin/promotions')
+  @ApiOperation({ summary: 'Create bulk promotion (admin)' })
+  async createPromotion(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: {
+      productId: string;
+      discountPercentage: number;
+      startDate: string;
+      endDate: string;
+      promotionType: string;
+      productScope?: string;
+    },
+  ) {
+    this.requireAdmin(req);
+    try {
+      return await firstValueFrom(this.coreService.createPromotion(body).pipe(timeout(8000)));
+    } catch (error) {
+      this.logger.error('Failed to create promotion', (error as Error).message);
+      return { success: false, message: (error as Error).message || 'Failed to create promotion' };
+    }
+  }
+
+  @Patch('admin/promotions/:promotionId')
+  @ApiOperation({ summary: 'Update bulk promotion (admin)' })
+  @ApiParam({ name: 'promotionId', type: 'string' })
+  async updatePromotion(
+    @Req() req: AuthenticatedRequest,
+    @Param('promotionId') promotionId: string,
+    @Body() body: {
+      discountPercentage?: number;
+      startDate?: string;
+      endDate?: string;
+      promotionType?: string;
+      status?: string;
+    },
+  ) {
+    this.requireAdmin(req);
+    try {
+      return await firstValueFrom(
+        this.coreService.updatePromotion(promotionId, body).pipe(timeout(8000)),
+      );
+    } catch (error) {
+      this.logger.error('Failed to update promotion', (error as Error).message);
+      return { success: false, message: (error as Error).message || 'Failed to update promotion' };
+    }
+  }
+
+  @Delete('admin/promotions/:promotionId')
+  @ApiOperation({ summary: 'Delete bulk promotion (admin)' })
+  @ApiParam({ name: 'promotionId', type: 'string' })
+  async deletePromotion(
+    @Req() req: AuthenticatedRequest,
+    @Param('promotionId') promotionId: string,
+  ) {
+    this.requireAdmin(req);
+    try {
+      return await firstValueFrom(
+        this.coreService.deletePromotion(promotionId).pipe(timeout(8000)),
+      );
+    } catch (error) {
+      this.logger.error('Failed to delete promotion', (error as Error).message);
+      return { success: false, message: (error as Error).message || 'Failed to delete promotion' };
+    }
+  }
 }
