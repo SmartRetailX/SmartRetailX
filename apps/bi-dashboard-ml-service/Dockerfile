@@ -9,6 +9,7 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    curl \
     gcc \
     g++ \
     libpq-dev \
@@ -34,5 +35,5 @@ USER app
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["python", "main.py"]
+# Run the application without dev reload in production.
+CMD ["sh", "-c", "uvicorn main:app --host ${ML_SERVICE_HOST:-0.0.0.0} --port ${ML_SERVICE_PORT:-8000}"]

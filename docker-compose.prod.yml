@@ -83,6 +83,9 @@ services:
       <<: *node-environment
       AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-gpt-4o-mini}
     logging: *default-logging
     networks:
       - backend
@@ -115,6 +118,8 @@ services:
     restart: unless-stopped
     environment:
       <<: *node-environment
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      API_GATEWAY_VOICE_URL: ${API_GATEWAY_VOICE_URL:-http://api-gateway:3000/api/v1/voice}
       WEBSOCKET_SERVICE_PORT: 3004
     expose:
       - '3004'
@@ -220,17 +225,24 @@ services:
       AGENT_HTTP_PORT: 8010
       AGENT_TCP_HOST: 0.0.0.0
       AGENT_TCP_PORT: 8877
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
       WHISPER_API_URL: ${WHISPER_API_URL:-}
       WHISPER_API_TIMEOUT_MS: ${WHISPER_API_TIMEOUT_MS:-180000}
       WHISPER_API_UPLOAD_FIELD: ${WHISPER_API_UPLOAD_FIELD:-file}
       WHISPER_API_LANGUAGE_FIELD: ${WHISPER_API_LANGUAGE_FIELD:-language}
       WHISPER_API_RESPONSE_FIELD: ${WHISPER_API_RESPONSE_FIELD:-transcription}
+      STT_PROVIDER: ${STT_PROVIDER:-stt-agent}
+      STT_AGENT_HTTP_URL: ${STT_AGENT_HTTP_URL:-http://stt-agent:8003/api/v1/stt/transcribe}
+      STT_AGENT_TIMEOUT_MS: ${STT_AGENT_TIMEOUT_MS:-60000}
       SINLLAMA_BASE_URL: ${SINLLAMA_BASE_URL:-http://sinlama:8080}
       SINLLAMA_INTENT_PATH: ${SINLLAMA_INTENT_PATH:-/api/v1/intent}
       SINLLAMA_TIMEOUT_MS: ${SINLLAMA_TIMEOUT_MS:-8000}
       SINLLAMA_API_KEY: ${SINLLAMA_API_KEY:-}
       SINLLAMA_RETRY_COUNT: ${SINLLAMA_RETRY_COUNT:-1}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_WHISPER_MODEL: ${OPENAI_WHISPER_MODEL:-whisper-1}
+      OPENAI_STT_TIMEOUT_MS: ${OPENAI_STT_TIMEOUT_MS:-90000}
       OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
       OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
     expose:
