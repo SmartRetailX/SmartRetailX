@@ -7,6 +7,7 @@ import {
   Layers,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Package,
   ShoppingBag,
   Store,
@@ -84,6 +85,12 @@ const adminNavItems = [
     path: '/admin/promotions',
     href: '/admin/promotions',
     icon: Target,
+  },
+  {
+    label: 'Bulk Promotions',
+    path: '/admin/bulk-promotions',
+    href: '/admin/bulk-promotions',
+    icon: Megaphone,
   },
 ];
 

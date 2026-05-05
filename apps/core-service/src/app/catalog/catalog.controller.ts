@@ -127,4 +127,46 @@ export class CatalogController {
 
     return this.catalogService.deleteProduct(productId);
   }
+
+  // ── Bulk Promotions ────────────────────────────────────────────────────────
+
+  @MessagePattern({ cmd: 'promotion_create' })
+  async createPromotion(data: {
+    productId: string;
+    discountPercentage: number;
+    startDate: string;
+    endDate: string;
+    promotionType: string;
+    productScope?: string;
+  }) {
+    return this.catalogService.createBulkPromotion(data);
+  }
+
+  @MessagePattern({ cmd: 'promotion_list' })
+  async listPromotions(data: { status?: string; page?: number; limit?: number }) {
+    return this.catalogService.listBulkPromotions(data || {});
+  }
+
+  @MessagePattern({ cmd: 'promotion_update' })
+  async updatePromotion(data: {
+    promotionId: string;
+    discountPercentage?: number;
+    startDate?: string;
+    endDate?: string;
+    promotionType?: string;
+    status?: string;
+  }) {
+    const { promotionId, ...input } = data;
+    return this.catalogService.updateBulkPromotion(promotionId, input);
+  }
+
+  @MessagePattern({ cmd: 'promotion_delete' })
+  async deletePromotion(data: { promotionId: string }) {
+    return this.catalogService.deleteBulkPromotion(data.promotionId);
+  }
+
+  @MessagePattern({ cmd: 'promotion_active' })
+  async getActivePromotions() {
+    return this.catalogService.getActivePromotions();
+  }
 }

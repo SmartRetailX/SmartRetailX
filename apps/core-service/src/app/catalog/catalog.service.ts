@@ -1154,4 +1154,145 @@ export class CatalogService {
 
     return category.id;
   }
+
+  // ── Bulk Promotions ────────────────────────────────────────────────────────
+
+  async createBulkPromotion(input: {
+    productId: string;
+    discountPercentage: number;
+    startDate: string;
+    endDate: string;
+    promotionType: string;
+    productScope?: string;
+  }) {
+    try {
+      const promotion = await this.prisma.promotion.create({
+        data: {
+          productId: input.productId,
+          discountPercentage: new Prisma.Decimal(input.discountPercentage),
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          promotionType: input.promotionType,
+          isTargettedPromotion: false,
+          productScope: input.productScope ?? null,
+          status: 'active',
+        },
+        include: { product: { include: { category: true } } },
+      });
+      return { success: true, data: this.serializePromotion(promotion) };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2003') return { success: false, message: 'Product not found' };
+      return { success: false, message: err.message || 'Failed to create promotion' };
+    }
+  }
+
+  async listBulkPromotions(params: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const limit = Math.min(params.limit ?? 20, 100);
+    const page  = Math.max(params.page ?? 1, 1);
+    const skip  = (page - 1) * limit;
+
+    const where: Prisma.PromotionWhereInput = { isTargettedPromotion: false };
+    if (params.status) where.status = params.status;
+
+    const [total, rows] = await Promise.all([
+      this.prisma.promotion.count({ where }),
+      this.prisma.promotion.findMany({
+        where,
+        include: { product: { include: { category: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        promotions: rows.map((r) => this.serializePromotion(r)),
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      },
+    };
+  }
+
+  async updateBulkPromotion(
+    promotionId: string,
+    input: {
+      discountPercentage?: number;
+      startDate?: string;
+      endDate?: string;
+      promotionType?: string;
+      status?: string;
+    },
+  ) {
+    try {
+      const data: Prisma.PromotionUpdateInput = {};
+      if (input.discountPercentage !== undefined)
+        data.discountPercentage = new Prisma.Decimal(input.discountPercentage);
+      if (input.startDate) data.startDate = new Date(input.startDate);
+      if (input.endDate)   data.endDate   = new Date(input.endDate);
+      if (input.promotionType) data.promotionType = input.promotionType;
+      if (input.status)    data.status    = input.status;
+
+      const promotion = await this.prisma.promotion.update({
+        where: { promotionId },
+        data,
+        include: { product: { include: { category: true } } },
+      });
+      return { success: true, data: this.serializePromotion(promotion) };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2025') return { success: false, message: 'Promotion not found' };
+      return { success: false, message: err.message || 'Failed to update promotion' };
+    }
+  }
+
+  async deleteBulkPromotion(promotionId: string) {
+    try {
+      await this.prisma.promotion.delete({ where: { promotionId } });
+      return { success: true, message: 'Promotion deleted' };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'P2025') return { success: false, message: 'Promotion not found' };
+      return { success: false, message: err.message || 'Failed to delete promotion' };
+    }
+  }
+
+  async getActivePromotions() {
+    const now = new Date();
+    const rows = await this.prisma.promotion.findMany({
+      where: {
+        isTargettedPromotion: false,
+        status: 'active',
+        startDate: { lte: now },
+        endDate:   { gte: now },
+      },
+      include: { product: { include: { category: true } } },
+      orderBy: { startDate: 'asc' },
+    });
+    return { success: true, data: { promotions: rows.map((r) => this.serializePromotion(r)) } };
+  }
+
+  private serializePromotion(
+    row: Prisma.PromotionGetPayload<{ include: { product: { include: { category: true } } } }>,
+  ) {
+    return {
+      id: row.promotionId,
+      productId: row.productId,
+      productName: row.product.name,
+      productCategory: row.product.category.name,
+      productPrice: Number(row.product.price),
+      discountPercentage: Number(row.discountPercentage),
+      startDate: row.startDate.toISOString(),
+      endDate: row.endDate.toISOString(),
+      promotionType: row.promotionType,
+      productScope: row.productScope,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
 }

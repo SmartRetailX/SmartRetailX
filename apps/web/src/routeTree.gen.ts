@@ -32,6 +32,7 @@ import { Route as AuthenticatedAdminAdminOrdersRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminAdminLoyaltyRouteImport } from './routes/_authenticated/_admin/admin.loyalty'
 import { Route as AuthenticatedAdminAdminCustomersRouteImport } from './routes/_authenticated/_admin/admin.customers'
 import { Route as AuthenticatedAdminAdminCategoriesRouteImport } from './routes/_authenticated/_admin/admin.categories'
+import { Route as AuthenticatedAdminAdminBulkPromotionsRouteImport } from './routes/_authenticated/_admin/admin.bulk-promotions'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -160,6 +161,12 @@ const AuthenticatedAdminAdminCategoriesRoute =
     path: '/categories',
     getParentRoute: () => AuthenticatedAdminAdminRoute,
   } as any)
+const AuthenticatedAdminAdminBulkPromotionsRoute =
+  AuthenticatedAdminAdminBulkPromotionsRouteImport.update({
+    id: '/bulk-promotions',
+    path: '/bulk-promotions',
+    getParentRoute: () => AuthenticatedAdminAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -171,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
@@ -192,6 +200,7 @@ export interface FileRoutesByTo {
   '/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
@@ -218,6 +227,7 @@ export interface FileRoutesById {
   '/_authenticated/_user/product-suggestions': typeof AuthenticatedUserProductSuggestionsRoute
   '/_authenticated/_user/user-loyalty': typeof AuthenticatedUserUserLoyaltyRoute
   '/_authenticated/_user/voice-assistant': typeof AuthenticatedUserVoiceAssistantRoute
+  '/_authenticated/_admin/admin/bulk-promotions': typeof AuthenticatedAdminAdminBulkPromotionsRoute
   '/_authenticated/_admin/admin/categories': typeof AuthenticatedAdminAdminCategoriesRoute
   '/_authenticated/_admin/admin/customers': typeof AuthenticatedAdminAdminCustomersRoute
   '/_authenticated/_admin/admin/loyalty': typeof AuthenticatedAdminAdminLoyaltyRoute
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
+    | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/loyalty'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/product-suggestions'
     | '/user-loyalty'
     | '/voice-assistant'
+    | '/admin/bulk-promotions'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/loyalty'
@@ -288,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_user/product-suggestions'
     | '/_authenticated/_user/user-loyalty'
     | '/_authenticated/_user/voice-assistant'
+    | '/_authenticated/_admin/admin/bulk-promotions'
     | '/_authenticated/_admin/admin/categories'
     | '/_authenticated/_admin/admin/customers'
     | '/_authenticated/_admin/admin/loyalty'
@@ -470,10 +483,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdminCategoriesRouteImport
       parentRoute: typeof AuthenticatedAdminAdminRoute
     }
+    '/_authenticated/_admin/admin/bulk-promotions': {
+      id: '/_authenticated/_admin/admin/bulk-promotions'
+      path: '/bulk-promotions'
+      fullPath: '/admin/bulk-promotions'
+      preLoaderRoute: typeof AuthenticatedAdminAdminBulkPromotionsRouteImport
+      parentRoute: typeof AuthenticatedAdminAdminRoute
+    }
   }
 }
 
 interface AuthenticatedAdminAdminRouteChildren {
+  AuthenticatedAdminAdminBulkPromotionsRoute: typeof AuthenticatedAdminAdminBulkPromotionsRoute
   AuthenticatedAdminAdminCategoriesRoute: typeof AuthenticatedAdminAdminCategoriesRoute
   AuthenticatedAdminAdminCustomersRoute: typeof AuthenticatedAdminAdminCustomersRoute
   AuthenticatedAdminAdminLoyaltyRoute: typeof AuthenticatedAdminAdminLoyaltyRoute
@@ -488,6 +509,8 @@ interface AuthenticatedAdminAdminRouteChildren {
 
 const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren =
   {
+    AuthenticatedAdminAdminBulkPromotionsRoute:
+      AuthenticatedAdminAdminBulkPromotionsRoute,
     AuthenticatedAdminAdminCategoriesRoute:
       AuthenticatedAdminAdminCategoriesRoute,
     AuthenticatedAdminAdminCustomersRoute:
