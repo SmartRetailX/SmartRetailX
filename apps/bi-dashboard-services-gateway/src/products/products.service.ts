@@ -32,13 +32,12 @@ export class ProductsService {
     // }
 
     // Only add filters if they are actually provided (not undefined or string "undefined")
-    if (category && category !== 'undefined') where.category = category;
+    if (category && category !== 'undefined') where.categoryId = category;
     if (status && status !== 'undefined') where.status = status.toUpperCase();
     if (search && search !== 'undefined') {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
-        { barcode: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -58,11 +57,13 @@ export class ProductsService {
         products: products.map((p) => ({
           id: p.id,
           sku: p.sku,
-          barcode: p.barcode,
           name: p.name,
           nameSi: p.nameSi,
-          category: p.category,
-          categorySi: p.categorySi,
+          description: p.description,
+          descriptionSi: p.descriptionSi,
+          categoryId: p.categoryId,
+          brand: p.brand,
+          purchaseFrequency: p.purchaseFrequency,
           price: p.price,
           cost: p.cost,
           currentStock: p.currentStock,
@@ -71,8 +72,8 @@ export class ProductsService {
           status: p.status.toLowerCase(),
           supplier: p.supplier,
           lastRestocked: p.lastRestocked,
-          expiryDate: p.expiryDate,
           imageUrl: p.imageUrl,
+          isActive: p.isActive,
           createdAt: p.createdAt,
           updatedAt: p.updatedAt,
         })),
@@ -104,11 +105,13 @@ export class ProductsService {
       data: {
         id: product.id,
         sku: product.sku,
-        barcode: product.barcode,
         name: product.name,
         nameSi: product.nameSi,
-        category: product.category,
-        categorySi: product.categorySi,
+        description: product.description,
+        descriptionSi: product.descriptionSi,
+        categoryId: product.categoryId,
+        brand: product.brand,
+        purchaseFrequency: product.purchaseFrequency,
         price: product.price,
         cost: product.cost,
         currentStock: product.currentStock,
@@ -117,8 +120,8 @@ export class ProductsService {
         status: product.status.toLowerCase(),
         supplier: product.supplier,
         lastRestocked: product.lastRestocked,
-        expiryDate: product.expiryDate,
         imageUrl: product.imageUrl,
+        isActive: product.isActive,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
       },

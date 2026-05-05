@@ -58,8 +58,8 @@ export class ProductsController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Search by name, SKU, or barcode',
-    example: 'Basmati',
+    description: 'Search by name or SKU',
+    example: 'Ambarella',
   })
   @ApiResponse({
     status: 200,
@@ -67,29 +67,37 @@ export class ProductsController {
     schema: {
       example: {
         success: true,
-        data: [
-          {
-            id: 'PROD001',
-            name: 'Basmati Rice 5kg',
-            nameSi: 'බාස්මති සහල් 5kg',
-            sku: 'GRO-PROD001',
-            barcode: '89000000000001',
-            category: 'Groceries',
-            categorySi: 'ආහාර',
-            price: 54.55,
-            costPrice: 40.91,
-            stock: 50,
-            reorderLevel: 20,
-            status: 'IN_STOCK',
-            unit: 'kg',
-            image: 'https://cdn.example.com/products/basmati-rice.jpg',
+        data: {
+          products: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440000',
+              name: 'Ambarella',
+              nameSi: 'අඹරැල්ලා',
+              sku: '916002',
+              description: 'Tangy and fiber-rich local fruit used for chutneys and curries',
+              categoryId: 'cat-001',
+              brand: 'Local',
+              purchaseFrequency: 'medium',
+              price: 560,
+              cost: 420,
+              currentStock: 100,
+              reorderLevel: 50,
+              maxStock: 300,
+              status: 'in_stock',
+              supplier: 'Local Suppliers Ltd',
+              lastRestocked: '2026-05-04T10:00:00Z',
+              imageUrl: 'https://cdn.example.com/products/ambarella.jpg',
+              isActive: true,
+              createdAt: '2026-05-04T10:00:00Z',
+              updatedAt: '2026-05-04T10:00:00Z',
+            },
+          ],
+          pagination: {
+            page: 1,
+            limit: 10,
+            total: 20,
+            totalPages: 2,
           },
-        ],
-        pagination: {
-          page: 1,
-          limit: 10,
-          total: 20,
-          totalPages: 2,
         },
       },
     },
@@ -105,7 +113,7 @@ export class ProductsController {
     description:
       'Retrieve detailed information about a specific product including stock levels and sales history.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product UUID', example: '550e8400-e29b-41d4-a716-446655440000' })
   @ApiResponse({
     status: 200,
     description: 'Product retrieved successfully',
@@ -113,25 +121,26 @@ export class ProductsController {
       example: {
         success: true,
         data: {
-          id: 'PROD001',
-          name: 'Basmati Rice 5kg',
-          nameSi: 'බාස්මති සහල් 5kg',
-          sku: 'GRO-PROD001',
-          barcode: '89000000000001',
-          category: 'Groceries',
-          categorySi: 'ආහාර',
-          price: 54.55,
-          costPrice: 40.91,
-          stock: 50,
-          reorderLevel: 20,
-          status: 'IN_STOCK',
-          unit: 'kg',
-          description: 'Premium quality Basmati rice 5kg pack',
-          image: 'https://cdn.example.com/products/basmati-rice.jpg',
-          store: {
-            id: 'S001',
-            name: 'Colombo Central Store',
-          },
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          name: 'Ambarella',
+          nameSi: 'අඹරැල්ලා',
+          sku: '916002',
+          description: 'Tangy and fiber-rich local fruit used for chutneys and curries',
+          categoryId: 'cat-001',
+          brand: 'Local',
+          purchaseFrequency: 'medium',
+          price: 560,
+          cost: 420,
+          currentStock: 100,
+          reorderLevel: 50,
+          maxStock: 300,
+          status: 'in_stock',
+          supplier: 'Local Suppliers Ltd',
+          lastRestocked: '2026-05-04T10:00:00Z',
+          imageUrl: 'https://cdn.example.com/products/ambarella.jpg',
+          isActive: true,
+          createdAt: '2026-05-04T10:00:00Z',
+          updatedAt: '2026-05-04T10:00:00Z',
         },
       },
     },
@@ -154,13 +163,22 @@ export class ProductsController {
       example: {
         success: true,
         data: {
-          id: 'PROD016',
+          id: '550e8400-e29b-41d4-a716-446655440001',
           name: 'Green Tea 100g',
           nameSi: 'හරිත තේ 100g',
-          sku: 'SKU-TEA-001',
-          category: 'Beverages',
+          sku: 'TEA-001',
+          description: 'Premium quality green tea',
+          categoryId: 'cat-002',
+          brand: 'Ceylon Tea',
+          purchaseFrequency: 'high',
           price: 450.0,
-          stock: 50,
+          cost: 300.0,
+          currentStock: 50,
+          reorderLevel: 20,
+          maxStock: 200,
+          status: 'in_stock',
+          imageUrl: 'https://cdn.example.com/products/green-tea.jpg',
+          isActive: true,
         },
       },
     },
@@ -176,7 +194,7 @@ export class ProductsController {
     summary: 'Update product',
     description: 'Update product details including price, stock, and metadata.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product UUID', example: '550e8400-e29b-41d4-a716-446655440000' })
   @ApiResponse({
     status: 200,
     description: 'Product updated successfully',
@@ -193,7 +211,7 @@ export class ProductsController {
     description:
       'Soft delete a product from the inventory. Product data is retained for historical records.',
   })
-  @ApiParam({ name: 'productId', description: 'Product ID', example: 'PROD001' })
+  @ApiParam({ name: 'productId', description: 'Product UUID', example: '550e8400-e29b-41d4-a716-446655440000' })
   @ApiResponse({
     status: 200,
     description: 'Product deleted successfully',

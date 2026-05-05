@@ -7,13 +7,16 @@ Architecture:
 3. Calculate stockout date based on predictions
 4. Generate alerts if stock insufficient for forecasted demand
 
-This shows end-to-end ML pipeline: Training → Inference → Business Decision
+The models were trained on the expanded dataset (2022-2026, 4 regions,
+10 products) where Units_Sold is aggregated across all regions per day.
+The demand predictions are therefore region-aggregate figures and are
+used directly for stockout calculations.
 """
 
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 from sqlalchemy import create_engine, text
 from api.forecast_service import ForecastService
@@ -26,256 +29,224 @@ class AlertGenerator:
     def __init__(self):
         self.forecast_service = ForecastService()
         self.db_url = os.getenv("DATABASE_URL")
-        
-        # Remove schema parameter if present
+
         if self.db_url and "?schema=" in self.db_url:
             self.db_url = self.db_url.split("?schema=")[0]
-        
-        # Create engine with connection pooling and auto-reconnect
+
         if self.db_url:
             self.engine = create_engine(
                 self.db_url,
                 pool_pre_ping=True,
                 pool_recycle=3600,
                 pool_size=5,
-                max_overflow=10
+                max_overflow=10,
             )
         else:
             self.engine = None
-        
+
+    # ------------------------------------------------------------------
+    # Public: analyse all products
+    # ------------------------------------------------------------------
     async def analyze_all_products(self) -> List[Dict[str, Any]]:
         """
-        Generate alerts using trained ML models
-        
-        Process:
-        1. Get all products from database
-        2. For each product, run forecast model
-        3. Calculate when stock runs out based on forecast
-        4. Generate alert if stockout within 14 days
+        Generate alerts using trained ML models.
+        1. Pull products from PostgreSQL (sku used as product_id for model lookup)
+        2. Run Prophet forecast per product
+        3. Alert if stockout predicted within alert window
         """
-        print(f"\n=== AI Alert Generation (Using Trained Models) ===")
-        
+        print("\n=== AI Alert Generation (Expanded Dataset Models) ===")
+
+        if not self.engine:
+            raise Exception("DATABASE_URL not configured. Set it in .env")
+
+        # Products in stock or low-stock
+        query = """
+            SELECT p.id, p.sku, p.name, p.name_si AS "nameSi",
+                   p.current_stock AS "currentStock",
+                   p.reorder_level AS "reorderLevel",
+                   p.price
+            FROM bi_dashboard.products p
+            WHERE p.status IN ('IN_STOCK', 'LOW_STOCK')
+        """
+        with self.engine.connect() as conn:
+            products = [dict(r._mapping) for r in conn.execute(text(query))]
+
+        print(f"[DATA] {len(products)} products found in database")
+        if not products:
+            print("[WARN] No products. Run: npm run prisma:seed")
+            return []
+
         alerts = []
-        
-        try:
-            if not self.engine:
-                raise Exception("Database connection not configured. Set DATABASE_URL in .env")
-            
-            # Query products from PostgreSQL
-            query = """
-                SELECT p.id, p.name, p.name_si as "nameSi",
-                       p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
-                FROM bi_dashboard.products p
-                WHERE p.status IN ('IN_STOCK', 'LOW_STOCK')
-            """
-            
-            with self.engine.connect() as conn:
-                result = conn.execute(text(query))
-                products = [dict(row._mapping) for row in result]
-            
-            print(f"[DATA] Found {len(products)} products in database")
-            
-            if len(products) == 0:
-                print("[WARN]  No products found. Run: npm run prisma:seed")
-                return []
-            
-            # Analyze each product with ML forecast
-            for idx, product in enumerate(products):
-                try:
-                    print(f"\n[{idx+1}/{len(products)}] Analyzing {product['name']}...")
-                    
-                    alert = await self._analyze_with_ml_forecast(product)
-                    
-                    if alert:
-                        alerts.append(alert)
-                        print(f"  [EMOJI] ALERT GENERATED: {alert['urgency']} urgency")
-                    else:
-                        print(f"  [OK] Stock adequate")
-                        
-                except Exception as e:
-                    print(f"  [ERROR] Error: {str(e)}")
-                    continue
-            
-            print(f"\n[OK] Alert generation complete: {len(alerts)} alerts")
-            return alerts
-            
-        except Exception as e:
-            print(f"[ERROR] ERROR in analyze_all_products: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise
-    
-    async def _analyze_with_ml_forecast(self, product: dict) -> Dict[str, Any]:
-        """
-        Use trained ML model to forecast demand and determine if alert needed
-        
-        Args:
-            product: Dict with keys: id, name, nameSi, currentStock, reorderLevel
-            
-        Returns:
-            Alert dict if alert needed, None otherwise
-        """
-        product_id = product['id']
-        current_stock = product['currentStock']
-        reorder_level = product['reorderLevel']
-        
-        try:
-            # STEP 1: Run ML forecast (uses trained XGBoost/Prophet models)
-            print(f"  [EMOJI] Running ML forecast for {product_id}...")
-            
-            forecast_result = await self.forecast_service.predict(
-                product_id=product_id,
-                horizon=14,  # 2-week forecast
-                lang='en'
-            )
-            
-            forecast_data = forecast_result['forecasts']
-            
-            # STEP 2: Calculate cumulative demand from forecast
-            cumulative_demand = 0
-            stockout_day = None
-            daily_demands = []
-            
-            for day in forecast_data:
-                predicted_sales = day['predictedSales']
-                daily_demands.append(predicted_sales)
-                cumulative_demand += predicted_sales
-                
-                # Check if stock depleted
-                if cumulative_demand >= current_stock and stockout_day is None:
-                    stockout_day = day['date']
-                    break
-            
-            avg_daily_demand = sum(daily_demands[:7]) / 7 if daily_demands else 0
-            
-            print(f"  [EMOJI] Forecast: {avg_daily_demand:.1f} units/day avg demand")
-            print(f"  [EMOJI] Current stock: {current_stock}, Reorder: {reorder_level}")
-            
-            # STEP 3: Determine if alert needed
-            needs_alert = False
-            
-            # Calculate days until stockout using simple division
-            if avg_daily_demand > 0:
-                days_until_stockout = current_stock / avg_daily_demand
-                stockout_date = datetime.now() + timedelta(days=days_until_stockout)
-            else:
-                # No demand predicted, no alert needed
-                print(f"  [OK] No demand predicted, stock adequate")
-                return None
-            
-            print(f"  [TIME] Stockout predicted in {days_until_stockout:.1f} days")
-            
-            # Alert criteria: stock below reorder level only.
-            # Days-until-stockout threshold is intentionally not used here because it
-            # depends on model accuracy — if models haven't been retrained on the latest
-            # dataset the inflated demand predictions would trigger alerts for every product.
-            if current_stock < reorder_level:
-                needs_alert = True
-                print(f"  [WARN]  Below reorder level ({current_stock} < {reorder_level})")
+        for idx, product in enumerate(products):
+            try:
+                print(f"\n[{idx+1}/{len(products)}] {product['name']} (sku={product['sku']})")
+                alert = await self._analyze_with_ml_forecast(product)
+                if alert:
+                    alerts.append(alert)
+                    print(f"  [ALERT] {alert['urgency']} urgency")
+                else:
+                    print("  [OK] Stock adequate")
+            except Exception as e:
+                print(f"  [ERROR] {e}")
+                continue
 
-            if not needs_alert:
-                # Still show the stockout estimate in the log for context
-                print(f"  [OK] Stock adequate ({current_stock} >= {reorder_level}, ~{days_until_stockout:.1f} days supply)")
-                return None
-            
-            # STEP 4: Calculate alert urgency
-            stock_ratio = current_stock / reorder_level if reorder_level > 0 else 1
+        print(f"\n[DONE] {len(alerts)} alerts generated")
+        return alerts
 
-            if stock_ratio < 0.5 or days_until_stockout <= 3:
-                urgency = "HIGH"
-                confidence = 0.92
-            elif stock_ratio < 0.8 or days_until_stockout <= 7:
-                urgency = "MEDIUM"
-                confidence = 0.85
-            else:
-                urgency = "LOW"
-                confidence = 0.75
-            
-            # STEP 5: Calculate recommended restock quantity
-            # Simple approach: bring stock back to reorder level + 2 weeks buffer
-            # Recommend enough to fill up to a healthy target stock level (3x reorder),
-            # regardless of ML demand magnitude (avoids inflated numbers from aggregated training data)
-            target_stock = reorder_level * 3
-            recommended_qty = max(reorder_level, target_stock - current_stock)
-            
-            # STEP 6: Create alert with accurate reason
-            stock_status = "below" if current_stock < reorder_level else "at"
-            stock_status_si = "අඩුයි" if current_stock < reorder_level else "සමාන"
-            
-            reason_en = (
-                f"AI predicts stockout in {days_until_stockout:.1f} days (demand: {avg_daily_demand:.1f} units/day). "
-                f"Current stock ({current_stock}) is {stock_status} reorder level ({reorder_level})."
-            )
-            
-            reason_si = (
-                f"AI දින {days_until_stockout:.1f} කින් තොග අවසන් වීම පුරෝකථනය කරයි (ඉල්ලුම: දිනකට {avg_daily_demand:.1f} ඒකක). "
-                f"වත්මන් තොගය ({current_stock}) නැවත ඇණවුම් මට්ටමට ({reorder_level}) {stock_status_si}."
-            )
-            
-            alert = {
-                'productId': product_id,
-                'type': 'RESTOCK',
-                'urgency': urgency,
-                'currentStock': current_stock,
-                'recommendedQuantity': recommended_qty,
-                'reason': reason_en,
-                'reasonSi': reason_si,
-                'confidence': confidence,
-                'estimatedStockoutDate': stockout_date.strftime('%Y-%m-%d'),
-                'metadata': {
-                    'mlModel': 'XGBoost + Prophet',
-                    'forecastedDailyDemand': round(avg_daily_demand, 2),
-                    'daysUntilStockout': round(days_until_stockout, 1),
-                    'reorderPoint': reorder_level,
-                    'recommendedQuantity': recommended_qty,
-                    'stockDeficit': max(0, reorder_level - current_stock)
-                }
-            }
-            
-            return alert
-            
-        except FileNotFoundError as e:
-            # Model not trained yet
-            print(f"  [WARN]  No trained model found. Train first: POST /api/v1/forecast")
-            return None
-        except Exception as e:
-            print(f"  [ERROR] Forecast error: {str(e)}")
-            return None
-    
+    # ------------------------------------------------------------------
+    # Public: analyse one product
+    # ------------------------------------------------------------------
     async def analyze_product_alert(self, product_id: str) -> Dict[str, Any]:
+        """Analyse a single product by DB UUID and return alert if needed."""
+        if not self.engine:
+            raise Exception("DATABASE_URL not configured")
+
+        query = """
+            SELECT p.id, p.sku, p.name, p.name_si AS "nameSi",
+                   p.current_stock AS "currentStock",
+                   p.reorder_level AS "reorderLevel",
+                   p.price
+            FROM bi_dashboard.products p
+            WHERE p.id = :product_id
         """
-        Analyze a specific product and return alert if needed
+        with self.engine.connect() as conn:
+            row = conn.execute(text(query), {"product_id": product_id}).fetchone()
+            if not row:
+                return {"alertNeeded": False, "message": "Product not found"}
+            product = dict(row._mapping)
+
+        alert = await self._analyze_with_ml_forecast(product)
+        if alert:
+            return {"alertNeeded": True, "alert": alert}
+        return {"alertNeeded": False, "message": "Stock adequate based on ML forecast"}
+
+    # ------------------------------------------------------------------
+    # Core ML-based analysis
+    # ------------------------------------------------------------------
+    async def _analyze_with_ml_forecast(self, product: dict) -> Optional[Dict[str, Any]]:
         """
+        Run the forecast pipeline for one product and return an alert dict
+        if restocking is needed, otherwise None.
+
+        Key difference from old version:
+        - Model files are keyed by SKU (not DB UUID) because train_model.py
+          trains one model per Product_ID (= SKU) from the expanded dataset.
+        - Metadata now carries product_name and category so we don't need
+          to re-derive them from the database.
+        """
+        db_product_id = product["id"]
+        sku           = product.get("sku", db_product_id)   # SKU matches Product_ID in dataset
+        current_stock = product["currentStock"]
+        reorder_level = product["reorderLevel"]
+
         try:
-            if not self.engine:
-                raise Exception("Database connection not configured")
-            
-            # Get product from database
-            query = """
-                SELECT p.id, p.name, p.name_si as "nameSi",
-                       p.current_stock as "currentStock", p.reorder_level as "reorderLevel", p.price
-                FROM bi_dashboard.products p
-                WHERE p.id = :product_id
-            """
-            
-            with self.engine.connect() as conn:
-                result = conn.execute(text(query), {"product_id": product_id})
-                row = result.fetchone()
-                
-                if not row:
-                    return {"alertNeeded": False, "message": "Product not found in database"}
-                
-                product = dict(row._mapping)
-            
-            alert = await self._analyze_with_ml_forecast(product)
-            
-            if alert:
-                return {"alertNeeded": True, "alert": alert}
+            print(f"  [ML] Running forecast for sku={sku}...")
+
+            # ForecastService.predict looks up models by product_id = sku
+            forecast_result = await self.forecast_service.predict(
+                product_id=sku,
+                horizon=14,
+                lang="en",
+            )
+
+            forecast_data = forecast_result["forecasts"]
+
+            # Cumulative demand over forecast window
+            cumulative_demand = 0.0
+            stockout_day: Optional[str] = None
+            daily_demands: List[float] = []
+
+            for day in forecast_data:
+                predicted = float(day["predictedSales"])
+                daily_demands.append(predicted)
+                cumulative_demand += predicted
+                if cumulative_demand >= current_stock and stockout_day is None:
+                    stockout_day = day["date"]
+
+            avg_daily_demand = (
+                sum(daily_demands[:7]) / 7 if daily_demands else 0.0
+            )
+
+            print(f"  [DATA] avg demand={avg_daily_demand:.1f} u/day  "
+                  f"stock={current_stock}  reorder={reorder_level}")
+
+            if avg_daily_demand <= 0:
+                print("  [OK] No demand predicted")
+                return None
+
+            days_until_stockout = current_stock / avg_daily_demand
+            stockout_date = datetime.now() + timedelta(days=days_until_stockout)
+
+            print(f"  [TIME] Stockout in ~{days_until_stockout:.1f} days")
+
+            # Alert if below reorder level
+            if current_stock >= reorder_level:
+                print(f"  [OK] {current_stock} >= reorder {reorder_level} "
+                      f"(~{days_until_stockout:.1f} days supply)")
+                return None
+
+            print(f"  [WARN] Below reorder level ({current_stock} < {reorder_level})")
+
+            # Urgency
+            stock_ratio = current_stock / reorder_level if reorder_level > 0 else 1.0
+            if stock_ratio < 0.5 or days_until_stockout <= 3:
+                urgency, confidence = "HIGH",   0.92
+            elif stock_ratio < 0.8 or days_until_stockout <= 7:
+                urgency, confidence = "MEDIUM", 0.85
             else:
-                return {"alertNeeded": False, "message": "Stock adequate based on ML forecast"}
-                
+                urgency, confidence = "LOW",    0.75
+
+            # Recommended quantity — top up to 3× reorder level
+            target_stock   = reorder_level * 3
+            recommended_qty = max(reorder_level, target_stock - current_stock)
+
+            # Use product_name from metadata when available (set by train_model.py)
+            metadata     = self.forecast_service.load_model_metadata(sku)
+            display_name = metadata.get("product_name") or product["name"]
+            category     = metadata.get("category")
+
+            status_en = "below"
+            status_si = "අඩුයි"
+
+            reason_en = (
+                f"AI predicts stockout in {days_until_stockout:.1f} days "
+                f"(demand: {avg_daily_demand:.1f} units/day). "
+                f"Current stock ({current_stock}) is {status_en} reorder level ({reorder_level})."
+            )
+            reason_si = (
+                f"AI දින {days_until_stockout:.1f} කින් තොග අවසන් වීම පුරෝකථනය කරයි "
+                f"(ඉල්ලුම: දිනකට {avg_daily_demand:.1f} ඒකක). "
+                f"වත්මන් තොගය ({current_stock}) නැවත ඇණවුම් මට්ටමට ({reorder_level}) {status_si}."
+            )
+
+            return {
+                "productId":          db_product_id,
+                "productSku":         sku,                 # exposed for UI / debug
+                "productName":        display_name,
+                "category":           category,
+                "type":               "RESTOCK",
+                "urgency":            urgency,
+                "currentStock":       current_stock,
+                "recommendedQuantity": recommended_qty,
+                "reason":             reason_en,
+                "reasonSi":           reason_si,
+                "confidence":         confidence,
+                "estimatedStockoutDate": stockout_date.strftime("%Y-%m-%d"),
+                "metadata": {
+                    "mlModel":               "XGBoost + Prophet (expanded dataset)",
+                    "forecastedDailyDemand": round(avg_daily_demand, 2),
+                    "daysUntilStockout":     round(days_until_stockout, 1),
+                    "reorderPoint":          reorder_level,
+                    "recommendedQuantity":   recommended_qty,
+                    "stockDeficit":          max(0, reorder_level - current_stock),
+                    "datasetCoverage":       "2022-01-01 to 2026-04-30 (4 regions aggregated)",
+                },
+            }
+
+        except FileNotFoundError:
+            print(f"  [WARN] No trained model for sku={sku}. "
+                  f"Run: python train_model.py")
+            return None
         except Exception as e:
-            print(f"[ERROR] ERROR in analyze_product_alert: {str(e)}")
-            raise
-
-
+            print(f"  [ERROR] {e}")
+            return None
