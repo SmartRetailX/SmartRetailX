@@ -571,36 +571,260 @@ async def get_active_offers(limit: int = 6) -> list[dict[str, Any]]:
         return []
 
 
+async def get_active_offers_for_product(
+    product_name: str,
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    norm_query = _norm(product_name)
+    if not norm_query:
+        return []
+
+    safe_limit = max(1, min(limit, 50))
+
+    try:
+        async with acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    p.id::text          AS product_id,
+                    p.sku,
+                    p.name,
+                    p.name_si,
+                    p.price::float      AS price,
+                    p.stock_quantity,
+                    p.brand,
+                    c.name              AS category,
+                    c.name_si           AS category_si,
+                    p.image_url,
+                    COUNT(DISTINCT oi.order_id) AS order_count,
+                    AVG(o.discount::float)      AS avg_discount
+                FROM core.products p
+                JOIN core.categories c ON c.id = p.category_id
+                JOIN core.order_items oi ON oi.product_id = p.id
+                JOIN core.orders o      ON o.id = oi.order_id
+                WHERE p.is_active = true
+                  AND o.discount > 0
+                  AND o.created_at >= NOW() - INTERVAL '30 days'
+                  AND (
+                    lower(p.name)    LIKE $1
+                    OR lower(p.name_si) LIKE $1
+                    OR lower(p.sku)  LIKE $1
+                    OR lower(p.brand) LIKE $1
+                  )
+                GROUP BY p.id, p.sku, p.name, p.name_si, p.price, p.brand,
+                         c.name, c.name_si
+                ORDER BY
+                    CASE WHEN lower(p.name) = $2 THEN 0 ELSE 1 END,
+                    avg_discount DESC,
+                    order_count DESC
+                LIMIT $3
+                """,
+                f"%{norm_query}%",
+                norm_query,
+                safe_limit,
+            )
+            return [_row(r) for r in rows]
+
+    except Exception as exc:
+        logger.warning(
+            "get_active_offers_for_product failed name=%r error=%s",
+            product_name,
+            exc,
+        )
+        return []
+
+
 # ---------------------------------------------------------------------------
 # 4. Order history  (intent: order_history)
 # ---------------------------------------------------------------------------
 
-async def get_order_history(user_id: str, limit: int = 5) -> list[dict[str, Any]]:
+async def get_product_price_by_budget(
+    product_name: str,
+    max_price: float,
+    category: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return products matching `product_name` priced at or below `max_price`."""
+    norm = _norm(product_name)
+    norm_cat = _norm(category) if category else None
+    if not norm:
+        return []
+    safe_limit = max(1, min(limit, 50))
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.price <= $1
+                      AND (
+                        lower(p.name)    LIKE $2
+                        OR lower(p.name_si) LIKE $2
+                        OR lower(p.brand)   LIKE $2
+                      )
+                      AND (lower(c.name) LIKE $3 OR lower(c.name_si) LIKE $3)
+                    ORDER BY p.stock_quantity > 0 DESC, p.price ASC, p.name
+                    LIMIT $4
+                    """,
+                    max_price,
+                    f"%{norm}%",
+                    f"%{norm_cat}%",
+                    safe_limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.price <= $1
+                      AND (
+                        lower(p.name)    LIKE $2
+                        OR lower(p.name_si) LIKE $2
+                        OR lower(p.brand)   LIKE $2
+                      )
+                    ORDER BY p.stock_quantity > 0 DESC, p.price ASC, p.name
+                    LIMIT $3
+                    """,
+                    max_price,
+                    f"%{norm}%",
+                    safe_limit,
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning(
+            "get_product_price_by_budget failed name=%r max_price=%.0f error=%s",
+            product_name, max_price, exc,
+        )
+        return []
+
+
+async def get_cheapest_products(
+    category: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Return cheapest active in-stock products, optionally filtered by category."""
+    norm_cat = _norm(category) if category else None
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND (lower(c.name) LIKE $1 OR lower(c.name_si) LIKE $1)
+                    ORDER BY p.price ASC
+                    LIMIT $2
+                    """,
+                    f"%{norm_cat}%",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                    ORDER BY p.price ASC
+                    LIMIT $1
+                    """,
+                    max(1, min(limit, 50)),
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("get_cheapest_products failed error=%s", exc)
+        return []
+
+
+async def get_products_by_budget(
+    max_price: float,
+    category: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return active in-stock products priced at or below max_price."""
+    norm_cat = _norm(category) if category else None
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND p.price <= $1
+                      AND (lower(c.name) LIKE $2 OR lower(c.name_si) LIKE $2)
+                    ORDER BY p.purchase_frequency DESC, p.price ASC
+                    LIMIT $3
+                    """,
+                    max_price,
+                    f"%{norm_cat}%",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.stock_quantity > 0
+                      AND p.price <= $1
+                    ORDER BY p.purchase_frequency DESC, p.price ASC
+                    LIMIT $2
+                    """,
+                    max_price,
+                    max(1, min(limit, 50)),
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("get_products_by_budget failed max_price=%.0f error=%s", max_price, exc)
+        return []
+
+
+async def get_order_history(user_id: str, limit: int = 5, status_filter: str | None = None) -> list[dict[str, Any]]:
     if not user_id:
         return []
 
     try:
         async with acquire() as conn:
-            order_rows = await conn.fetch(
-                """
-                SELECT
-                    o.id::text          AS order_id,
-                    o.order_number,
-                    o.status,
-                    o.subtotal::float   AS subtotal,
-                    o.discount::float   AS discount,
-                    o.tax::float        AS tax,
-                    o.total::float      AS total,
-                    o.created_at,
-                    o.updated_at
-                FROM core.orders o
-                WHERE o.user_id = $1
-                ORDER BY o.created_at DESC
-                LIMIT $2
-                """,
-                user_id,
-                limit,
-            )
+            safe_limit = max(1, min(limit, 50))
+            if status_filter:
+                order_rows = await conn.fetch(
+                    """
+                    SELECT
+                        o.id::text          AS order_id,
+                        o.order_number,
+                        o.status,
+                        o.subtotal::float   AS subtotal,
+                        o.discount::float   AS discount,
+                        o.tax::float        AS tax,
+                        o.total::float      AS total,
+                        o.created_at,
+                        o.updated_at
+                    FROM core.orders o
+                    WHERE o.user_id = $1
+                      AND o.status = $2
+                    ORDER BY o.created_at DESC
+                    LIMIT $3
+                    """,
+                    user_id,
+                    status_filter,
+                    safe_limit,
+                )
+            else:
+                order_rows = await conn.fetch(
+                    """
+                    SELECT
+                        o.id::text          AS order_id,
+                        o.order_number,
+                        o.status,
+                        o.subtotal::float   AS subtotal,
+                        o.discount::float   AS discount,
+                        o.tax::float        AS tax,
+                        o.total::float      AS total,
+                        o.created_at,
+                        o.updated_at
+                    FROM core.orders o
+                    WHERE o.user_id = $1
+                    ORDER BY o.created_at DESC
+                    LIMIT $2
+                    """,
+                    user_id,
+                    safe_limit,
+                )
 
             if not order_rows:
                 return []
@@ -754,12 +978,33 @@ async def get_buying_suggestions(
     user_id: str | None,
     category_hint: str | None = None,
     limit: int = 6,
+    filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     try:
+        safe_limit = max(1, min(limit, 50))
+        filters = dict(filters or {})
+        require_promo = bool(filters.get("requires_promo"))
+        promo_where = (
+            """
+            AND EXISTS (
+                SELECT 1
+                FROM core.promotions pr
+                WHERE pr.product_id = p.id
+                  AND pr.status = 'active'
+                  AND pr.start_date <= NOW()
+                  AND pr.end_date >= NOW()
+            )
+            """
+            if require_promo
+            else ""
+        )
+
         async with acquire() as conn:
+            candidates: list[dict[str, Any]] = []
+
             if user_id:
                 rows = await conn.fetch(
-                    """
+                    f"""
                     WITH user_cats AS (
                         SELECT DISTINCT p.category_id
                         FROM core.orders o
@@ -781,6 +1026,9 @@ async def get_buying_suggestions(
                         p.price::float    AS price,
                         p.stock_quantity,
                         p.brand,
+                        p.description,
+                        p.description_si,
+                        p.purchase_frequency,
                         c.name            AS category,
                         c.name_si         AS category_si,
                         p.image_url,
@@ -789,21 +1037,22 @@ async def get_buying_suggestions(
                     JOIN core.categories c ON c.id = p.category_id
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
+                      {promo_where}
                       AND p.category_id IN (SELECT category_id FROM user_cats)
                       AND p.id NOT IN (SELECT product_id FROM bought_products)
                     ORDER BY p.purchase_frequency DESC, p.name
                     LIMIT $2
                     """,
                     user_id,
-                    limit,
+                    max(safe_limit * 6, 80),
                 )
                 if rows:
-                    return [_row(r) for r in rows]
+                    candidates = [_row(r) for r in rows]
 
             if category_hint:
                 norm_cat = _norm(category_hint)
                 rows = await conn.fetch(
-                    """
+                    f"""
                     SELECT
                         p.id::text        AS product_id,
                         p.sku,
@@ -812,6 +1061,9 @@ async def get_buying_suggestions(
                         p.price::float    AS price,
                         p.stock_quantity,
                         p.brand,
+                        p.description,
+                        p.description_si,
+                        p.purchase_frequency,
                         c.name            AS category,
                         c.name_si         AS category_si,
                         p.image_url,
@@ -820,42 +1072,170 @@ async def get_buying_suggestions(
                     JOIN core.categories c ON c.id = p.category_id
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
+                      {promo_where}
                       AND (lower(c.name) LIKE $1 OR lower(c.name_si) LIKE $1)
                     ORDER BY p.purchase_frequency DESC, p.name
                     LIMIT $2
                     """,
                     f"%{norm_cat}%",
-                    limit,
+                    max(safe_limit * 6, 80),
                 )
                 if rows:
-                    return [_row(r) for r in rows]
+                    candidates.extend([_row(r) for r in rows])
 
-            rows = await conn.fetch(
-                """
-                SELECT
-                    p.id::text        AS product_id,
-                    p.sku,
-                    p.name,
-                    p.name_si,
-                    p.price::float    AS price,
-                    p.stock_quantity,
-                    p.brand,
-                    c.name            AS category,
-                    c.name_si         AS category_si,
-                    p.image_url,
-                    'bestsellers'     AS recommendation_source
-                FROM core.products p
-                JOIN core.categories c ON c.id = p.category_id
-                WHERE p.is_active = true
-                  AND p.stock_quantity > 0
-                  AND p.purchase_frequency = 'high'
-                ORDER BY p.name
-                LIMIT $1
-                """,
-                limit,
-            )
-            return [_row(r) for r in rows]
+            if not candidates:
+                rows = await conn.fetch(
+                    f"""
+                    SELECT
+                        p.id::text        AS product_id,
+                        p.sku,
+                        p.name,
+                        p.name_si,
+                        p.price::float    AS price,
+                        p.stock_quantity,
+                        p.brand,
+                        p.description,
+                        p.description_si,
+                        p.purchase_frequency,
+                        c.name            AS category,
+                        c.name_si         AS category_si,
+                        p.image_url,
+                        'bestsellers'     AS recommendation_source
+                    FROM core.products p
+                    JOIN core.categories c ON c.id = p.category_id
+                    WHERE p.is_active = true
+                      AND p.stock_quantity > 0
+                      {promo_where}
+                      AND p.purchase_frequency = 'high'
+                    ORDER BY p.name
+                    LIMIT $1
+                    """,
+                    max(safe_limit * 6, 80),
+                )
+                candidates = [_row(r) for r in rows]
+
+            ranked = _apply_buying_suggestion_filters(candidates, category_hint, filters)
+            return ranked[:safe_limit]
 
     except Exception as exc:
         logger.warning("get_buying_suggestions failed user=%r error=%s", user_id, exc)
         return []
+
+
+def _apply_buying_suggestion_filters(
+    rows: list[dict[str, Any]],
+    category_hint: str | None,
+    filters: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        key = str(row.get("product_id") or "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+
+    terms = _build_buying_filter_terms(filters)
+    hint = _norm(category_hint or "")
+    low_budget = str(filters.get("budget") or "").lower() == "low"
+
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for row in deduped:
+        blob = _norm(
+            " ".join(
+                [
+                    str(row.get("name") or ""),
+                    str(row.get("name_si") or ""),
+                    str(row.get("brand") or ""),
+                    str(row.get("category") or ""),
+                    str(row.get("category_si") or ""),
+                    str(row.get("description") or ""),
+                    str(row.get("description_si") or ""),
+                ]
+            )
+        )
+
+        score = 0.0
+        if hint and hint in blob:
+            score += 4.0
+        for term in terms:
+            if term and term in blob:
+                score += 2.2
+
+        freq = str(row.get("purchase_frequency") or "").lower()
+        if freq == "high":
+            score += 0.8
+        elif freq == "medium":
+            score += 0.4
+
+        price = float(row.get("price") or 0.0)
+        if low_budget:
+            score += max(0.0, 2.0 - min(price, 2000.0) / 1000.0)
+
+        scored.append((score, row))
+
+    if low_budget:
+        scored.sort(
+            key=lambda item: (
+                -item[0],
+                float(item[1].get("price") or 0.0),
+                str(item[1].get("name") or ""),
+            )
+        )
+    else:
+        scored.sort(
+            key=lambda item: (
+                -item[0],
+                str(item[1].get("name") or ""),
+            )
+        )
+
+    return [row for _, row in scored]
+
+
+def _build_buying_filter_terms(filters: dict[str, Any]) -> list[str]:
+    raw_terms = [
+        str(filters.get("topic") or ""),
+        str(filters.get("category") or ""),
+        str(filters.get("diet_goal") or ""),
+        str(filters.get("dietary") or ""),
+        str(filters.get("audience") or ""),
+        str(filters.get("preparation") or ""),
+        str(filters.get("product") or ""),
+    ]
+    terms = [_norm(term) for term in raw_terms if term]
+    expanded: list[str] = []
+    synonym_map: dict[str, list[str]] = {
+        "snack": ["snack", "snacks", "biscuit", "crunch", "mini"],
+        "drinks": ["drink", "juice", "beverage", "tea"],
+        "tea": ["tea", "biscuit", "cookies"],
+        "grocery": ["grocery", "rice", "flour", "lentil"],
+        "breakfast": ["breakfast", "oats", "cereal", "milk", "bread"],
+        "vegan": ["vegan", "plant", "soy", "tofu", "mushroom"],
+        "high_protein": ["protein", "egg", "chicken", "bean", "lentil"],
+        "diabetic_friendly": ["diabetic", "sugar free", "low sugar", "whole grain"],
+        "sugar_free": ["sugar free", "no added sugar", "low sugar"],
+        "healthy": ["healthy", "organic", "fresh", "low fat"],
+        "weight_loss": ["low fat", "high fiber", "healthy", "whole grain"],
+        "kids": ["kids", "mini", "snack", "lunch"],
+        "elderly": ["easy", "soft", "soup", "porridge"],
+        "easy_cook": ["easy", "ready", "instant", "quick"],
+    }
+
+    for term in terms:
+        expanded.append(term)
+        expanded.extend(synonym_map.get(term, []))
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for term in expanded:
+        cleaned = _norm(term)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            deduped.append(cleaned)
+
+    return deduped

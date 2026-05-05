@@ -207,7 +207,7 @@ function RouteComponent() {
         <SummaryCard
           icon={DollarSign}
           label="Total Revenue"
-          value={`$${tiers.reduce((s, t) => s + t.total_revenue, 0).toLocaleString()}`}
+          value={`Rs. ${tiers.reduce((s, t) => s + t.total_revenue, 0).toLocaleString()}`}
         />
 
         <SummaryCard
@@ -261,7 +261,7 @@ function RouteComponent() {
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <Stat label="Customers" value={tier.customer_count} />
-                        <Stat label="Revenue" value={`$${tier.total_revenue.toFixed(2)}`} />
+                        <Stat label="Revenue" value={`Rs. ${tier.total_revenue.toFixed(2)}`} />
                         <Stat label="Behavior Score" value={tier.avg_behavioral_score.toFixed(1)} />
                         <Stat
                           label="Churn Risk"

@@ -3,7 +3,7 @@
  * All requests go through the NestJS API Gateway proxy at /api/promotion-engine/*.
  */
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const BASE = '/api/promotion-engine';
 
@@ -88,10 +88,74 @@ export interface ABTestResult {
   };
 }
 
+export interface CartRecommendation {
+  storefront_product_id: string;
+  product_name: string;
+  category: string;
+  brand: string;
+  price: number;
+  co_buyer_count: number;
+  confidence_score: number;
+  because_cart_items: string[];
+}
+
+export interface CartRecommendationsResponse {
+  success: boolean;
+  recommendations: CartRecommendation[] | null;
+  cart_matched_count: number;
+  total: number;
+  error?: string;
+}
+
+export interface ProductSuggestion {
+  product_id: string;
+  product_name: string;
+  category: string;
+  brand: string;
+  price: number;
+  co_buyer_count: number;
+  confidence_score: number;
+  because_you_bought: string[];
+}
+
+export interface ProductSuggestionsResponse {
+  success: boolean;
+  customer_found: boolean;
+  customer_products_count: number;
+  suggestions: ProductSuggestion[] | null;
+  total: number;
+  error?: string;
+}
+
+export interface PromotionNotification {
+  id: number;
+  customer_id: string;
+  campaign_id: number | null;
+  product_id: string;
+  product_name: string;
+  product_category: string;
+  discount_percent: number;
+  message: string;
+  is_read: boolean;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface PromotionsResponse {
+  success: boolean;
+  promotions: PromotionNotification[] | null;
+  total: number;
+  unread: number;
+  error?: string;
+}
+
 // ── Fetcher helpers ────────────────────────────────────────────────────────
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, {
+    credentials: 'include',
+    ...init,
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.detail ?? body?.error ?? `Request failed: ${res.status}`);
@@ -253,5 +317,64 @@ export function useCompareAB() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+  });
+}
+
+/** Customer product suggestions (co-purchase recommendations). */
+export function useProductSuggestions(limit = 20) {
+  return useQuery({
+    queryKey: ['promotion-engine', 'product-suggestions', limit],
+    queryFn: () =>
+      apiFetch<ProductSuggestionsResponse>(`${BASE}/product-suggestions?limit=${limit}`),
+    retry: false,
+  });
+}
+
+/** Customer promotion inbox. */
+export function useMyPromotions() {
+  return useQuery({
+    queryKey: ['promotion-engine', 'my-promotions'],
+    queryFn: () => apiFetch<PromotionsResponse>(`${BASE}/my-promotions`),
+    retry: false,
+  });
+}
+
+export function useMarkPromotionRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<{ success: boolean }>(`${BASE}/my-promotions/${id}/read`, {
+        method: 'PATCH',
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promotion-engine', 'my-promotions'] }),
+  });
+}
+
+export function useMarkAllPromotionsRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ success: boolean; marked?: number }>(`${BASE}/my-promotions/read-all`, {
+        method: 'PATCH',
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promotion-engine', 'my-promotions'] }),
+  });
+}
+
+/** Cart recommendations based on current cart contents. */
+export function useCartRecommendations(productIds: string[], limit = 8) {
+  return useQuery({
+    queryKey: ['promotion-engine', 'cart-recommendations', productIds.slice().sort(), limit],
+    queryFn: () =>
+      apiFetch<CartRecommendationsResponse>(`${BASE}/cart-recommendations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds, limit }),
+      }),
+    enabled: productIds.length > 0,
+    retry: false,
+    staleTime: 60_000,
   });
 }
