@@ -62,6 +62,5 @@ export function getDefaultWebsocketBaseUrl(): string {
     return `http://localhost:${wsPort}`;
   }
 
-  const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:${wsPort}`;
+  return window.location.origin;
 }

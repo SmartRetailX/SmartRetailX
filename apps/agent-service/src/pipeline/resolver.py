@@ -18,6 +18,7 @@ from ..db.queries import (
     get_cheapest_products,
     get_order_history,
     get_product_price,
+    get_product_price_by_budget,
     get_products_by_budget,
     get_user_profile,
     search_products,
@@ -83,6 +84,50 @@ async def _resolve_prices(
     modifier = str(entities.get("price_modifier") or "").strip()
     budget_amount = entities.get("budget_amount")
     category = str(entities.get("category") or "").strip() or None
+
+    # If the extracted "product" is just the category name (e.g. user said "beverages under 1000"
+    # and both product="beverages" and category="Beverages" were set), treat it as category-only.
+    if product_name and category and product_name.lower() in category.lower():
+        product_name = ""
+
+    # Product + budget: search by name AND filter by price cap (e.g. "shampoo under Rs. 1000")
+    if budget_amount and product_name:
+        try:
+            budget = float(str(budget_amount).replace(",", ""))
+        except ValueError:
+            budget = None
+        if budget:
+            rows = await get_product_price_by_budget(product_name, budget, category=category, limit=20)
+            if not rows:
+                # Fuzzy fallback: fuzzy-find the product (handles typos / alternate spellings),
+                # then apply the budget and optional category filter client-side.
+                all_rows = await get_product_price(product_name, limit=40)
+                rows = [r for r in all_rows if float(r.get("price") or 0) <= budget]
+                if category and rows:
+                    cat_lower = category.lower()
+                    rows = [r for r in rows if cat_lower in str(r.get("category") or "").lower()]
+            logger.info(
+                "resolve_prices product=%r budget=%.0f category=%r results=%d",
+                product_name, budget, category, len(rows),
+            )
+            suggestions: list[str] = []
+            if not rows:
+                suggestions = await fuzzy_suggest_products(product_name)
+            return ResolvedContext(
+                intent="prices",
+                entities=entities,
+                db_results=rows,
+                db_source="db-catalog",
+                has_data=bool(rows),
+                needs_clarification=not rows,
+                clarification_prompt_si=(
+                    "" if rows else
+                    f"**{product_name}** (රු. {budget_amount} ට ඇතුළත) නිෂ්පාදන හමු නොවුණා. "
+                    "වෙනත් නමකින් හෝ budget එක වැඩි කළොත් සොයා දෙන්නම්."
+                ),
+                suggestions=suggestions,
+                xai_features=xai_features,
+            )
 
     # Budget-bound query: show all products under a price cap (optionally in a category)
     if budget_amount and not product_name:

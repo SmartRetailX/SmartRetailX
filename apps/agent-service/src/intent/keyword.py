@@ -96,6 +96,13 @@ _LEADING_FILLERS = {
     "today",
     "current",
     "now",
+    # Action words that can appear before a product name in budget queries
+    "ගන්න",
+    "ගෙන",
+    "ගෙනෙන්",
+    "ලබාගන්න",
+    "දෙන්න",
+    "ලැයිස්තු",
 }
 _DEMONSTRATIVES = {
     "මේකවල",
@@ -710,53 +717,184 @@ _BUDGET_AMOUNT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Common retail category keywords mapped to canonical category names
+# Category keywords mapped to ACTUAL database category names.
+# The canonical value must be a case-insensitive LIKE-matchable substring of
+# the real DB category name (e.g. "Beverages", "Chilled", "Frozen Food", …).
+# DB categories: Beverages | Chilled | Electronic Devices | Frozen Food |
+#                Fruits | Grocery | Hampers & Vouchers | Household |
+#                Meat | Prepared Food | Seafood | Vegetables
 _CATEGORY_KEYWORDS: list[tuple[str, str]] = [
-    ("dairy", "dairy"),
-    ("milk", "dairy"),
-    ("cheese", "dairy"),
-    ("beverage", "beverages"),
-    ("beverages", "beverages"),
-    ("drink", "beverages"),
-    ("drinks", "beverages"),
-    ("juice", "beverages"),
-    ("snack", "snacks"),
-    ("snacks", "snacks"),
-    ("biscuit", "snacks"),
-    ("chocolate", "confectionery"),
-    ("candy", "confectionery"),
-    ("confectionery", "confectionery"),
-    ("rice", "staples"),
-    ("flour", "staples"),
-    ("cereal", "breakfast"),
-    ("breakfast", "breakfast"),
-    ("personal care", "personal care"),
-    ("shampoo", "personal care"),
-    ("shampu", "personal care"),
-    ("soap", "personal care"),
-    ("cleaning", "household"),
-    ("household", "household"),
-    ("detergent", "household"),
-    ("frozen", "frozen"),
-    ("bread", "bakery"),
-    ("bakery", "bakery"),
-    ("fruit", "fresh produce"),
-    ("vegetable", "fresh produce"),
-    ("meat", "meat"),
-    ("fish", "seafood"),
-    ("seafood", "seafood"),
-    ("organic", "organic"),
-    ("baby", "baby"),
-    ("infant", "baby"),
-    ("pet", "pet food"),
-    ("condiment", "condiments"),
-    ("sauce", "condiments"),
-    ("spice", "spices"),
-    ("oil", "oils"),
-    ("cooking oil", "oils"),
-    ("health", "health"),
-    ("vitamin", "health"),
-    ("supplement", "health"),
+    # ── Beverages ─────────────────────────────────────────────────────────────
+    ("beverage", "Beverages"),
+    ("beverages", "Beverages"),
+    ("drink", "Beverages"),
+    ("drinks", "Beverages"),
+    ("juice", "Beverages"),
+    ("water", "Beverages"),
+    ("tea", "Beverages"),
+    ("coffee", "Beverages"),
+    ("කෝපි", "Beverages"),
+    ("බීම", "Beverages"),
+    ("බීම වර්ග", "Beverages"),
+    ("සීතල බීම", "Beverages"),
+
+    # ── Chilled (dairy / refrigerated items) ──────────────────────────────────
+    ("dairy", "Chilled"),
+    ("milk", "Chilled"),
+    ("cheese", "Chilled"),
+    ("yogurt", "Chilled"),
+    ("yoghurt", "Chilled"),
+    ("butter", "Chilled"),
+    ("cream", "Chilled"),
+    ("chilled", "Chilled"),
+    ("කිරි", "Chilled"),
+    ("කිරිපිටි", "Chilled"),
+    ("කිරි නිෂ්පාදන", "Chilled"),
+    ("යෝගට්", "Chilled"),
+    ("බටර්", "Chilled"),
+
+    # ── Frozen Food ────────────────────────────────────────────────────────────
+    ("frozen", "Frozen Food"),
+    ("ice cream", "Frozen Food"),
+    ("ice", "Frozen Food"),
+    ("අයිස්", "Frozen Food"),
+    ("අයිස් ක්‍රීම්", "Frozen Food"),
+
+    # ── Fruits ────────────────────────────────────────────────────────────────
+    ("fruit", "Fruits"),
+    ("fruits", "Fruits"),
+    ("apple", "Fruits"),
+    ("banana", "Fruits"),
+    ("mango", "Fruits"),
+    ("pineapple", "Fruits"),
+    ("පලතුරු", "Fruits"),
+    ("ගෙඩිය", "Fruits"),
+
+    # ── Grocery (dry goods: rice, flour, noodles, biscuits, snacks, etc.) ─────
+    ("grocery", "Grocery"),
+    ("groceries", "Grocery"),
+    ("rice", "Grocery"),
+    ("flour", "Grocery"),
+    ("noodle", "Grocery"),
+    ("noodles", "Grocery"),
+    ("pasta", "Grocery"),
+    ("cereal", "Grocery"),
+    ("oats", "Grocery"),
+    ("snack", "Grocery"),
+    ("snacks", "Grocery"),
+    ("biscuit", "Grocery"),
+    ("biscuits", "Grocery"),
+    ("chocolate", "Grocery"),
+    ("candy", "Grocery"),
+    ("sugar", "Grocery"),
+    ("salt", "Grocery"),
+    ("spice", "Grocery"),
+    ("sauce", "Grocery"),
+    ("oil", "Grocery"),
+    ("cooking oil", "Grocery"),
+    ("condiment", "Grocery"),
+    ("lentil", "Grocery"),
+    ("bean", "Grocery"),
+    ("dhal", "Grocery"),
+    ("dal", "Grocery"),
+    ("popcorn", "Grocery"),
+    ("chips", "Grocery"),
+    ("nuts", "Grocery"),
+    ("papadam", "Grocery"),
+    ("ස්නැක්", "Grocery"),
+    ("ස්නෑක්ස්", "Grocery"),
+    ("කෑම", "Grocery"),
+    ("රයිස්", "Grocery"),
+
+    # ── Household (personal care + cleaning + party supplies) ──────────────────
+    ("household", "Household"),
+    ("shampoo", "Household"),
+    ("shampu", "Household"),
+    ("soap", "Household"),
+    ("detergent", "Household"),
+    ("cleaning", "Household"),
+    ("personal care", "Household"),
+    ("face wash", "Household"),
+    ("body wash", "Household"),
+    ("moisturizer", "Household"),
+    ("moisturiser", "Household"),
+    ("sanitizer", "Household"),
+    ("toothpaste", "Household"),
+    ("tissue", "Household"),
+    ("laundry", "Household"),
+    ("hair care", "Household"),
+    ("skin care", "Household"),
+    ("sunscreen", "Household"),
+    ("deo", "Household"),
+    ("deodorant", "Household"),
+    ("ශ්‍රාම්පූ", "Household"),
+    ("සබන්", "Household"),
+    ("ශොම්පූ", "Household"),
+
+    # ── Meat ─────────────────────────────────────────────────────────────────
+    ("meat", "Meat"),
+    ("chicken", "Meat"),
+    ("beef", "Meat"),
+    ("pork", "Meat"),
+    ("lamb", "Meat"),
+    ("turkey", "Meat"),
+    ("sausage", "Meat"),
+    ("මස්", "Meat"),
+    ("චිකන්", "Meat"),
+    ("කුකුල්", "Meat"),
+
+    # ── Seafood ───────────────────────────────────────────────────────────────
+    ("seafood", "Seafood"),
+    ("fish", "Seafood"),
+    ("prawn", "Seafood"),
+    ("shrimp", "Seafood"),
+    ("crab", "Seafood"),
+    ("tuna", "Seafood"),
+    ("salmon", "Seafood"),
+    ("squid", "Seafood"),
+    ("මාළු", "Seafood"),
+    ("ඉස්සා", "Seafood"),
+
+    # ── Vegetables ─────────────────────────────────────────────────────────────
+    ("vegetable", "Vegetables"),
+    ("vegetables", "Vegetables"),
+    ("veggie", "Vegetables"),
+    ("veggies", "Vegetables"),
+    ("tomato", "Vegetables"),
+    ("potato", "Vegetables"),
+    ("onion", "Vegetables"),
+    ("carrot", "Vegetables"),
+    ("greens", "Vegetables"),
+    ("salad", "Vegetables"),
+    ("spinach", "Vegetables"),
+    ("leek", "Vegetables"),
+    ("broccoli", "Vegetables"),
+    ("එළවළු", "Vegetables"),
+    ("තක්කාලි", "Vegetables"),
+    ("ළූණු", "Vegetables"),
+
+    # ── Prepared Food (bakery / ready-to-eat) ─────────────────────────────────
+    ("prepared", "Prepared Food"),
+    ("bakery", "Prepared Food"),
+    ("bread", "Prepared Food"),
+    ("cake", "Prepared Food"),
+    ("cookie", "Prepared Food"),
+    ("bun", "Prepared Food"),
+    ("pastry", "Prepared Food"),
+    ("doughnut", "Prepared Food"),
+    ("donut", "Prepared Food"),
+    ("muffin", "Prepared Food"),
+    ("කේක්", "Prepared Food"),
+    ("පාන්", "Prepared Food"),
+    ("රොටි", "Prepared Food"),
+
+    # ── Electronic Devices ─────────────────────────────────────────────────────
+    ("electronic", "Electronic Devices"),
+    ("electronics", "Electronic Devices"),
+    ("device", "Electronic Devices"),
+    ("phone", "Electronic Devices"),
+    ("gadget", "Electronic Devices"),
+    ("charger", "Electronic Devices"),
 ]
 
 
@@ -775,9 +913,13 @@ def _extract_budget_amount(text: str) -> float | None:
 
 
 def _extract_category_hint(text: str) -> str | None:
-    """Return a canonical category name if the query mentions a product category."""
+    """Return a canonical category name if the query mentions a product category.
+
+    Tries longer tokens first so 'ice cream' beats 'ice', 'cooking oil' beats 'oil'.
+    """
     lowered = (text or "").lower()
-    for token, canonical in _CATEGORY_KEYWORDS:
+    sorted_kws = sorted(_CATEGORY_KEYWORDS, key=lambda t: len(t[0]), reverse=True)
+    for token, canonical in sorted_kws:
         if token in lowered:
             return canonical
     return None
@@ -1183,6 +1325,10 @@ def _extract_product_hint(text: str, intent: str | None = None) -> str | None:
         r"(?:මිලදී\s+ගත\s+හැකි\s+)?([A-Za-z0-9඀-෿\s\-]{2,40})\s+නිෂ්පාදන",
         r"(?:මට|මමට)?\s*([A-Za-z0-9඀-෿\s\-]{2,60})\s+හොයන්න",
         r"(?:මට|මමට)\s+([A-Za-z0-9඀-෿\s\-]{2,40})\s+(?:මිල|price|ගණන)",
+        # Budget-then-product: "Rs. 1000 ට shampoo ගන්න" / "under 500 rice"
+        r"(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)?[0-9][0-9,]*\s*(?:කට|ට|under|below|within)\s+([A-Za-z0-9඀-෿\s\-]{2,40}?)(?:\s+(?:ගන්න|ගෙන|ලෙස|ලැයිස්තු|list|දෙන්න|items?|products?)|$)",
+        # Product-then-budget: "shampoo under Rs. 1000" / "milk price under 500"
+        r"([A-Za-z0-9඀-෿]{2,30}(?:\s+[A-Za-z0-9඀-෿]{2,20}){0,3})\s+(?:under|below|within|ට\s+ඇතුළත)\s+(?:රු\.?\s*|rs\.?\s*)?[0-9]",
     ]
     patterns = (
         offer_patterns

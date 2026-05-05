@@ -638,6 +638,65 @@ async def get_active_offers_for_product(
 # 4. Order history  (intent: order_history)
 # ---------------------------------------------------------------------------
 
+async def get_product_price_by_budget(
+    product_name: str,
+    max_price: float,
+    category: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return products matching `product_name` priced at or below `max_price`."""
+    norm = _norm(product_name)
+    norm_cat = _norm(category) if category else None
+    if not norm:
+        return []
+    safe_limit = max(1, min(limit, 50))
+    try:
+        async with acquire() as conn:
+            if norm_cat:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.price <= $1
+                      AND (
+                        lower(p.name)    LIKE $2
+                        OR lower(p.name_si) LIKE $2
+                        OR lower(p.brand)   LIKE $2
+                      )
+                      AND (lower(c.name) LIKE $3 OR lower(c.name_si) LIKE $3)
+                    ORDER BY p.stock_quantity > 0 DESC, p.price ASC, p.name
+                    LIMIT $4
+                    """,
+                    max_price,
+                    f"%{norm}%",
+                    f"%{norm_cat}%",
+                    safe_limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    {_PRICE_SELECT}
+                      AND p.price <= $1
+                      AND (
+                        lower(p.name)    LIKE $2
+                        OR lower(p.name_si) LIKE $2
+                        OR lower(p.brand)   LIKE $2
+                      )
+                    ORDER BY p.stock_quantity > 0 DESC, p.price ASC, p.name
+                    LIMIT $3
+                    """,
+                    max_price,
+                    f"%{norm}%",
+                    safe_limit,
+                )
+            return [_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning(
+            "get_product_price_by_budget failed name=%r max_price=%.0f error=%s",
+            product_name, max_price, exc,
+        )
+        return []
+
+
 async def get_cheapest_products(
     category: str | None = None,
     limit: int = 10,

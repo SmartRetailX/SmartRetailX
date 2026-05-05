@@ -20,6 +20,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .intent.keyword import (
+    _extract_budget_amount,
+    _extract_category_hint,
+    _extract_price_modifier,
     _extract_product_hint,
     detect_intent_and_entities,
     detect_offer_type,
@@ -264,13 +267,16 @@ async def process_voice_chat(
                 },
             )
 
-        elif intent_result.intent != "prices" and _has_budget_price_signal(transcription) and not buying_signal:
+        elif intent_result.intent != "prices" and _has_budget_price_signal(transcription) and (
+            not buying_signal or _extract_budget_amount(transcription) is not None
+        ):
+            # Fire prices override when there's a numeric budget (even with buying signals like
+            # "snacks under Rs. 1000") OR when there's no buying signal at all.
             logger.info(
                 "Prices/budget override applied: detected_intent=%s text=%r",
                 intent_result.intent,
                 transcription[:160],
             )
-            from .intent.keyword import _extract_price_modifier, _extract_budget_amount, _extract_category_hint
             _price_modifier = _extract_price_modifier(transcription)
             _budget_amount = _extract_budget_amount(transcription)
             _category = _extract_category_hint(transcription)
