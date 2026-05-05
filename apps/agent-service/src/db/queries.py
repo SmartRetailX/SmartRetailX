@@ -28,11 +28,26 @@ _vocab_cache: dict[str, Any] = {"terms": [], "ts": 0.0}
 _VOCAB_TTL_SEC = 300  # refresh every 5 minutes
 
 
+_SPELLING_ALIASES: dict[str, str] = {
+    # American → British variants present in the product catalog
+    "yogurt": "yoghurt",
+    "yogurts": "yoghurts",
+    "donut": "doughnut",
+    "donuts": "doughnuts",
+}
+
+
 def _norm(text: str | None) -> str:
     """Lowercase, collapse whitespace, remove punctuation for fuzzy matching."""
     if not text:
         return ""
     return re.sub(r"[^\w\s]", "", text.lower().strip())
+
+
+def _normalize_search_query(query: str) -> str:
+    """Map common American spellings to the British variants used in the catalog."""
+    lowered = query.lower().strip()
+    return _SPELLING_ALIASES.get(lowered, query)
 
 
 def _row(record: asyncpg.Record) -> dict[str, Any]:
@@ -138,7 +153,7 @@ _PRODUCT_CATALOG_SELECT = """
 
 
 async def search_products(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    rows, _total = await search_products_page(query, limit=limit, offset=0)
+    rows, _total = await search_products_page(_normalize_search_query(query), limit=limit, offset=0)
     return rows
 
 

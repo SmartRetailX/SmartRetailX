@@ -1478,6 +1478,8 @@ def _extract_product_hint(text: str, intent: str | None = None) -> str | None:
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?(?!අඩු|reduced|cut)([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන|හොයන්න)\s+([A-Za-z0-9඀-෿\s\-]{2,60})",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
+        # Budget-then-product with availability: "රුපියල් 500ට අඩු yogurt තියෙනවද"
+        r"(?:රුපියල්\.?\s*|රු\.?\s*|rs\.?\s*|lkr\.?\s*)?[0-9][0-9,]*\s*(?:කට|ට|ක\b|under|below|within)\s+(?:අඩු\s+)?([A-Za-z0-9඀-෿]{2,40}(?:\s+[A-Za-z0-9඀-෿]{2,20}){0,3})\s+(?:තියෙනවද|තියෙනවාද|තිබෙනවද|නැද්ද|ඇතිද|available)",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+වල\s+මිල",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+(?:කීයද|මොකක්ද|මොකද)",
