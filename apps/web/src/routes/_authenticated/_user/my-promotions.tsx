@@ -54,14 +54,14 @@ function discountGradient(pct: number): string {
 }
 
 const PROMO_TYPE_LABELS: Record<string, string> = {
-  seasonal_offer:  '🌿 Seasonal',
-  awrudu_offer:    '🎉 Awrudu',
+  seasonal_offer: '🌿 Seasonal',
+  awrudu_offer: '🎉 Awrudu',
   christmas_offer: '🎄 Christmas',
-  new_year_offer:  '🎆 New Year',
-  flash_sale:      '⚡ Flash Sale',
-  clearance:       '🏷️ Clearance',
-  bundle_deal:     '📦 Bundle',
-  loyalty_reward:  '⭐ Loyalty',
+  new_year_offer: '🎆 New Year',
+  flash_sale: '⚡ Flash Sale',
+  clearance: '🏷️ Clearance',
+  bundle_deal: '📦 Bundle',
+  loyalty_reward: '⭐ Loyalty',
 };
 
 // ── Store Offers section (bulk promotions visible to all) ─────────────────────
@@ -99,7 +99,7 @@ function StoreOffersSection() {
       </div>
 
       {/* Horizontal scroll row */}
-      <div className="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex gap-3 overflow-x-auto mx-8 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {offers.map((offer) => {
           const endsIn = daysUntil(offer.endDate);
           const gradient = discountGradient(offer.discountPercentage);
@@ -279,9 +279,9 @@ function RouteComponent() {
       {!isLoading && !serviceDown && promotions.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            { label: 'Total offers', value: promotions.length,            icon: Tag,     color: 'text-primary bg-primary/10' },
-            { label: 'Unread',       value: unread,                       icon: Bell,    color: 'text-sky-600 bg-sky-50' },
-            { label: 'Read',         value: promotions.length - unread,   icon: BellOff, color: 'text-emerald-600 bg-emerald-50' },
+            { label: 'Total offers', value: promotions.length, icon: Tag, color: 'text-primary bg-primary/10' },
+            { label: 'Unread', value: unread, icon: Bell, color: 'text-sky-600 bg-sky-50' },
+            { label: 'Read', value: promotions.length - unread, icon: BellOff, color: 'text-emerald-600 bg-emerald-50' },
           ].map((stat) => (
             <Card key={stat.label} size="sm">
               <CardContent className="flex items-center gap-3">
