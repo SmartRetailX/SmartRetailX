@@ -1286,6 +1286,7 @@ export class CatalogService {
       productName: row.product.name,
       productCategory: row.product.category.name,
       productPrice: Number(row.product.price),
+      productImageUrl: row.product.imageUrl ?? null,
       discountPercentage: Number(row.discountPercentage),
       startDate: row.startDate.toISOString(),
       endDate: row.endDate.toISOString(),
