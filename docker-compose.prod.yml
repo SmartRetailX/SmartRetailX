@@ -1,0 +1,294 @@
+x-node-environment: &node-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+  DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-2}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-production-secret-minimum-32-chars}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  BASE_URL: ${BASE_URL:-http://localhost:3000}
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+  RABBITMQ_URI: ${RABBITMQ_URI:-amqp://smartretailx:smartretailx@rabbitmq:5672}
+  CORE_SERVICE_QUEUE: ${CORE_SERVICE_QUEUE:-core_queue}
+  BI_DASHBOARD_SERVICE_QUEUE: ${BI_DASHBOARD_SERVICE_QUEUE:-bi_dashboard_queue}
+  WEBSOCKET_SERVICE_QUEUE: ${WEBSOCKET_SERVICE_QUEUE:-websocket_queue}
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-20m}
+    max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+services:
+  sinlama:
+    image: ${SINLAMA_IMAGE:-${IMAGE_PREFIX:-smart-retail-x}/sinlama-service:${TAG:-latest}}
+    build:
+      context: .
+      dockerfile: apps/sinlama-service/Dockerfile
+    restart: unless-stopped
+    expose:
+      - '8080'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging: *default-logging
+    networks:
+      - backend
+
+  api-gateway:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/api-gateway:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *node-environment
+      AGENT_HTTP_TIMEOUT_MS: ${AGENT_HTTP_TIMEOUT_MS:-180000}
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      AGENT_TCP_HOST: ${AGENT_TCP_HOST:-agent-service}
+      AGENT_TCP_PORT: ${AGENT_TCP_PORT:-8877}
+      AGENT_TCP_TIMEOUT_MS: ${AGENT_TCP_TIMEOUT_MS:-10000}
+      AGENT_VOICE_TRANSPORT: ${AGENT_VOICE_TRANSPORT:-http-first}
+      API_GATEWAY_HOST: 0.0.0.0
+      API_GATEWAY_PORT: 3000
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
+      OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
+      PROMOTION_ENGINE_URL: ${PROMOTION_ENGINE_URL:-http://promotion-engine:8001}
+    ports:
+      - '${API_GATEWAY_PORT:-3000}:3000'
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/health/live || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  core-service:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/core-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/core-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *node-environment
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-gpt-4o-mini}
+    logging: *default-logging
+    networks:
+      - backend
+
+  bi-dashboard-services-gateway:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/bi-dashboard-services-gateway:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/bi-dashboard-services-gateway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      bi-dashboard-ml-service:
+        condition: service_healthy
+    environment:
+      <<: *node-environment
+      BI_DASHBOARD_HTTP_MODE: ${BI_DASHBOARD_HTTP_MODE:-false}
+      BI_DASHBOARD_PORT: 3001
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-http://bi-dashboard-ml-service:8000}
+    expose:
+      - '3001'
+    logging: *default-logging
+    networks:
+      - backend
+
+  websocket-service:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/websocket-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/websocket-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *node-environment
+      AGENT_HTTP_VOICE_URL: ${AGENT_HTTP_VOICE_URL:-http://agent-service:8010/api/v1/voice/chat}
+      API_GATEWAY_VOICE_URL: ${API_GATEWAY_VOICE_URL:-http://api-gateway:3000/api/v1/voice}
+      WEBSOCKET_SERVICE_PORT: 3004
+    expose:
+      - '3004'
+    logging: *default-logging
+    networks:
+      - backend
+
+  web:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/web:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      PUBLIC_WEBSOCKET_URL: ${PUBLIC_WEBSOCKET_URL:-}
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      websocket-service:
+        condition: service_started
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    logging: *default-logging
+    networks:
+      - edge
+      - backend
+
+  bi-dashboard-ml-service:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/bi-dashboard-ml-service:${TAG:-latest}
+    build:
+      context: ./apps/bi-dashboard-ml-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+      ML_SERVICE_HOST: 0.0.0.0
+      ML_SERVICE_PORT: 8000
+    expose:
+      - '8000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8000/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *default-logging
+    networks:
+      - backend
+
+  promotion-engine:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/promotion-engine:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/personalized-promotion-engine-ml-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+    expose:
+      - '8001'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8001/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *default-logging
+    networks:
+      - backend
+
+  segmentation-service:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/segmentation-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/segmentation-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+    expose:
+      - '8002'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8002/docs || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *default-logging
+    networks:
+      - backend
+
+  agent-service:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/agent-service:${TAG:-latest}
+    build:
+      context: ./apps/agent-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      sinlama:
+        condition: service_started
+    environment:
+      AGENT_HTTP_PORT: 8010
+      AGENT_TCP_HOST: 0.0.0.0
+      AGENT_TCP_PORT: 8877
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartretailx:smartretailx@postgres:5432/smartretailx}
+      WHISPER_API_URL: ${WHISPER_API_URL:-}
+      WHISPER_API_TIMEOUT_MS: ${WHISPER_API_TIMEOUT_MS:-180000}
+      WHISPER_API_UPLOAD_FIELD: ${WHISPER_API_UPLOAD_FIELD:-file}
+      WHISPER_API_LANGUAGE_FIELD: ${WHISPER_API_LANGUAGE_FIELD:-language}
+      WHISPER_API_RESPONSE_FIELD: ${WHISPER_API_RESPONSE_FIELD:-transcription}
+      STT_PROVIDER: ${STT_PROVIDER:-stt-agent}
+      STT_AGENT_HTTP_URL: ${STT_AGENT_HTTP_URL:-http://stt-agent:8003/api/v1/stt/transcribe}
+      STT_AGENT_TIMEOUT_MS: ${STT_AGENT_TIMEOUT_MS:-60000}
+      SINLLAMA_BASE_URL: ${SINLLAMA_BASE_URL:-http://sinlama:8080}
+      SINLLAMA_INTENT_PATH: ${SINLLAMA_INTENT_PATH:-/api/v1/intent}
+      SINLLAMA_TIMEOUT_MS: ${SINLLAMA_TIMEOUT_MS:-8000}
+      SINLLAMA_API_KEY: ${SINLLAMA_API_KEY:-}
+      SINLLAMA_RETRY_COUNT: ${SINLLAMA_RETRY_COUNT:-1}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_WHISPER_MODEL: ${OPENAI_WHISPER_MODEL:-whisper-1}
+      OPENAI_STT_TIMEOUT_MS: ${OPENAI_STT_TIMEOUT_MS:-90000}
+      OPENAI_RESPONSE_MODEL: ${OPENAI_RESPONSE_MODEL:-gpt-4o-mini}
+      OPENAI_RESPONSE_TIMEOUT_MS: ${OPENAI_RESPONSE_TIMEOUT_MS:-45000}
+    expose:
+      - '8010'
+      - '8877'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8010/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+    networks:
+      - backend
+
+  stt-agent:
+    image: ${IMAGE_PREFIX:-smart-retail-x}/stt-agent:${TAG:-latest}
+    build:
+      context: ./apps/stt-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      STT_AGENT_HOST: ${STT_AGENT_HOST:-0.0.0.0}
+      STT_AGENT_PORT: ${STT_AGENT_PORT:-8003}
+      STT_SAMPLE_RATE: ${STT_SAMPLE_RATE:-16000}
+      STT_LANGUAGE_CODE: ${STT_LANGUAGE_CODE:-si-LK}
+      STT_ALTERNATIVE_LANGUAGES: ${STT_ALTERNATIVE_LANGUAGES:-en-US}
+      STT_BOOSTED_PHRASES: ${STT_BOOSTED_PHRASES:-order,අවසාන order,order එකෙහි,cancel,payment,online}
+      STT_PHRASE_BOOST: ${STT_PHRASE_BOOST:-20.0}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+    expose:
+      - '8003'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8003/docs >/dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+    networks:
+      - backend
+
+networks:
+  edge:
+    driver: bridge
+  backend:
+    external: true
+    name: smart-retail-backend

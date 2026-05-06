@@ -1,0 +1,19 @@
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+/* Theme1.css */
+@import './theme1.css';
+
+/* Variable css */
+@import './variables.css';
+
+html,
+body,
+#root {
+  margin: 0;
+}
+
+/* Fix  1password */
+.dark input[data-com-onepassword-filled='light'] {
+  color: #000000;
+}

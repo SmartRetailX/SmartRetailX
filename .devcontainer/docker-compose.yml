@@ -1,0 +1,29 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/smart-retail-x:cached
+      - pnpm-store:/pnpm/store
+      - codex-home:/home/node/.codex
+      - codex-home-root:/root/.codex
+      - claude-home:/home/node/.claude
+      - claude-home-root:/root/.claude
+      - vscode-server-node:/home/node/.vscode-server
+      - vscode-server-root:/root/.vscode-server
+      - /var/run/docker.sock:/var/run/docker-host.sock
+    ports:
+      - "3000:3000"   # API Gateway
+      - "3004:3004"   # WebSocket Service
+      - "5173:5173"   # Web App (Rsbuild dev server)
+
+volumes:
+  pnpm-store:
+  codex-home:
+  codex-home-root:
+  claude-home:
+  claude-home-root:
+  vscode-server-node:
+  vscode-server-root:

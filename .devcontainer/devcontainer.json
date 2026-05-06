@@ -1,0 +1,51 @@
+{
+  "name": "Smart RetailX",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/smart-retail-x",
+  "remoteUser": "root",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "enableNonRootDocker": "true",
+      "version": "latest"
+    }
+  },
+  "forwardPorts": [
+    3000,
+    3004,
+    5173
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "API Gateway"
+    },
+    "3004": {
+      "label": "WebSocket Service"
+    },
+    "5173": {
+      "label": "Web App"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "openai.chatgpt",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "nrwl.angular-console",
+        "Prisma.prisma",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "js/ts.tsdk.path": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

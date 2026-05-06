@@ -1,0 +1,52 @@
+# One phrase per line. Keep Sinhala + English variants for better recognition.
+order
+අවසාන order
+order එකෙහි
+cancel
+payment
+online
+# Offers / promotions
+අද තියෙන offers මොනවද
+offers මොනවද
+offers තියෙනවද
+promotions තියෙනවද
+discount තියෙන
+deals තියෙන
+special deals
+flash deal
+voucher code
+combo deal
+clearance sale
+bundle promotions
+# Common Sinhala verbs / query endings
+තියෙන
+තියෙනවද
+කියන්න
+පෙන්නන්න
+දෙන්න
+හොයන්න
+suggest කරන්න
+recommend කරන්න
+# Prices
+මිල කීයද
+ගාණ කියන්න
+price range
+# Order history
+order history
+order history එක
+pending orders
+cancel කරපු orders
+delivered orders
+refund වෙච්ච
+# Product search
+product search
+shampoo
+soap
+noodles
+chocolate
+diapers
+# Profile
+loyalty tier
+customer segment
+profile
+මගේ ගිණුම්

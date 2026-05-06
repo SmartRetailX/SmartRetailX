@@ -1,0 +1,42 @@
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+# Byte-code files
+*.mo
+*.mop
+*.py[cod]
+*.egg-info/
+.coverage
+.mypy_cache/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+htmlcov/
+.tox/
+
+# OS and IDE specific files
+.DS_Store # macOS
+Thumbs.db # Windows
+.vscode/ # VS Code specific settings (optional, can be included if desired)
+.idea/ # PyCharm/IntelliJ specific settings (optional)
+
+# Databases and logs
+*.sqlite
+*.db
+*.log
+/logs/
+
+# Secrets and configuration files
+.env
+
+# Build artifacts
+dist/
+build/

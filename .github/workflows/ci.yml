@@ -5,46 +5,55 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
 
+env:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  main:
+  verify:
+    name: Lint, Test, and Build
     runs-on: ubuntu-latest
+    env:
+      NX_CLOUD: 'false'
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v5
         with:
-          filter: tree:0
           fetch-depth: 0
 
-      
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 9.8.0
+          version: 10.32.1
           run_install: false
-      
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      # Uncomment this line to enable task distribution
-      # - run: pnpm dlx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="build"
 
-      
-      # Cache node_modules
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
-       
-      - run: pnpm install --frozen-lockfile
+          node-version: 22
+          cache: pnpm
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      # Prepend any command with "nx-cloud record --" to record its logs to Nx Cloud
-      # - run: pnpm exec nx-cloud record -- echo Hello World
-      - run: pnpm exec nx run-many -t lint test build
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
-      - run: pnpm exec nx fix-ci
-        if: always()
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

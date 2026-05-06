@@ -1,0 +1,21 @@
+/* Layout sizing variables */
+:root {
+  /* Header Height */
+  --h-header: 120px;
+
+  /* Footer Height */
+  --h-footer: 270px;
+
+  /* Content Min Height - Guest Layout */
+  --h-guest-content-min: calc(
+    100vh - var(--h-header) - var(--h-footer) - 4rem
+  ); /* 4rem for padding */
+
+  /* Content Min Height - User Layout */
+  --h-user-content-min: calc(
+    100vh - var(--h-header) - var(--h-footer) - 4rem
+  ); /* 4rem for padding */
+
+  /* Content Min Height - Admin Layout */
+  --h-admin-content-min: calc(100vh - var(--h-header) - 4rem); /* 4rem for padding */
+}

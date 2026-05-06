@@ -1,0 +1,78 @@
+/**
+ * Environment variable validation and type definitions
+ * Ensures all required environment variables are present at startup
+ */
+
+import { z } from 'zod';
+
+const envSchema = z.object({
+  // Global Configuration
+  NODE_ENV: z.enum(['development', 'production', 'test', 'staging']).default('development'),
+
+  // API Gateway Configuration
+  API_GATEWAY_PORT: z.string().default('3000').transform(Number).pipe(z.number().min(1).max(65535)),
+  API_GATEWAY_HOST: z.string().default('localhost'),
+
+  // Backward compatibility - fallback to old PORT/HOST if new ones not set
+  PORT: z.string().optional(),
+  HOST: z.string().optional(),
+
+  // Database Configuration
+  DATABASE_URL: z
+    .string()
+    .min(1, 'DATABASE_URL is required')
+    .refine(
+      (url) => url.startsWith('postgres://') || url.startsWith('postgresql://'),
+      'DATABASE_URL must be a valid PostgreSQL connection string',
+    ),
+  DATABASE_POOL_MIN: z.string().default('2').transform(Number).pipe(z.number().min(1)),
+  DATABASE_POOL_MAX: z.string().default('10').transform(Number).pipe(z.number().min(1)),
+
+  // CORS Configuration
+  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  // Rate Limiting
+  RATE_LIMIT_TTL: z.string().default('60').transform(Number).pipe(z.number().min(1)),
+  RATE_LIMIT_MAX: z.string().default('100').transform(Number).pipe(z.number().min(1)),
+
+  // Logging
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+  // RabbitMQ Configuration
+  RABBITMQ_URI: z
+    .string()
+    .default('amqp://localhost:5672')
+    .refine(
+      (url) => url.startsWith('amqp://') || url.startsWith('amqps://'),
+      'RABBITMQ_URI must be a valid AMQP URL',
+    ),
+
+  // Base URL (for production)
+  BASE_URL: z.string().url().optional(),
+  BETTER_AUTH_URL: z.string().url().optional(),
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_UPLOAD_PRESET: z.string().optional(),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+/**
+ * Validate and parse environment variables
+ * Throws an error if validation fails with detailed error messages
+ */
+export function validateEnv(): Env {
+  const parsed = envSchema.safeParse(process.env);
+
+  if (!parsed.success) {
+    console.error('❌ Environment validation failed:');
+    parsed.error.issues.forEach((issue) => {
+      console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
+    });
+    throw new Error('Invalid environment configuration');
+  }
+
+  return parsed.data;
+}

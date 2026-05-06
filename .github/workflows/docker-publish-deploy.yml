@@ -1,0 +1,379 @@
+name: Docker Publish and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Docker image tag to publish/deploy
+        required: true
+        default: latest
+      force_build:
+        description: Build and push every service image
+        required: false
+        type: boolean
+        default: false
+      force_deploy:
+        description: Deploy even when no service changes were detected
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  DEPLOY_BRANCH: main
+  NX_CLOUD: 'false'
+  NX_DAEMON: 'false'
+  NX_NO_CLOUD: 'true'
+
+concurrency:
+  group: docker-publish-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_changes: ${{ steps.matrix.outputs.has_changes }}
+      services_csv: ${{ steps.matrix.outputs.services_csv }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.ref }}
+          filters: |
+            common:
+              - '.github/workflows/docker-publish-deploy.yml'
+              - 'docker-compose.prod.yml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'nx.json'
+              - 'tsconfig.base.json'
+              - 'libs/**'
+              - 'prisma.config.ts'
+              - 'apps/web/package.json'
+            api_gateway:
+              - 'apps/api-gateway/**'
+            core_service:
+              - 'apps/core-service/**'
+            bi_dashboard_services_gateway:
+              - 'apps/bi-dashboard-services-gateway/**'
+            websocket_service:
+              - 'apps/websocket-service/**'
+            web:
+              - 'apps/web/**'
+            bi_dashboard_ml_service:
+              - 'apps/bi-dashboard-ml-service/**'
+            promotion_engine:
+              - 'apps/personalized-promotion-engine-ml-service/**'
+            segmentation_service:
+              - 'apps/segmentation-service/**'
+            agent_service:
+              - 'apps/agent-service/**'
+            stt_agent:
+              - 'apps/stt-agent/**'
+            sinlama_service:
+              - 'apps/sinlama-service/**'
+
+      - name: Build dynamic matrix
+        id: matrix
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const forceBuild =
+              context.eventName === 'workflow_dispatch' &&
+              '${{ inputs.force_build }}' === 'true';
+            const common = '${{ steps.filter.outputs.common }}' === 'true';
+
+            const services = [
+              {
+                key: 'api_gateway',
+                service: 'api-gateway',
+                image: 'api-gateway',
+                context: '.',
+                dockerfile: 'apps/api-gateway/Dockerfile',
+              },
+              {
+                key: 'core_service',
+                service: 'core-service',
+                image: 'core-service',
+                context: '.',
+                dockerfile: 'apps/core-service/Dockerfile',
+              },
+              {
+                key: 'bi_dashboard_services_gateway',
+                service: 'bi-dashboard-services-gateway',
+                image: 'bi-dashboard-services-gateway',
+                context: '.',
+                dockerfile: 'apps/bi-dashboard-services-gateway/Dockerfile',
+              },
+              {
+                key: 'websocket_service',
+                service: 'websocket-service',
+                image: 'websocket-service',
+                context: '.',
+                dockerfile: 'apps/websocket-service/Dockerfile',
+              },
+              {
+                key: 'web',
+                service: 'web',
+                image: 'web',
+                context: '.',
+                dockerfile: 'apps/web/Dockerfile',
+              },
+              {
+                key: 'bi_dashboard_ml_service',
+                service: 'bi-dashboard-ml-service',
+                image: 'bi-dashboard-ml-service',
+                context: './apps/bi-dashboard-ml-service',
+                dockerfile: 'apps/bi-dashboard-ml-service/Dockerfile',
+              },
+              {
+                key: 'promotion_engine',
+                service: 'promotion-engine',
+                image: 'promotion-engine',
+                context: '.',
+                dockerfile: 'apps/personalized-promotion-engine-ml-service/Dockerfile',
+              },
+              {
+                key: 'segmentation_service',
+                service: 'segmentation-service',
+                image: 'segmentation-service',
+                context: '.',
+                dockerfile: 'apps/segmentation-service/Dockerfile',
+              },
+              {
+                key: 'agent_service',
+                service: 'agent-service',
+                image: 'agent-service',
+                context: './apps/agent-service',
+                dockerfile: 'apps/agent-service/Dockerfile',
+              },
+              {
+                key: 'stt_agent',
+                service: 'stt-agent',
+                image: 'stt-agent',
+                context: './apps/stt-agent',
+                dockerfile: 'apps/stt-agent/Dockerfile',
+              },
+              {
+                key: 'sinlama_service',
+                service: 'sinlama-service',
+                image: 'sinlama-service',
+                context: '.',
+                dockerfile: 'apps/sinlama-service/Dockerfile',
+              },
+            ];
+
+            const outputs = ${{ toJson(steps.filter.outputs) }};
+            const selected = services.filter((item) => {
+              return forceBuild || common || outputs[item.key] === 'true';
+            });
+
+            core.setOutput('matrix', JSON.stringify({ include: selected }));
+            core.setOutput('has_changes', selected.length > 0 ? 'true' : 'false');
+            core.setOutput(
+              'services_csv',
+              selected.map((item) => item.service).join(',')
+            );
+
+  build-and-push:
+    name: Build and Push (${{ matrix.service }})
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image metadata
+        id: image
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          prefix="${{ env.REGISTRY }}/${owner}"
+          image="${prefix}/${{ matrix.image }}"
+          echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.image_tag }}"
+          else
+            tag="${GITHUB_SHA::7}"
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${image}:${tag}"
+            if [ "${{ github.ref_name }}" = "${{ env.DEPLOY_BRANCH }}" ] || [ "$tag" = "latest" ]; then
+              echo "${image}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            PUBLIC_BASE_URL=${{ vars.PUBLIC_BASE_URL || '' }}
+          tags: ${{ steps.image.outputs.tags }}
+          cache-from: type=gha,scope=smart-retail-x-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=smart-retail-x-${{ matrix.service }}
+
+  deploy:
+    name: Deploy to Server
+    needs:
+      - detect-changes
+      - build-and-push
+    if: >
+      always() &&
+      (github.ref_name == 'main' ||
+        (github.event_name == 'workflow_dispatch' && inputs.force_deploy == true)) &&
+      (needs.detect-changes.outputs.has_changes == 'true' ||
+        (github.event_name == 'workflow_dispatch' && inputs.force_deploy == true)) &&
+      (needs.build-and-push.result == 'success' ||
+        needs.build-and-push.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Resolve deployment metadata
+        id: deploy
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "image_prefix=${{ env.REGISTRY }}/${owner}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+
+            DEPLOY_PATH="${{ secrets.BACKEND_DEPLOY_PATH }}"
+            REPO_DIR="${{ secrets.BACKEND_REPO_DIR }}"
+            REPO_TOKEN="${{ secrets.BACKEND_REPO_TOKEN }}"
+            GHCR_READ_TOKEN="${{ secrets.GHCR_READ_TOKEN }}"
+            GHCR_USERNAME="${{ secrets.GHCR_USERNAME }}"
+            CHANGED_SERVICES_CSV="${{ needs.detect-changes.outputs.services_csv }}"
+            ALL_APP_SERVICES="sinlama api-gateway core-service bi-dashboard-services-gateway websocket-service web bi-dashboard-ml-service promotion-engine segmentation-service agent-service stt-agent"
+
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "BACKEND_DEPLOY_PATH secret is required"
+              exit 1
+            fi
+
+            if [ -z "$REPO_DIR" ]; then
+              REPO_DIR="$HOME/smart-retail-x-repo"
+            fi
+
+            if [ -z "$GHCR_USERNAME" ]; then
+              GHCR_USERNAME="${{ github.actor }}"
+            fi
+
+            mkdir -p "$DEPLOY_PATH"
+
+            if [ -n "$GHCR_READ_TOKEN" ]; then
+              echo "$GHCR_READ_TOKEN" | docker login "${{ env.REGISTRY }}" -u "$GHCR_USERNAME" --password-stdin
+            fi
+
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              if [ -n "$REPO_TOKEN" ]; then
+                git clone "https://x-access-token:${REPO_TOKEN}@github.com/${{ github.repository }}.git" "$REPO_DIR"
+              else
+                git clone "https://github.com/${{ github.repository }}.git" "$REPO_DIR"
+              fi
+            else
+              git -C "$REPO_DIR" fetch --all --prune
+            fi
+
+            git -C "$REPO_DIR" checkout "${{ github.ref_name }}"
+            git -C "$REPO_DIR" reset --hard "origin/${{ github.ref_name }}"
+
+            cp "$REPO_DIR/docker-compose.infra.yml" "$DEPLOY_PATH/docker-compose.infra.yml"
+            cp "$REPO_DIR/docker-compose.prod.yml" "$DEPLOY_PATH/docker-compose.prod.yml"
+
+            cd "$DEPLOY_PATH"
+            cat > .env <<'SMART_RETAIL_X_ENV'
+            ${{ secrets.PROD_ENV }}
+            SMART_RETAIL_X_ENV
+            {
+              echo ""
+              echo "IMAGE_PREFIX=${{ steps.deploy.outputs.image_prefix }}"
+              echo "TAG=${{ steps.deploy.outputs.tag }}"
+            } >> .env
+
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_deploy }}" = "true" ]; then
+              DEPLOY_SERVICES="$ALL_APP_SERVICES"
+            elif [ -n "$CHANGED_SERVICES_CSV" ]; then
+              DEPLOY_SERVICES="$(echo "$CHANGED_SERVICES_CSV" | tr ',' ' ')"
+            else
+              DEPLOY_SERVICES="$ALL_APP_SERVICES"
+            fi
+
+            echo "Deploying services: $DEPLOY_SERVICES"
+            docker system df || true
+            docker compose --env-file .env -f docker-compose.infra.yml up -d
+            docker compose --env-file .env -f docker-compose.prod.yml pull --policy always $DEPLOY_SERVICES
+            docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans $DEPLOY_SERVICES
+            docker image prune -af --filter "until=168h"
+            docker builder prune -af --filter "until=168h"
+            docker container prune -f --filter "until=168h"
+            docker system df || true
+
+  no-changes:
+    name: No Service Changes
+    needs: detect-changes
+    if: >
+      needs.detect-changes.outputs.has_changes != 'true' &&
+      !(github.event_name == 'workflow_dispatch' && inputs.force_deploy == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip publish
+        run: echo "No changed service paths detected. Skipping Docker publish."
