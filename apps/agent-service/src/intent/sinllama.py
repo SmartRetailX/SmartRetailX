@@ -121,17 +121,34 @@ async def detect_intent_with_sinllama(
 
 def _sanitize_entities(entities: dict[str, Any], original_text: str) -> dict[str, Any]:
     """Drop or fix entity values that are obviously noise words (e.g. 'කීයද')."""
-    from .keyword import _extract_product_hint  # local import to avoid circularity
+    from .keyword import _extract_product_hint, _transliterate_si_to_en  # local import to avoid circularity
+
+    # Transliterate the original text so product hints extracted below are in English.
+    translated_text = _transliterate_si_to_en(original_text)
 
     result = dict(entities)
     product = str(result.get("product") or "").strip()
+
+    # Transliterate the product value SinLlama returned (e.g. "රෙඩ් ඇප්ල්" → "red apple")
+    if product:
+        translated_product = _transliterate_si_to_en(product).strip()
+        if translated_product != product:
+            logger.info("sinllama product transliterated: %r → %r", product, translated_product)
+            result["product"] = translated_product
+            product = translated_product
+
     if product and product.lower() in _ENTITY_NOISE:
         # SinLlama grabbed a question word instead of the product — re-extract
-        fallback = _extract_product_hint(original_text)
+        fallback = _extract_product_hint(translated_text)
         if fallback:
             result["product"] = fallback
             logger.info("sinllama entity sanitised: %r → %r", product, fallback)
         else:
             result.pop("product", None)
             logger.info("sinllama entity dropped noise product: %r", product)
+    elif not product:
+        # SinLlama returned no product — try extracting from transliterated text
+        fallback = _extract_product_hint(translated_text)
+        if fallback:
+            result["product"] = fallback
     return result

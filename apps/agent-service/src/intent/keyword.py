@@ -4,6 +4,109 @@ from typing import Any
 
 from ..config import settings
 
+# ---------------------------------------------------------------------------
+# Sinhala → English transliteration for common product/brand/colour terms
+# Whisper often transcribes English product words into Sinhala script.
+# Longer phrases must come first so "රෙඩ් ඇප්ල්" → "red apple" beats
+# single-token replacements.
+# ---------------------------------------------------------------------------
+_SI_TO_EN_MAP: list[tuple[str, str]] = [
+    # colours
+    ("රෙඩ්", "red"),
+    ("ග්‍රීන්", "green"),
+    ("බ්ලූ", "blue"),
+    ("යෙලෝ", "yellow"),
+    ("ව්හයිට්", "white"),
+    ("බ්ලැක්", "black"),
+    ("ඔරේන්ජ්", "orange"),
+    ("පින්ක්", "pink"),
+    ("පර්පල්", "purple"),
+    # fruits / vegetables
+    ("ඇප්ල්", "apple"),
+    ("ඇපල්", "apple"),
+    ("බනානා", "banana"),
+    ("මැංගෝ", "mango"),
+    ("ග්‍රේප්", "grape"),
+    ("ඔරේන්ජ්", "orange"),
+    ("ස්ට්‍රෝබෙරි", "strawberry"),
+    ("ටොමැටෝ", "tomato"),
+    ("කැරට්", "carrot"),
+    ("ලෙමන්", "lemon"),
+    ("පිකල්", "pickle"),
+    # dairy / chilled
+    ("යෝගට්", "yogurt"),
+    ("යෝගත්", "yogurt"),
+    ("යෝගර්ට්", "yogurt"),
+    ("බටර්", "butter"),
+    ("චීස්", "cheese"),
+    ("ක්‍රීම්", "cream"),
+    ("මිල්ක්", "milk"),
+    # grocery staples
+    ("රයිස්", "rice"),
+    ("ෆ්ලවර්", "flour"),
+    ("නූඩ්ල්ස්", "noodles"),
+    ("නූඩ්ල්", "noodle"),
+    ("ඕට්ස්", "oats"),
+    ("සීරියල්", "cereal"),
+    ("සූගර්", "sugar"),
+    ("සෝල්ට්", "salt"),
+    ("ඔයිල්", "oil"),
+    ("කූකිං ඔයිල්", "cooking oil"),
+    ("සෝස්", "sauce"),
+    ("පාස්ටා", "pasta"),
+    ("බිස්කට්", "biscuit"),
+    ("චොකලේට්", "chocolate"),
+    ("ස්නැක්ස්", "snacks"),
+    ("ස්නැක්", "snack"),
+    ("චිප්ස්", "chips"),
+    ("පොප්කෝන්", "popcorn"),
+    ("නට්ස්", "nuts"),
+    # beverages
+    ("ජූස්", "juice"),
+    ("ටී", "tea"),
+    ("කෝපි", "coffee"),
+    ("වොටර්", "water"),
+    ("සොෆ්ට් ඩ්‍රිංක්", "soft drink"),
+    ("ඩ්‍රිංක්ස්", "drinks"),
+    ("ඩ්‍රිංක්", "drink"),
+    # meat / seafood
+    ("චිකන්", "chicken"),
+    ("බීෆ්", "beef"),
+    ("ෆිෂ්", "fish"),
+    ("ප්‍රෝන්", "prawn"),
+    ("ටූනා", "tuna"),
+    ("සැමොන්", "salmon"),
+    # household / personal care
+    ("ශැම්පූ", "shampoo"),
+    ("ශොම්පූ", "shampoo"),
+    ("ශ්‍රාම්පූ", "shampoo"),
+    ("සෝප්", "soap"),
+    ("ටූත්පේස්ට්", "toothpaste"),
+    ("ඩිටර්ජන්ට්", "detergent"),
+    ("සැනිටයිසර්", "sanitizer"),
+    ("ටිෂ්යූ", "tissue"),
+    ("ඩියෝ", "deo"),
+    ("සන්ස්ක්‍රීන්", "sunscreen"),
+    # bakery / prepared
+    ("බ්‍රෙඩ්", "bread"),
+    ("කේක්", "cake"),
+    ("මෆින්", "muffin"),
+    ("ඩෝනට්", "donut"),
+    ("කූකී", "cookie"),
+    # frozen
+    ("අයිස් ක්‍රීම්", "ice cream"),
+    ("අයිස්ක්‍රීම්", "ice cream"),
+    ("ෆ්‍රෝසන්", "frozen"),
+]
+
+
+def _transliterate_si_to_en(text: str) -> str:
+    """Replace Sinhala phonetic renderings of English terms with their English forms."""
+    result = text
+    for si, en in _SI_TO_EN_MAP:
+        result = re.sub(re.escape(si), en, result, flags=re.IGNORECASE)
+    return result
+
 _NOISE_WORDS = {
     "කීය",
     "කීයද",
@@ -11,6 +114,7 @@ _NOISE_WORDS = {
     "මොනවා",
     "මොනවාද",
     "මොනවද",
+    "මොනවටද",
     "මොකක්ද",
     "මොකද",
     "what",
@@ -27,8 +131,11 @@ _NOISE_WORDS = {
     "තියෙනවා",
     "තියනවද",
     "තියෙන",
+    "තියන",
+    "තියෙන්නේ",
     "තිබෙන",
     "තිබෙනවද",
+    "තිබෙන්නේ",
     "නැද්ද",
     "නැද්ද?",
     "නෑද",
@@ -92,7 +199,10 @@ _LEADING_FILLERS = {
     "දැන්",
     "මේ",
     "තියෙන",
+    "තියන",
+    "තියෙන්නේ",
     "තිබෙන",
+    "තිබෙන්නේ",
     "today",
     "current",
     "now",
@@ -304,6 +414,13 @@ _KEYWORDS: dict[str, list[str]] = {
         "වැඩි ප්‍රෝටීන්",
         "සැජෙස්ට්",
         "අදහස",
+        "ලැයිස්තුවක්",
+        "ලැයිස්තුව",
+        "ලිස්ට් එකක්",
+        "බඩු ලැයිස්තු",
+        "shopping list දෙන්න",
+        "list දෙන්න",
+        "බඩු",
     ],
     "prices": [
         "price",
@@ -591,6 +708,10 @@ _BUYING_SUGGESTION_STRONG_SIGNALS = [
     "දරුවන්ට",
     "ලංච් බොක්ස්",
     "දියවැඩියා",
+    "ලැයිස්තුවක්",
+    "ලැයිස්තුව",
+    "බඩු ලැයිස්තු",
+    "බඩු",
 ]
 
 _BUYING_CONTEXT_ENTITY_MAP: list[tuple[str, str, str]] = [
@@ -711,9 +832,9 @@ _LAST_N_ORDER_PATTERN = re.compile(
 
 
 _BUDGET_AMOUNT_PATTERN = re.compile(
-    r"(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)([0-9][0-9,]*)"
-    r"|([0-9][0-9,]*)\s*(?:කට|ට|ට\s+ගන්|ට\s+ඇතුළත|under|below|within)"
-    r"|(?:budget|under|below|within)\s+(?:රු\.?\s*|rs\.?\s*|lkr\.?\s*)?([0-9][0-9,]*)",
+    r"(?:රුපියල්\.?\s*|රු\.?\s*|rs\.?\s*|lkr\.?\s*)([0-9][0-9,]*)"
+    r"|([0-9][0-9,]*)\s*(?:කට|ට|ක\b|ට\s+ගන්|ට\s+ඇතුළත|under|below|within)"
+    r"|(?:budget|under|below|within)\s+(?:රුපියල්\.?\s*|රු\.?\s*|rs\.?\s*|lkr\.?\s*)?([0-9][0-9,]*)",
     re.IGNORECASE,
 )
 
@@ -1012,6 +1133,10 @@ def detect_intent_and_entities(
     text: str,
     allowed_intents: list[str] | None,
 ) -> tuple[str, float, dict[str, Any], str | None]:
+    # Normalize Sinhala phonetic spellings of English product terms before any
+    # keyword matching or entity extraction, so queries like
+    # "රෙඩ් ඇප්ල් වල මිල" resolve to "red apple" against the DB.
+    text = _transliterate_si_to_en(text)
     lowered = text.lower()
     intents = list(dict.fromkeys(allowed_intents or settings.default_intents))
     scores: dict[str, float] = {intent: 0.0 for intent in intents}
@@ -1046,7 +1171,29 @@ def detect_intent_and_entities(
     budget_price_match = budget_amount is not None or re.search(
         r"cheapest|ලාභම|most\s+expensive|price\s+range", lowered
     )
-    if "prices" in scores and budget_price_match:
+
+    # Budget + list/shopping signal → buying_suggestions with a price cap, not prices
+    _list_signals = {"ලැයිස්තුවක්", "ලැයිස්තුව", "ලිස්ට්", "list", "shopping list", "බඩු ලැයිස්තු", "බඩු"}
+    _has_list_signal = any(sig in lowered for sig in _list_signals)
+
+    # Budget + availability question → product_search with budget filter, not prices
+    _availability_signals = {
+        "තියෙනවද", "තියෙනවාද", "තියෙනවා", "තියනවද",
+        "තිබෙනවද", "නැද්ද", "නෑද", "ඇතිද", "ඇතිද?",
+        "available", "in stock", "tiyenavada",
+    }
+    _has_availability_signal = any(sig in lowered for sig in _availability_signals)
+
+    if budget_amount is not None and _has_list_signal and "buying_suggestions" in scores:
+        scores["buying_suggestions"] += 4.0
+        if "prices" in scores:
+            scores["prices"] = max(0.0, scores["prices"] - 3.0)
+    elif budget_amount is not None and _has_availability_signal and "product_search" in scores:
+        # "Is there X under Rs. 500?" → product_search with budget, not prices
+        scores["product_search"] += 3.0
+        if "prices" in scores:
+            scores["prices"] = max(0.0, scores["prices"] - 2.0)
+    elif "prices" in scores and budget_price_match:
         scores["prices"] += 3.0
         if "buying_suggestions" in scores:
             scores["buying_suggestions"] = max(0.0, scores["buying_suggestions"] - 2.0)
@@ -1152,6 +1299,16 @@ def detect_intent_and_entities(
         if category:
             entities["category"] = category
 
+    # For budget availability queries routed to product_search, carry the budget cap
+    if best_intent == "product_search" and budget_amount is not None and _has_availability_signal:
+        entities["budget_amount"] = str(int(budget_amount) if budget_amount == int(budget_amount) else budget_amount)
+
+    # For budget shopping list queries routed to buying_suggestions, carry the budget cap
+    if best_intent == "buying_suggestions" and budget_amount is not None and _has_list_signal:
+        entities["budget_amount"] = str(int(budget_amount) if budget_amount == int(budget_amount) else budget_amount)
+        entities["use_order_history"] = True
+        entities["requires_promo"] = True
+
     # Extract order status filter and last-N request
     if best_intent == "order_history":
         order_filter = _extract_order_filter(text)
@@ -1187,6 +1344,8 @@ _LAST_ORDER_SIGNALS = [
     "last purchase",
     "අලුත්ම order",
     "latest order",
+    "අවසන් order",
+    "අවසන්",
 ]
 
 
@@ -1319,6 +1478,8 @@ def _extract_product_hint(text: str, intent: str | None = None) -> str | None:
         r"(?:price|cost|මිල|මිලක්|ගණන)\s+(?:of\s+)?(?!අඩු|reduced|cut)([A-Za-z0-9඀-෿\s\-]{2,40})",
         r"(?:search|find|show|find me|product|භාණ්ඩ|නිෂ්පාදන|හොයන්න)\s+([A-Za-z0-9඀-෿\s\-]{2,60})",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:price|cost|available|availability|stock)",
+        # Budget-then-product with availability: "රුපියල් 500ට අඩු yogurt තියෙනවද"
+        r"(?:රුපියල්\.?\s*|රු\.?\s*|rs\.?\s*|lkr\.?\s*)?[0-9][0-9,]*\s*(?:කට|ට|ක\b|under|below|within)\s+(?:අඩු\s+)?([A-Za-z0-9඀-෿]{2,40}(?:\s+[A-Za-z0-9඀-෿]{2,20}){0,3})\s+(?:තියෙනවද|තියෙනවාද|තිබෙනවද|නැද්ද|ඇතිද|available)",
         r"([A-Za-z0-9඀-෿\s\-]{2,60})\s+(?:තියෙනවද|තියෙනවාද|තියෙනවා|තියනවද)",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+වල\s+මිල",
         r"([A-Za-z0-9඀-෿\s\-]{2,40})\s+මිල\s+(?:කීයද|මොකක්ද|මොකද)",

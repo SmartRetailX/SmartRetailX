@@ -563,9 +563,9 @@ async def _resolve_with_session(
         no_intent_switch = current_intent in ("general", saved_intent)
 
         if missing_product and no_intent_switch:
-            from .intent.keyword import _sanitize_entity_candidate
+            from .intent.keyword import _sanitize_entity_candidate, _transliterate_si_to_en
 
-            product_answer = _sanitize_entity_candidate(transcription)
+            product_answer = _sanitize_entity_candidate(_transliterate_si_to_en(transcription))
             if product_answer:
                 merged_entities = {**saved_entities, "product": product_answer}
                 logger.info(

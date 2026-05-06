@@ -28,11 +28,26 @@ _vocab_cache: dict[str, Any] = {"terms": [], "ts": 0.0}
 _VOCAB_TTL_SEC = 300  # refresh every 5 minutes
 
 
+_SPELLING_ALIASES: dict[str, str] = {
+    # American → British variants present in the product catalog
+    "yogurt": "yoghurt",
+    "yogurts": "yoghurts",
+    "donut": "doughnut",
+    "donuts": "doughnuts",
+}
+
+
 def _norm(text: str | None) -> str:
     """Lowercase, collapse whitespace, remove punctuation for fuzzy matching."""
     if not text:
         return ""
     return re.sub(r"[^\w\s]", "", text.lower().strip())
+
+
+def _normalize_search_query(query: str) -> str:
+    """Map common American spellings to the British variants used in the catalog."""
+    lowered = query.lower().strip()
+    return _SPELLING_ALIASES.get(lowered, query)
 
 
 def _row(record: asyncpg.Record) -> dict[str, Any]:
@@ -138,7 +153,7 @@ _PRODUCT_CATALOG_SELECT = """
 
 
 async def search_products(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    rows, _total = await search_products_page(query, limit=limit, offset=0)
+    rows, _total = await search_products_page(_normalize_search_query(query), limit=limit, offset=0)
     return rows
 
 
@@ -998,6 +1013,14 @@ async def get_buying_suggestions(
             if require_promo
             else ""
         )
+        budget_cap: float | None = None
+        raw_budget = filters.get("budget_amount")
+        if raw_budget is not None:
+            try:
+                budget_cap = float(str(raw_budget).replace(",", ""))
+            except (ValueError, TypeError):
+                budget_cap = None
+        budget_where = f"AND p.price <= {budget_cap}" if budget_cap else ""
 
         async with acquire() as conn:
             candidates: list[dict[str, Any]] = []
@@ -1038,6 +1061,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND p.category_id IN (SELECT category_id FROM user_cats)
                       AND p.id NOT IN (SELECT product_id FROM bought_products)
                     ORDER BY p.purchase_frequency DESC, p.name
@@ -1073,6 +1097,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND (lower(c.name) LIKE $1 OR lower(c.name_si) LIKE $1)
                     ORDER BY p.purchase_frequency DESC, p.name
                     LIMIT $2
@@ -1106,6 +1131,7 @@ async def get_buying_suggestions(
                     WHERE p.is_active = true
                       AND p.stock_quantity > 0
                       {promo_where}
+                      {budget_where}
                       AND p.purchase_frequency = 'high'
                     ORDER BY p.name
                     LIMIT $1
@@ -1142,6 +1168,19 @@ def _apply_buying_suggestion_filters(
     terms = _build_buying_filter_terms(filters)
     hint = _norm(category_hint or "")
     low_budget = str(filters.get("budget") or "").lower() == "low"
+
+    # Hard budget cap: drop rows that exceed an explicit budget_amount (SQL WHERE may
+    # not have caught rows already in candidates from a prior fetch without the cap)
+    cap: float | None = None
+    raw_cap = filters.get("budget_amount")
+    if raw_cap is not None:
+        try:
+            cap = float(str(raw_cap).replace(",", ""))
+        except (ValueError, TypeError):
+            cap = None
+    if cap is not None:
+        deduped = [r for r in deduped if float(r.get("price") or 0.0) <= cap]
+        low_budget = True
 
     scored: list[tuple[float, dict[str, Any]]] = []
     for row in deduped:

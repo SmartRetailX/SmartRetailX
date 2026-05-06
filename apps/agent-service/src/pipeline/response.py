@@ -427,11 +427,14 @@ def _render_buying_suggestions(ctx: ResolvedContext) -> str:
         "bestsellers": "ජනප්‍රිය භාණ්ඩ",
     }.get(source, "යෝජිත භාණ්ඩ")
 
+    budget_cap = ctx.entities.get("budget_amount")
+    budget_label = f" (රු. {budget_cap} ට ඇතුළත)" if budget_cap else ""
+
     preference_line = _build_buying_preference_line(ctx.entities)
     pref_extra = f"\n\n{preference_line}" if preference_line else ""
 
     lines: list[str] = [
-        f"### 🛍️ ඔබට නිර්දේශ – {source_label}\n\n"
+        f"### 🛍️ ඔබට නිර්දේශ{budget_label} – {source_label}\n\n"
         f"{pref_extra}\n\n"
         "| # | භාණ්ඩය | Brand | Category | මිල (රු.) |\n"
         "|:---:|---|---|---|---:|\n"
